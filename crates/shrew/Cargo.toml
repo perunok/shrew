@@ -1,0 +1,9 @@
+[package]
+name = "shrew"
+description = "A tiny, fast, keyboard-first GPU text editor (vim + Sublime)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+shrew-core.workspace = true

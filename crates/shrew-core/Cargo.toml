@@ -1,0 +1,21 @@
+[package]
+name = "shrew-core"
+description = "Editing engine for shrew: buffers, selections, vim/sublime keymaps. No GPU, no windowing."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+default = ["picker", "syntax"]
+# Syntax highlighting with Sublime grammars (syntect, pure Rust).
+syntax = ["dep:syntect"]
+# Fuzzy file picker (walks the project respecting .gitignore).
+picker = ["dep:ignore"]
+
+[dependencies]
+ropey.workspace = true
+smallvec.workspace = true
+unicode-width.workspace = true
+regex.workspace = true
+ignore = { workspace = true, optional = true }
+syntect = { workspace = true, optional = true }

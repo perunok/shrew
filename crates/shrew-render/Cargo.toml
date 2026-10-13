@@ -1,0 +1,8 @@
+[package]
+name = "shrew-render"
+description = "shrew's GPU renderer: wgpu, a cached glyph atlas and instanced quads."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]

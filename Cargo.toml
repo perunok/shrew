@@ -1,0 +1,48 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/shrew-core",
+    "crates/shrew-render",
+    "crates/shrew-syntax",
+    "crates/shrew-config",
+    "crates/shrew-mcp",
+    "crates/shrew-update",
+    "crates/shrew",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[workspace.dependencies]
+shrew-core = { path = "crates/shrew-core" }
+shrew-render = { path = "crates/shrew-render" }
+ropey = { version = "1.6", default-features = false, features = ["simd"] }
+smallvec = "1.15"
+unicode-width = "0.2"
+regex = "1.11"
+ignore = "0.4"
+wgpu = "30"
+winit = "0.30"
+cosmic-text = "0.19"
+etagere = "0.3"
+bytemuck = { version = "1.25", features = ["derive"] }
+pollster = "1"
+arboard = { version = "3.6", default-features = false, features = ["wayland-data-control"] }
+# Pure-Rust syntax highlighting with Sublime grammars (fancy-regex, no oniguruma C library).
+syntect = { version = "5.3", default-features = false, features = ["default-syntaxes", "parsing", "regex-fancy"] }
+toml = "1"
+serde = { version = "1", features = ["derive"] }
+log = "0.4"
+env_logger = { version = "0.11", default-features = false, features = ["auto-color"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev.package."*"]
+opt-level = 2

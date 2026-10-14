@@ -30,14 +30,15 @@ pub fn run(cli: &Cli, out: &std::path::Path) -> Result<(), String> {
     let mut scene = Scene::new();
     let layout = |r: &Renderer, st: &State| {
         let ed = &st.ed;
-        Layout::new(
+        let lay = Layout::new(
             &r.metrics(),
             r.size(),
             r.scale(),
             ed.buf().doc.rope.len_lines(),
             ed.features.on(Feature::LineNumbers),
             ed.buffers.len() > 1,
-        )
+        );
+        crate::titlebar::layout(lay, ed)
     };
     // a first layout pass sizes the views, so keys like Ctrl+D scroll by the real page
     let lay = layout(&r, &st);

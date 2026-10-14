@@ -10,8 +10,8 @@ motion, character or register name. "Ctrl" also means ⌘ Cmd on macOS. Vim keys
 
 **Order of precedence** for a key press:
 
-1. An open picker (file finder, palette, buffers, features), the About panel or a prompt (`:`, `/`, `?`) takes
-   every key.
+1. An open menu (the title bar's), then an open picker (file finder, palette, buffers, features), the About panel
+   or a prompt (`:`, `/`, `?`) takes every key. F10 and Alt+F/E/V/G/H open the menus unless you mapped them.
 2. Your mappings (`[keys.*]` in `config.toml`, imported vimrc and Sublime bindings) come next. See
    [CONFIG.md](CONFIG.md#keys).
 3. Then the global chords below, unless a vim command is half-typed (after `d`, `"a` or `f`, the next key belongs
@@ -20,8 +20,8 @@ motion, character or register name. "Ctrl" also means ⌘ Cmd on macOS. Vim keys
 
 **Contents:** [Global chords](#global-chords) · [Insert mode](#insert-mode) · [Normal mode](#normal-mode) ·
 [Visual mode](#visual-mode) · [Prompts](#prompts--and-) · [Pickers](#pickers) · [About panel](#about-panel) ·
-[Ex commands](#ex-commands) ·
-[Named commands](#named-commands) · [Mouse](#mouse)
+[Menus](#menus) · [Ex commands](#ex-commands) ·
+[Named commands](#named-commands) · [Mouse](#mouse) · [Title bar](#title-bar)
 
 ## Global chords
 
@@ -325,6 +325,24 @@ read-only.
 | `g`, Home / `G`, End | Top / bottom |
 | Esc, Enter, `q`, Ctrl+C, Ctrl+[, a click outside | Close |
 
+## Menus
+
+The custom title bar (feature `custom_titlebar`, on by default) has an application menu: File, Edit, Selection,
+View, Go, Terminal and Help. Each entry shows the chord that runs it in the current mode; entries for commands this
+build does not have are left out.
+
+| Keys | Action |
+| --- | --- |
+| F10, palette *View: Open Menu* | Open the menu (the focus on the list of menus) |
+| Alt+F / Alt+E / Alt+V / Alt+G / Alt+H | Open File / Edit / View / Go / Help |
+| Up / Down | Previous / next menu, or entry once inside one |
+| Right / Enter | Into the highlighted menu; inside one, Right goes to the next menu |
+| Left | Back to the list of menus |
+| Home / End | First / last entry |
+| typing | The next entry starting with what you typed; on the list of menus, a menu's letter opens it |
+| Enter, Space | Run the entry |
+| Esc, F10, a click outside | Close |
+
 ## Ex commands
 
 Type them at the `:` prompt. Every [named command](#named-commands) also works as `:name`, for example `:palette`
@@ -446,6 +464,11 @@ command palette by its title.
 | `config` | Shrew: Open Config File | |
 | `mcp` | Shrew: AI Assistants (MCP) Setup | |
 | `about` | About shrew | `:about` |
+| `menu` | View: Open Menu | F10 (custom title bar) |
+| `system_titlebar` | View: Toggle System Title Bar | `:set custom_titlebar!` |
+| `customize_titlebar` | View: Customize Title Bar… | right-click the title bar |
+| `minimize` | Window: Minimize | the title bar's button |
+| `maximize` | Window: Maximize / Restore | double-click the title bar |
 
 ## Mouse
 
@@ -458,3 +481,18 @@ command palette by its title.
 | Shift+click | Extend the selection to the click |
 | Ctrl+click, Alt+click | Add a cursor (or a selection, when dragging) |
 | Wheel | Scroll without moving the cursor |
+
+## Title bar
+
+With the custom title bar (feature `custom_titlebar`, on by default), the top row is the window's title bar and
+holds the buffer tabs. Which items it shows, and where, is set in [`[titlebar]`](CONFIG.md#titlebar).
+
+| Action | Effect |
+| --- | --- |
+| Drag an empty part | Move the window (through the window manager, so snapping and tiling work) |
+| Double-click an empty part | Maximize / restore |
+| Right-click an empty part | *Customize Title Bar…*, *Use System Title Bar* |
+| Drag a window edge or corner | Resize (5 px borders, wider at the corners; not while maximized) |
+| Click the menu button (three lines) | Open the menus; hovering a menu opens it |
+| Click a tab | Switch to that buffer |
+| Minimize, maximize/restore, close | The window buttons; close asks once when there are unsaved changes |

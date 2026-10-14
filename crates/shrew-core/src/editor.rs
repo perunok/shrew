@@ -134,6 +134,8 @@ pub enum Event {
     ThemeImport(String),
     /// `:set ligatures` (`Some(true)`), `:set noligatures`, or a toggle (`None`).
     Ligatures(Option<bool>),
+    /// A command only the app can carry out (the window, the title bar's menus).
+    App(Command),
 }
 
 #[derive(Clone, Debug)]
@@ -711,8 +713,9 @@ impl Editor {
         }
     }
 
-    /// Key bindings that work in every mode (Sublime-style chords), checked before the vim layer.
-    fn binding(&self, k: KeyPress) -> Option<Command> {
+    /// Key bindings that work in every mode (Sublime-style chords), checked before the vim layer. Public so menus can
+    /// show the chord that runs a command.
+    pub fn binding(&self, k: KeyPress) -> Option<Command> {
         use Command::*;
         let m = k.mods;
         let insert = self.mode == Mode::Insert || !self.vim();
@@ -946,6 +949,9 @@ impl Editor {
                 self.prompt = None;
                 self.about = Some(0);
             }
+            // ----- phase 3: titlebar -----
+            ToggleSystemTitleBar => self.toggle_feature(Feature::CustomTitlebar),
+            ShowMenu | CustomizeTitleBar | MinimizeWindow | ToggleMaximize => self.events.push(Event::App(cmd)),
         }
     }
 

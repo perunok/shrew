@@ -32,7 +32,8 @@ list), pick a theme, accent or font, or change the font size, shrew updates that
 choice survives a restart. Your comments, ordering and formatting are kept.
 
 **Contents:** [`[editor]`](#editor) · [`[theme]`](#theme) · [`[font]`](#font) · [`[features]`](#features) ·
-[`[keys]`](#keys) · [`[import]`](#import) · [`[mcp]`](#mcp) · [`[update]`](#update) · [Full example](#full-example)
+[`[keys]`](#keys) · [`[import]`](#import) · [`[mcp]`](#mcp) · [`[update]`](#update) · [`[titlebar]`](#titlebar) ·
+[Full example](#full-example)
 
 ## `[editor]`
 
@@ -257,6 +258,42 @@ These environment variables are for testing and mirrors:
 | --- | --- |
 | `SHREW_UPDATE_REPO` | GitHub `owner/name` to take releases from (default `perunok/shrew`) |
 | `SHREW_UPDATE_FEED_URL` | Any URL serving GitHub's "latest release" JSON |
+
+## `[titlebar]`
+
+The custom title bar (feature `custom_titlebar`, on by default) replaces the system's: shrew draws the top row with the
+buffer tabs in the middle and these items around them. Turn the feature off (`:set nocustom_titlebar`, palette
+*View: Toggle System Title Bar*, or right-click the bar > *Use System Title Bar*) to get the system title bar back
+at once; the tabs then move back to their own row. On macOS the traffic lights stay native (switching applies when
+shrew restarts there).
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `left` | list of items | `["menu", "sidebar", "project", "tabs"]` | Items at the left, in order |
+| `right` | list of items | `["files", "terminal", "settings", "about", "minimize", "maximize", "close"]` | Items at the right, in order |
+| `hidden` | list of items | `[]` | Items not shown |
+
+| Item | What it is |
+| --- | --- |
+| `menu` | The menu button: File, Edit, Selection, View, Go, Terminal, Help (also F10, Alt+F) |
+| `sidebar` | Toggles the sidebar (`toggle_sidebar`) |
+| `project` | The project's name; a click opens the recent projects (or the file picker) |
+| `tabs` | The buffer tabs; they take the room the other items leave |
+| `files` | Go to File (Ctrl+P) |
+| `terminal` | Toggles the terminal panel (`toggle_terminal`) |
+| `settings` | Settings (`settings`) |
+| `about` | About shrew |
+| `minimize`, `maximize`, `close` | The window buttons (not on macOS, which keeps its own) |
+
+An item whose command this build lacks is not drawn. An item none of the lists mentions goes where the default puts
+it, a name given twice keeps its first place, and unknown names are skipped with a warning in the log. `tabs`,
+`settings` and the window buttons can move anywhere but not be hidden: a window must stay closable. Neighbouring
+window buttons sit together, and one at the very edge sits in the window's corner, so this gives macOS order:
+
+```toml
+[titlebar]
+left = ["close", "minimize", "maximize", "menu", "project", "tabs"]
+```
 
 ## Full example
 

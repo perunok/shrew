@@ -2,7 +2,7 @@
 //! touched, so a frame costs the same in a 10-line file and a 10-million-line one.
 //!
 //! Layers: 0 = editor (backgrounds, selections, text) and bars; 1 = cursors and the scrollbar (above text);
-//! 2 = the picker and About overlays.
+//! 2 = the picker and About overlays; 3 = the title bar's menus.
 
 use crate::anim::{Anim, Target};
 use crate::colors::{Colors, mix};
@@ -115,7 +115,9 @@ pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: 
     ui.hits = Hits::default();
     ui.cursor_rect = None;
 
-    tabs(scene, st, ui, lay, &c);
+    if !crate::titlebar::draw(scene, st, ui, lay, &c) {
+        tabs(scene, st, ui, lay, &c);
+    }
     editor(scene, st, ui, lay, &c, scroll);
     status(scene, st, ui, lay, &c);
     cmdline(scene, &st.ed, st, lay, &c);
@@ -125,6 +127,7 @@ pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: 
     if st.ed.about.is_some() {
         about(scene, &mut st.ed, ui, lay, &c);
     }
+    crate::titlebar::draw_menus(scene, st, lay, &c);
     animating
 }
 
@@ -696,14 +699,19 @@ fn welcome(scene: &mut Scene, ed: &Editor, lay: &Layout, c: &Colors) {
 // ----- bars -----
 
 fn tabs(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors) {
-    if lay.tabs.h <= 0.0 {
+    tabs_in(scene, st, ui, lay, c, lay.tabs);
+}
+
+/// The buffer tabs in `area` (their own row, or the middle of the custom title bar).
+pub(crate) fn tabs_in(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors, area: Rect) {
+    if area.h <= 0.0 || area.w <= 0.0 {
         return;
     }
     let ed = &st.ed;
-    scene.rect(lay.tabs, c.panel_background);
-    scene.push_clip(lay.tabs);
+    scene.rect(area, c.panel_background);
+    scene.push_clip(area);
     let r = (6.0 * lay.scale).round();
-    let mut x = lay.pad;
+    let mut x = area.x + lay.pad;
     // keep the active tab in view
     let widths: Vec<f32> = ed
         .buffers
@@ -711,12 +719,12 @@ fn tabs(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors) {
         .map(|b| (columns(&b.doc.display_name()) as f32 + 4.0 + if b.doc.dirty { 2.0 } else { 0.0 }) * lay.cw)
         .collect();
     let before: f32 = widths[..ed.active].iter().sum();
-    let shift = (before + widths[ed.active] + 2.0 * lay.pad - lay.width).max(0.0);
+    let shift = (before + widths[ed.active] + 2.0 * lay.pad - area.w).max(0.0);
     x -= shift;
-    let ty = lay.centered(lay.tabs.y + lay.pad / 2.0, lay.tabs.h);
+    let ty = lay.centered(area.y + lay.pad / 2.0, area.h);
     for (i, b) in ed.buffers.iter().enumerate() {
         let w = widths[i];
-        let tab = Rect::new(x.round(), lay.tabs.y + lay.pad, w.round(), lay.tabs.h - lay.pad);
+        let tab = Rect::new(x.round(), area.y + lay.pad, w.round(), area.h - lay.pad);
         let active = i == ed.active;
         if active {
             // rounded on top only: the bottom corners hang below the clip
@@ -986,7 +994,7 @@ fn picker(scene: &mut Scene, ed: &Editor, ui: &mut Ui, lay: &Layout, c: &Colors)
 }
 
 /// A floating panel with a soft shadow, as the picker and the About panel use.
-fn popup(scene: &mut Scene, panel: Rect, lay: &Layout, c: &Colors) {
+pub(crate) fn popup(scene: &mut Scene, panel: Rect, lay: &Layout, c: &Colors) {
     let Rect { x, y, w, h } = panel;
     let radius = (8.0 * lay.scale).round();
     for i in 1..=4 {

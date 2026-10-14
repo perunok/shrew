@@ -18,7 +18,9 @@ pub mod sublime;
 pub mod vimrc;
 
 pub use file::{default_config_text, font_weight, parse};
-pub use persist::{ConfigDoc, Setting, persist_feature, persist_setting, persist_value, write_default_if_missing};
+pub use persist::{
+    ConfigDoc, Setting, persist_feature, persist_list, persist_setting, persist_value, write_default_if_missing,
+};
 pub use shrew_core::keymap::{MapMode, Mapping, Rhs};
 
 use shrew_core::commands::Command;
@@ -186,6 +188,16 @@ pub struct Config {
     pub bindings: Vec<(MapMode, Mapping)>,
     pub import: ImportConfig,
     pub mcp_port: Option<u16>,
+    /// `[titlebar]`: the custom title bar's items.
+    pub titlebar: TitleBarConfig,
+}
+
+/// `[titlebar] left / right / hidden`: item names as written (the app knows which exist and sanitises them).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct TitleBarConfig {
+    pub left: Option<Vec<String>>,
+    pub right: Option<Vec<String>>,
+    pub hidden: Option<Vec<String>>,
 }
 
 impl Config {
@@ -224,6 +236,12 @@ impl Config {
         }
         if over.mcp_port.is_some() {
             self.mcp_port = over.mcp_port;
+        }
+        let (t, o) = (&mut self.titlebar, &over.titlebar);
+        for (slot, v) in [(&mut t.left, &o.left), (&mut t.right, &o.right), (&mut t.hidden, &o.hidden)] {
+            if v.is_some() {
+                slot.clone_from(v);
+            }
         }
     }
 }

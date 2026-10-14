@@ -50,6 +50,9 @@ Every shot is the real editor, rendered headless from shrew's own source code. R
   `config.toml`, and shrew's own changes to it (`:set`, theme and font pickers) keep your comments.
 - **Pickers.** A fuzzy file finder (Ctrl+P) that walks the project in the background and respects `.gitignore`, a
   command palette (Ctrl+Shift+P), a buffer list (Ctrl+Shift+B) and the Features list.
+- **A title bar of its own.** The tabs, the menus (F10, Alt+F) and the window buttons share the top row, arranged
+  as you like (`[titlebar]`). Drag it to move the window, double-click to maximize, or switch back to the system
+  title bar with one toggle.
 - **Themes.** 33 built in (Dracula, Nord, Gruvbox, Catppuccin, Tokyo Night, Solarized, One Dark, two high-contrast
   ones and more), 18 accents over any of them, following the desktop's light/dark setting, your own TOML themes,
   and imported Sublime or TextMate color schemes. Theme, accent and font pickers preview live. See
@@ -107,6 +110,7 @@ the table below for your build and config.
 | `update_check` | Check GitHub for new releases at startup (at most once a day) | on | `update` |
 | `vimrc` | Read options and mappings from `~/.vimrc` or `init.vim` at startup (see `[import]`) | on | |
 | `sublime_import` | Read Sublime Text's user settings and key bindings at startup (see `[import]`) | on | |
+| `custom_titlebar` | shrew's own title bar: tabs, menus (F10) and window buttons in one row. Off: the system title bar | on | |
 
 Keys also work without the underscore (`:set nolinenumbers`). The usual vim spellings work too: `:set nu`, `rnu`,
 `hls`, `list`, `et`, `ts=2`, `so=8`.

@@ -63,6 +63,12 @@ pub enum Command {
     OpenConfig,
     McpSetup,
     About,
+    // ----- phase 3: titlebar -----
+    ShowMenu,
+    ToggleSystemTitleBar,
+    CustomizeTitleBar,
+    MinimizeWindow,
+    ToggleMaximize,
 }
 
 use Command::*;
@@ -130,6 +136,12 @@ pub static COMMANDS: &[(Command, &str, &str)] = &[
     (OpenConfig, "config", "Shrew: Open Config File"),
     (McpSetup, "mcp", "Shrew: AI Assistants (MCP) Setup"),
     (About, "about", "About shrew"),
+    // ----- phase 3: titlebar -----
+    (ShowMenu, "menu", "View: Open Menu"),
+    (ToggleSystemTitleBar, "system_titlebar", "View: Toggle System Title Bar"),
+    (CustomizeTitleBar, "customize_titlebar", "View: Customize Title Bar…"),
+    (MinimizeWindow, "minimize", "Window: Minimize"),
+    (ToggleMaximize, "maximize", "Window: Maximize / Restore"),
 ];
 
 impl Command {

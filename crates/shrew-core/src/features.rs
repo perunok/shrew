@@ -25,6 +25,8 @@ pub enum Feature {
     UpdateCheck,
     Vimrc,
     SublimeImport,
+    // ----- phase 3: titlebar -----
+    CustomTitlebar,
 }
 
 pub struct FeatureInfo {
@@ -70,6 +72,13 @@ pub static FEATURES: &[FeatureInfo] = &[
         "sublime_import",
         true,
         "Read Sublime Text's user settings and key bindings at startup (see [import])",
+    ),
+    // ----- phase 3: titlebar -----
+    f(
+        Feature::CustomTitlebar,
+        "custom_titlebar",
+        true,
+        "shrew's own title bar: tabs, menus and window buttons in one row. Off: the system title bar",
     ),
 ];
 

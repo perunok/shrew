@@ -207,6 +207,7 @@ impl ApplicationHandler<UserEvent> for App {
         let attrs = Window::default_attributes()
             .with_title(self.window_title())
             .with_inner_size(LogicalSize::new(1100.0, 720.0));
+        let attrs = crate::titlebar::attributes(attrs, crate::titlebar::on(&self.st.ed));
         #[cfg(all(unix, not(target_os = "macos"), not(target_os = "android")))]
         let attrs = {
             use winit::platform::startup_notify::{EventLoopExtStartupNotify, WindowAttributesExtStartupNotify};
@@ -250,6 +251,7 @@ impl ApplicationHandler<UserEvent> for App {
         if let Some(t) = window.theme() {
             self.st.set_os_dark(t == winit::window::Theme::Dark);
         }
+        crate::titlebar::apply(&mut self.st, &window);
         window.set_cursor(CursorIcon::Text);
         self.icon = CursorIcon::Text;
         self.renderer = Some(r);
@@ -352,6 +354,7 @@ impl ApplicationHandler<UserEvent> for App {
                 self.ui.focused = f;
                 if !f {
                     self.mods = ModifiersState::empty();
+                    self.st.titlebar.menu = None; // menus close when the window loses the focus
                 }
                 self.blink_epoch = Instant::now();
                 self.redraw();
@@ -386,7 +389,11 @@ impl ApplicationHandler<UserEvent> for App {
             }
             WindowEvent::Ime(ime) => self.ime(ime),
             WindowEvent::CursorMoved { position, .. } => self.pointer_moved(position.x as f32, position.y as f32),
-            WindowEvent::CursorLeft { .. } => {}
+            WindowEvent::CursorLeft { .. } => {
+                if crate::titlebar::pointer_left(&mut self.st) {
+                    self.redraw();
+                }
+            }
             WindowEvent::MouseInput { state, button, .. } => self.mouse_button(state, button),
             WindowEvent::MouseWheel { delta, .. } => self.wheel(delta),
             WindowEvent::DroppedFile(path) => {
@@ -422,6 +429,12 @@ impl App {
 
     /// Something the user did changed the editor: draw it, restart the blink, keep the input method in step.
     fn input(&mut self, now: Instant) {
+        // window work the title bar queued (its buttons, menus, a feature switched)
+        if let Some(w) = &self.window
+            && crate::titlebar::apply(&mut self.st, w)
+        {
+            self.st.close_requested();
+        }
         self.input_at.get_or_insert(now);
         self.blink_epoch = now;
         self.update_ime();
@@ -462,28 +475,29 @@ impl App {
     }
 
     fn window_title(&self) -> String {
-        let b = self.st.ed.buf();
-        format!("{}{} — shrew", b.doc.display_name(), if b.doc.dirty { " ●" } else { "" })
+        crate::titlebar::window_title(&self.st.ed)
     }
 
     fn resize(&mut self, size: PhysicalSize<u32>, scale: Option<f32>) {
         let (Some(r), Some(w)) = (&mut self.renderer, &self.window) else { return };
         let scale = scale.unwrap_or(w.scale_factor() as f32);
         r.resize(size.width, size.height, scale);
+        self.st.titlebar.maximized = w.is_maximized();
         self.redraw();
     }
 
     fn layout(&self) -> Option<Layout> {
         let r = self.renderer.as_ref()?;
         let ed = &self.st.ed;
-        Some(Layout::new(
+        let lay = Layout::new(
             &r.metrics(),
             r.size(),
             r.scale(),
             ed.buf().doc.rope.len_lines(),
             ed.features.on(Feature::LineNumbers),
             ed.buffers.len() > 1,
-        ))
+        );
+        Some(crate::titlebar::layout(lay, ed))
     }
 
     fn frame(&mut self) {
@@ -646,11 +660,18 @@ impl App {
         }
         match (state, button) {
             (ElementState::Pressed, MouseButton::Left) => self.left_press(x, y, now),
+            (ElementState::Pressed, MouseButton::Right) => {
+                if crate::titlebar::right_press(&mut self.st, &self.ui.hits, x, y) {
+                    self.input(now);
+                }
+            }
             (ElementState::Released, MouseButton::Left) => {
                 if self.drag == Drag::Text {
                     self.st.ed.mouse_up();
                     self.st.after_input();
                 }
+                // a title bar button acts when released over it
+                crate::titlebar::release(&mut self.st, &self.ui.hits, x, y);
                 self.drag = Drag::None;
                 self.autoscroll = None;
                 self.input(now);
@@ -661,6 +682,10 @@ impl App {
 
     fn left_press(&mut self, x: f32, y: f32, now: Instant) {
         let Some(lay) = self.lay else { return };
+        // the title bar, its menus and the window's resize borders come first
+        if crate::titlebar::press(&mut self.st, &self.ui.hits, &lay, self.window.as_deref(), x, y, now) {
+            return self.input(now);
+        }
         let hits = &self.ui.hits;
         // the About panel is modal too: a click outside closes it
         if self.st.ed.about.is_some() {
@@ -754,7 +779,14 @@ impl App {
             }
             Drag::None => {}
         }
-        let icon = if self.st.ed.picker.is_none()
+        let (redraw, bar_icon) =
+            crate::titlebar::pointer_moved(&mut self.st, &self.ui.hits, &lay, self.window.as_deref(), x, y);
+        if redraw {
+            self.redraw();
+        }
+        let icon = if let Some(icon) = bar_icon {
+            icon
+        } else if self.st.ed.picker.is_none()
             && self.st.ed.about.is_none()
             && lay.text_rect().contains(x, y)
             && !self.ui.hits.scrollbar.is_some_and(|(t, _)| t.contains(x, y))
@@ -806,6 +838,9 @@ impl App {
 
     fn wheel(&mut self, delta: MouseScrollDelta) {
         let Some(lay) = self.lay else { return };
+        if self.st.titlebar.menu.is_some() {
+            return; // nothing scrolls under an open menu
+        }
         if let Some(p) = &mut self.st.ed.picker {
             let dy = match delta {
                 MouseScrollDelta::LineDelta(_, y) => -y,

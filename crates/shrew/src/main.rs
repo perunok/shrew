@@ -9,6 +9,7 @@
 //! - [`draw`] / [`layout`] / [`anim`]: building a frame from the state, and the geometry hit testing shares.
 //! - [`about`]: the About panel's text (version, the Shrew Manifesto, credits).
 //! - [`headless`]: `--screenshot`, a frame rendered without a window.
+//! - [`titlebar`]: the custom title bar (tabs, menus, window buttons) and its window behaviour.
 
 mod about;
 mod anim;
@@ -25,6 +26,7 @@ mod launch;
 mod layout;
 mod remote;
 mod state;
+mod titlebar;
 
 use cli::{Action, Cli};
 

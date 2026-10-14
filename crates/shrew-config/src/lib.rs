@@ -499,10 +499,10 @@ pub fn apply(config: &Config, editor: &mut Editor) -> Vec<Warning> {
         editor.set_mode(if editor.vim() { Mode::Normal } else { Mode::Insert });
     }
     let km = &mut editor.keymap;
-    if let Some(l) = &e.leader {
-        if !km.set_leader(l) {
-            warnings.push(Warning::new("config", None, format!("leader {l:?} is not a single key")));
-        }
+    if let Some(l) = &e.leader
+        && !km.set_leader(l)
+    {
+        warnings.push(Warning::new("config", None, format!("leader {l:?} is not a single key")));
     }
     km.timeout_ms = e.mapping_timeout_ms();
     for (mode, m) in &config.bindings {

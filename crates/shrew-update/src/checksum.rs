@@ -33,7 +33,7 @@ pub(crate) fn decode_hex(hex: &str) -> Option<[u8; 32]> {
     }
     let nibble = |c: u8| (c as char).to_digit(16).map(|d| d as u8);
     let mut out = [0; 32];
-    for (i, pair) in bytes.chunks_exact(2).enumerate() {
+    for (i, pair) in bytes.as_chunks::<2>().0.iter().enumerate() {
         out[i] = (nibble(pair[0])? << 4) | nibble(pair[1])?;
     }
     Some(out)

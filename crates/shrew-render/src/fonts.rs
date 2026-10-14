@@ -396,6 +396,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "embed-font")]
     fn embedded_ids_are_stable() {
         let ids = |db: Database| db.faces().map(|f| f.id).collect::<Vec<_>>();
         let a = ids(base_db());

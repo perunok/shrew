@@ -300,27 +300,28 @@ impl Editor {
         g.error = None;
         self.grep_last = (p.query.clone(), g.opts.clone());
         if p.query.is_empty() {
-            return p.restart(None);
-        }
-        #[cfg(feature = "project")]
-        {
-            let re = crate::grep::build_regex(&p.query, &g.opts)
-                .and_then(|re| project::check_globs(&g.root, &g.opts.globs).map(|_| re));
-            match re {
-                Ok(re) => {
-                    let rx = crate::grep::spawn(
-                        &g.root,
-                        re,
-                        &g.opts.globs,
-                        g.stats.clone(),
-                        g.cancel.clone(),
-                        self.waker.clone(),
-                    );
-                    p.restart(Some(rx));
-                }
-                Err(e) => {
-                    g.error = Some(e);
-                    p.restart(None);
+            p.restart(None);
+        } else {
+            #[cfg(feature = "project")]
+            {
+                let re = crate::grep::build_regex(&p.query, &g.opts)
+                    .and_then(|re| project::check_globs(&g.root, &g.opts.globs).map(|_| re));
+                match re {
+                    Ok(re) => {
+                        let rx = crate::grep::spawn(
+                            &g.root,
+                            re,
+                            &g.opts.globs,
+                            g.stats.clone(),
+                            g.cancel.clone(),
+                            self.waker.clone(),
+                        );
+                        p.restart(Some(rx));
+                    }
+                    Err(e) => {
+                        g.error = Some(e);
+                        p.restart(None);
+                    }
                 }
             }
         }

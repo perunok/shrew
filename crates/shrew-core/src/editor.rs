@@ -695,12 +695,12 @@ impl Editor {
             self.after_key();
             return;
         }
-        if self.pending.is_empty() {
-            if let Some(cmd) = self.binding(k) {
-                self.run(cmd);
-                self.after_key();
-                return;
-            }
+        if self.pending.is_empty()
+            && let Some(cmd) = self.binding(k)
+        {
+            self.run(cmd);
+            self.after_key();
+            return;
         }
         if self.mode == Mode::Insert || !self.vim() {
             if let Some(rec) = &mut self.dot_recording {

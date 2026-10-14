@@ -436,12 +436,12 @@ impl Work {
                 out.push(run.start..lo);
                 run.start = lo;
             }
-            if run.end > hi {
-                if let Some(k) = run.ckpts.iter().rposition(|c| c.line <= hi && c.line >= run.start) {
-                    out.push(run.ckpts[k].line..run.end);
-                    run.ckpts.truncate(k + 1);
-                    run.end = run.ckpts[k].line;
-                }
+            if run.end > hi
+                && let Some(k) = run.ckpts.iter().rposition(|c| c.line <= hi && c.line >= run.start)
+            {
+                out.push(run.ckpts[k].line..run.end);
+                run.ckpts.truncate(k + 1);
+                run.end = run.ckpts[k].line;
             }
             true
         });
@@ -473,7 +473,7 @@ impl Work {
         let mut last_ckpt = self.runs[i].ckpts.last().map_or(self.runs[i].start, |c| c.line);
         let deadline = Instant::now() + SLICE;
         while l < n && l < until {
-            if l % 16 == 0 && Instant::now() >= deadline {
+            if l.is_multiple_of(16) && Instant::now() >= deadline {
                 break;
             }
             if let Some(next) = self.runs.get_mut(i + 1).filter(|r| r.start <= l) {

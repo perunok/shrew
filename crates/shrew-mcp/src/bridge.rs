@@ -64,10 +64,8 @@ impl<T: Transport> Bridge<T> {
             Ok(Sent::Accepted) => return None,
             Err(message) => return id.map(|id| crate::protocol::error_response(id, -32000, &message).to_string()),
         };
-        if is_initialize {
-            if let Ok(v) = serde_json::from_str::<Value>(&answer) {
-                self.protocol_version = v.pointer("/result/protocolVersion").and_then(Value::as_str).map(String::from);
-            }
+        if is_initialize && let Ok(v) = serde_json::from_str::<Value>(&answer) {
+            self.protocol_version = v.pointer("/result/protocolVersion").and_then(Value::as_str).map(String::from);
         }
         Some(answer)
     }
@@ -102,10 +100,10 @@ impl<T: Transport> Bridge<T> {
         let started = Instant::now();
         while started.elapsed() < START_TIMEOUT {
             self.transport.sleep(Duration::from_millis(100));
-            if let Some(ep) = files::read_endpoint(&self.dir) {
-                if matches!(self.transport.post(&ep, None, &ping), Ok(Sent::Answer(_))) {
-                    return Ok(());
-                }
+            if let Some(ep) = files::read_endpoint(&self.dir)
+                && matches!(self.transport.post(&ep, None, &ping), Ok(Sent::Answer(_)))
+            {
+                return Ok(());
             }
             if !files::read_launch(&self.dir).enabled {
                 return Err(TURNED_OFF.into());

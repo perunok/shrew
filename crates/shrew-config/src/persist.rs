@@ -133,25 +133,23 @@ fn uncomment(text: &str, table: &str, key: &str, value: &Value) -> Option<String
         let t = line.trim();
         if t.starts_with('[') {
             in_table = t.split('#').next().is_some_and(|h| h.trim() == header);
-        } else if in_table {
-            if let Some(rest) = t.strip_prefix('#') {
-                let rest = rest.trim_start_matches('#').trim_start();
-                let is_key = rest.strip_prefix(key).is_some_and(|r| r.trim_start().starts_with('='));
-                if is_key {
-                    let indent = &line[..line.len() - line.trim_start().len()];
-                    let nl = if line.ends_with("\r\n") {
-                        "\r\n"
-                    } else if line.ends_with('\n') {
-                        "\n"
-                    } else {
-                        ""
-                    };
-                    let mut out = String::with_capacity(text.len());
-                    out += &text[..offset];
-                    out += &format!("{indent}{key} = {}{nl}", bare(value));
-                    out += &text[offset + line.len()..];
-                    return Some(out);
-                }
+        } else if in_table && let Some(rest) = t.strip_prefix('#') {
+            let rest = rest.trim_start_matches('#').trim_start();
+            let is_key = rest.strip_prefix(key).is_some_and(|r| r.trim_start().starts_with('='));
+            if is_key {
+                let indent = &line[..line.len() - line.trim_start().len()];
+                let nl = if line.ends_with("\r\n") {
+                    "\r\n"
+                } else if line.ends_with('\n') {
+                    "\n"
+                } else {
+                    ""
+                };
+                let mut out = String::with_capacity(text.len());
+                out += &text[..offset];
+                out += &format!("{indent}{key} = {}{nl}", bare(value));
+                out += &text[offset + line.len()..];
+                return Some(out);
             }
         }
         offset += line.len();

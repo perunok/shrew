@@ -127,11 +127,11 @@ fn logical_lines(text: &str) -> Vec<(usize, String)> {
     let mut out: Vec<(usize, String)> = Vec::new();
     for (n, line) in text.lines().enumerate() {
         let t = line.trim_start();
-        if let Some(rest) = t.strip_prefix('\\') {
-            if let Some(last) = out.last_mut() {
-                last.1.push_str(rest);
-                continue;
-            }
+        if let Some(rest) = t.strip_prefix('\\')
+            && let Some(last) = out.last_mut()
+        {
+            last.1.push_str(rest);
+            continue;
         }
         if t.starts_with("\"\\ ") {
             continue;
@@ -153,8 +153,7 @@ fn block_end(lines: &[(usize, String)], i: usize) -> Option<usize> {
     let word = first_word(cmd);
     // `lua << EOF`, `python3 << EOF`, `let x =<< trim END`
     if let Some(pos) = cmd.find("<<") {
-        let marker =
-            cmd[pos + 2..].split_whitespace().filter(|w| *w != "trim" && *w != "eval").next_back().unwrap_or("EOF");
+        let marker = cmd[pos + 2..].split_whitespace().rfind(|w| *w != "trim" && *w != "eval").unwrap_or("EOF");
         let heredoc = matches!(word, "lua" | "python" | "python3" | "py" | "py3" | "perl" | "ruby" | "let");
         if heredoc && !cmd[pos..].contains('>') {
             return Some(

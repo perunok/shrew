@@ -44,9 +44,9 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      # Warnings are reported (annotated on the PR) but do not fail the build yet; switch to `-D warnings` once the
-      # workspace is clean.
-      - run: cargo clippy --workspace --all-targets --locked
+      # The workspace is lint-clean: any new warning fails the build, with every feature and with none.
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo clippy --workspace --all-targets --locked --no-default-features -- -D warnings
 
   test:
     name: test (${{ matrix.os }})

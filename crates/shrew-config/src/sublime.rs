@@ -593,7 +593,7 @@ mod tests {
         let ctrl_shift_p = KeyPress::new(Key::Char('p'), Mods { ctrl: true, shift: true, ..Mods::default() });
         assert_eq!(kp("ctrl+shift+p"), ctrl_shift_p);
         assert_eq!(kp("primary+s"), KeyPress::ctrl('s'));
-        assert_eq!(parse_key("primary+s", Os::MacOs).unwrap().mods.logo, true);
+        assert!(parse_key("primary+s", Os::MacOs).unwrap().mods.logo);
         assert_eq!(kp("ctrl++"), KeyPress::ctrl('+'));
         assert_eq!(kp("ctrl+plus"), KeyPress::ctrl('+'));
         assert_eq!(kp("f12"), KeyPress::plain(Key::F(12)));

@@ -100,11 +100,10 @@ fn project(root: &Path, index: &Index, cancel: &AtomicBool, tx: &Sender<Vec<Pick
     let _ = (root, threads, each);
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "project"))]
 mod tests {
     use super::*;
 
-    #[cfg(feature = "project")]
     #[test]
     fn indexes_a_project_and_reuses_it() {
         let d = std::env::temp_dir().join(format!("shrew-symbols-{}", std::process::id()));

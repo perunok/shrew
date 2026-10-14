@@ -226,7 +226,7 @@ impl Shared {
         let mut last = 0;
         let result = target.and_then(|target| {
             install::install_to(release, &target, |done, total| {
-                let pct = if total == 0 { 0 } else { (done.min(total) * 100 / total) as u8 };
+                let pct = (done.min(total) * 100).checked_div(total).unwrap_or(0) as u8;
                 // One wake per percent, not per 64 KiB chunk.
                 if pct != last {
                     last = pct;

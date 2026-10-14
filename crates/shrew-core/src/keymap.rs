@@ -274,37 +274,35 @@ fn parse_notation(s: &str, leader: KeyPress, local_leader: KeyPress) -> Vec<KeyP
     let mut out = Vec::new();
     let mut rest = s;
     while let Some(c) = rest.chars().next() {
-        if c == '<' {
-            if let Some(end) = rest[1..].find(['>', '<']).map(|i| i + 1).filter(|&i| rest.as_bytes()[i] == b'>') {
-                let inner = &rest[1..end];
-                let special = match inner.to_ascii_lowercase().as_str() {
-                    "leader" => Some(Some(leader)),
-                    "localleader" => Some(Some(local_leader)),
-                    "bar" => Some(Some(KeyPress::ch('|'))),
-                    "bslash" => Some(Some(KeyPress::ch('\\'))),
-                    "nop" => Some(None),
-                    "nl" => Some(Some(KeyPress::ctrl('j'))),
-                    "kenter" => Some(Some(KeyPress::plain(Key::Enter))),
-                    "kplus" => Some(Some(KeyPress::ch('+'))),
-                    "kminus" => Some(Some(KeyPress::ch('-'))),
-                    "kmultiply" => Some(Some(KeyPress::ch('*'))),
-                    "kdivide" => Some(Some(KeyPress::ch('/'))),
-                    "kpoint" => Some(Some(KeyPress::ch('.'))),
-                    _ => None,
-                };
-                let key = match special {
-                    Some(k) => Some(k),
-                    // `<x>` alone is not a key name in vim: keep it literal
-                    None if inner.chars().count() > 1 => {
-                        KeyPress::parse(&rest[..=end]).map(|k| Some(normalize(k, inner)))
-                    }
-                    None => None,
-                };
-                if let Some(k) = key {
-                    out.extend(k);
-                    rest = &rest[end + 1..];
-                    continue;
-                }
+        if c == '<'
+            && let Some(end) = rest[1..].find(['>', '<']).map(|i| i + 1).filter(|&i| rest.as_bytes()[i] == b'>')
+        {
+            let inner = &rest[1..end];
+            let special = match inner.to_ascii_lowercase().as_str() {
+                "leader" => Some(Some(leader)),
+                "localleader" => Some(Some(local_leader)),
+                "bar" => Some(Some(KeyPress::ch('|'))),
+                "bslash" => Some(Some(KeyPress::ch('\\'))),
+                "nop" => Some(None),
+                "nl" => Some(Some(KeyPress::ctrl('j'))),
+                "kenter" => Some(Some(KeyPress::plain(Key::Enter))),
+                "kplus" => Some(Some(KeyPress::ch('+'))),
+                "kminus" => Some(Some(KeyPress::ch('-'))),
+                "kmultiply" => Some(Some(KeyPress::ch('*'))),
+                "kdivide" => Some(Some(KeyPress::ch('/'))),
+                "kpoint" => Some(Some(KeyPress::ch('.'))),
+                _ => None,
+            };
+            let key = match special {
+                Some(k) => Some(k),
+                // `<x>` alone is not a key name in vim: keep it literal
+                None if inner.chars().count() > 1 => KeyPress::parse(&rest[..=end]).map(|k| Some(normalize(k, inner))),
+                None => None,
+            };
+            if let Some(k) = key {
+                out.extend(k);
+                rest = &rest[end + 1..];
+                continue;
             }
         }
         out.push(KeyPress::ch(c));
@@ -406,8 +404,7 @@ pub fn parse_map_command(line: &str, keymap: &Keymap) -> Option<Result<MapComman
     };
     let mut rest = rest.trim_start();
     // <silent>, <buffer>, ... in any order
-    loop {
-        let Some(end) = rest.strip_prefix('<').and_then(|r| r.find('>')) else { break };
+    while let Some(end) = rest.strip_prefix('<').and_then(|r| r.find('>')) {
         let attr = rest[1..=end].to_ascii_lowercase();
         match attr.as_str() {
             "silent" | "buffer" | "nowait" | "special" | "script" | "unique" => {}

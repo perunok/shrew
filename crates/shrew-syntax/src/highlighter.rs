@@ -319,7 +319,7 @@ fn clamp(spans: Option<Box<[Span]>>, line: usize, rope: &Rope) -> Option<Box<[Sp
         .iter()
         .filter_map(|s| {
             let (start, end) = (floor(s.start as usize), floor(s.end as usize));
-            (start < end).then(|| Span { start: start as u32, end: end as u32, ..*s })
+            (start < end).then_some(Span { start: start as u32, end: end as u32, ..*s })
         })
         .collect();
     Some(fitted)

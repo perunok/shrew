@@ -16,6 +16,11 @@ picker = ["dep:ignore"]
 ropey.workspace = true
 smallvec.workspace = true
 unicode-width.workspace = true
+# Grapheme clusters, so motions and deletes never split an emoji or a letter from its accents (pure Rust).
+unicode-segmentation = "1.12"
 regex.workspace = true
 ignore = { workspace = true, optional = true }
 syntect = { workspace = true, optional = true }
+
+[dev-dependencies]
+regex.workspace = true

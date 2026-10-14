@@ -117,14 +117,13 @@ impl KeyPress {
         let mut out = Vec::new();
         let mut rest = s;
         while let Some(c) = rest.chars().next() {
-            if c == '<' {
-                if let Some(end) = rest.find('>') {
-                    if let Some(k) = KeyPress::parse(&rest[..=end]) {
-                        out.push(k);
-                        rest = &rest[end + 1..];
-                        continue;
-                    }
-                }
+            if c == '<'
+                && let Some(end) = rest.find('>')
+                && let Some(k) = KeyPress::parse(&rest[..=end])
+            {
+                out.push(k);
+                rest = &rest[end + 1..];
+                continue;
             }
             out.push(KeyPress::ch(c));
             rest = &rest[c.len_utf8()..];
@@ -143,7 +142,11 @@ impl fmt::Display for KeyPress {
             k => format!("{k:?}"),
         };
         if !m.ctrl && !m.alt && !m.logo && !(m.shift && !matches!(self.key, Key::Char(_))) {
-            return if matches!(self.key, Key::Char(c) if c != ' ') { write!(f, "{name}") } else { write!(f, "<{name}>") };
+            return if matches!(self.key, Key::Char(c) if c != ' ') {
+                write!(f, "{name}")
+            } else {
+                write!(f, "<{name}>")
+            };
         }
         write!(f, "<")?;
         if m.ctrl {

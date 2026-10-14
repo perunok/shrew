@@ -1,0 +1,72 @@
+" ~/.vimrc of a typical vim user
+set nocompatible
+filetype plugin indent on
+syntax on
+
+call plug#begin('~/.vim/plugged')
+Plug 'tpope/vim-surround'
+Plug 'tpope/vim-commentary'
+Plug 'junegunn/fzf.vim'
+call plug#end()
+
+" indentation
+set tabstop=2 shiftwidth=2 softtabstop=2
+set expandtab
+set autoindent smartindent
+
+" ui
+set number relativenumber   " hybrid line numbers
+set cursorline
+set nohlsearch incsearch ignorecase smartcase
+set scrolloff=8
+set list listchars=tab:»\ ,trail:·
+set background=dark
+set guifont=JetBrains\ Mono:h13
+set clipboard=unnamedplus
+set timeoutlen=500 ttimeoutlen=10
+set laststatus=2
+set wrap
+set mouse=a
+colorscheme gruvbox
+
+nnoremap <leader>q :q<CR>
+
+let mapleader = "\<Space>"
+let maplocalleader = ","
+
+inoremap jk <Esc>
+nnoremap <silent> <leader>w :w<CR>
+nmap Y y$
+vnoremap < <gv
+vnoremap > >gv
+nnoremap <C-h> <C-w>h
+nnoremap <C-j> <C-w>j
+nnoremap <leader>s <Cmd>w<CR>
+map H ^
+nnoremap <leader>n
+      \ :nohlsearch<CR>| nnoremap <leader>b :ls<CR>
+nnoremap <leader>p a\|<Esc>
+nnoremap Q <Nop>
+nunmap Q
+nnoremap <expr> j v:count ? 'j' : 'gj'
+nmap <leader>c <Plug>CommentaryLine
+nnoremap <F2> :call ToggleNumbers()<CR>
+
+function! ToggleNumbers()
+  set number!
+  set relativenumber!
+endfunction
+
+augroup vimrc
+  autocmd!
+  autocmd BufWritePre * %s/\s\+$//e
+  autocmd FileType python setlocal ts=4 sw=4
+augroup END
+
+if has('gui_running')
+  set guioptions-=T
+  set ts=8
+endif
+
+if &compatible | set nocompatible | endif
+highlight Normal guibg=NONE

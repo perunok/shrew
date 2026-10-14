@@ -44,7 +44,8 @@ pub struct Picker {
 
 impl Picker {
     pub fn new(kind: PickerKind, items: Vec<PickerItem>) -> Self {
-        let mut p = Picker { kind, query: String::new(), items, matches: Vec::new(), selected: 0, loading: false, rx: None };
+        let mut p =
+            Picker { kind, query: String::new(), items, matches: Vec::new(), selected: 0, loading: false, rx: None };
         p.refilter();
         p
     }
@@ -72,10 +73,10 @@ impl Picker {
                             return;
                         }
                         sent += 1;
-                        if let Some(w) = &waker {
-                            if sent < 4 || sent % 8 == 0 {
-                                w();
-                            }
+                        if let Some(w) = &waker
+                            && (sent < 4 || sent.is_multiple_of(8))
+                        {
+                            w();
                         }
                     }
                     if sent > 2_000 {
@@ -120,10 +121,10 @@ impl Picker {
         if changed {
             let keep = self.current().map(|i| i.label.clone());
             self.refilter();
-            if let Some(k) = keep {
-                if let Some(i) = self.matches.iter().position(|&m| self.items[m as usize].label == k) {
-                    self.selected = i;
-                }
+            if let Some(k) = keep
+                && let Some(i) = self.matches.iter().position(|&m| self.items[m as usize].label == k)
+            {
+                self.selected = i;
             }
         }
         changed
@@ -140,7 +141,9 @@ impl Picker {
                 .enumerate()
                 .filter_map(|(i, it)| fuzzy_score(q, &it.label).map(|s| (s, i as u32)))
                 .collect();
-            scored.sort_by(|a, b| b.0.cmp(&a.0).then(self.items[a.1 as usize].label.len().cmp(&self.items[b.1 as usize].label.len())));
+            scored.sort_by(|a, b| {
+                b.0.cmp(&a.0).then(self.items[a.1 as usize].label.len().cmp(&self.items[b.1 as usize].label.len()))
+            });
             self.matches = scored.into_iter().map(|(_, i)| i).collect();
         }
         self.selected = 0;
@@ -168,7 +171,9 @@ pub fn fuzzy_score(query: &str, cand: &str) -> Option<i32> {
 /// Like [`fuzzy_score`], also returning the matched char positions (for highlighting).
 pub fn fuzzy_match(query: &str, cand: &str) -> Option<(i32, Vec<usize>)> {
     let case_sensitive = query.chars().any(|c| c.is_uppercase());
-    let eq = |a: char, b: char| if case_sensitive { a == b } else { a.eq_ignore_ascii_case(&b) || a.to_lowercase().eq(b.to_lowercase()) };
+    let eq = |a: char, b: char| {
+        if case_sensitive { a == b } else { a.eq_ignore_ascii_case(&b) || a.to_lowercase().eq(b.to_lowercase()) }
+    };
     let chars: Vec<char> = cand.chars().collect();
     let name_start = cand.rfind('/').map_or(0, |b| cand[..=b].chars().count());
     let mut positions = Vec::with_capacity(query.len());

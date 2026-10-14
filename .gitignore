@@ -1,2 +1,8 @@
 /target
+target/
+
+# Screenshots and renders stay out of git, except the ones the docs and packaging ship.
 *.png
+!docs/*.png
+!docs/screenshots/*.png
+!assets/*.png

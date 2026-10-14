@@ -58,7 +58,9 @@ pub fn edit_each(buf: &mut Buffer, mut f: impl FnMut(&Rope, Range) -> Edit) {
                 changes.push(c);
             }
             Edit::Move(p) => new_ranges.push(Range::point(shift(p, delta))),
-            Edit::Keep => new_ranges.push(Range { anchor: shift(r.anchor, delta), head: shift(r.head, delta), col: r.col }),
+            Edit::Keep => {
+                new_ranges.push(Range { anchor: shift(r.anchor, delta), head: shift(r.head, delta), col: r.col })
+            }
         }
     }
     buf.apply(ChangeSet::new(changes), Some(Selection::new(new_ranges, primary)));
@@ -109,10 +111,12 @@ pub fn insert_char(buf: &mut Buffer, c: char, opts: &Opts) {
         if (motion::is_close_bracket(c) || is_quote(c)) && next == Some(c) {
             return Edit::Move(r.head + 1);
         }
-        let next_ok = next.is_none_or(|n| n.is_whitespace() || motion::is_close_bracket(n) || matches!(n, ',' | ';' | '.' | ':'));
+        let next_ok =
+            next.is_none_or(|n| n.is_whitespace() || motion::is_close_bracket(n) || matches!(n, ',' | ';' | '.' | ':'));
         if let Some(close) = closer_for(c) {
             let pair = if is_quote(c) {
-                let prev_ok = prev.is_none_or(|p| !text::is_word_char(p) && !matches!(p, '&' | '<' | '\\') && !is_quote(p));
+                let prev_ok =
+                    prev.is_none_or(|p| !text::is_word_char(p) && !matches!(p, '&' | '<' | '\\') && !is_quote(p));
                 prev_ok && next_ok
             } else {
                 next_ok
@@ -144,10 +148,10 @@ pub fn backspace(buf: &mut Buffer, opts: &Opts) {
         if prev == ' ' && pos > ls && rope.slice(ls..pos).chars().all(|c| c == ' ') {
             let col = pos - ls;
             let w = opts.tab_width.max(1);
-            let back = if col % w == 0 { w } else { col % w };
+            let back = if col.is_multiple_of(w) { w } else { col % w };
             return Edit::Change(Change::delete(pos - back.min(col), pos), 0, 0);
         }
-        Edit::Change(Change::delete(pos - 1, pos), 0, 0)
+        Edit::Change(Change::delete(text::prev_grapheme(rope, pos), pos), 0, 0)
     });
 }
 
@@ -156,7 +160,7 @@ pub fn delete_forward(buf: &mut Buffer) {
         if !r.is_empty() {
             Edit::Change(Change::delete(r.from(), r.to()), 0, 0)
         } else if r.head < rope.len_chars() {
-            Edit::Change(Change::delete(r.head, r.head + 1), 0, 0)
+            Edit::Change(Change::delete(r.head, text::next_grapheme(rope, r.head)), 0, 0)
         } else {
             Edit::Keep
         }
@@ -170,7 +174,8 @@ pub fn delete_word_back(buf: &mut Buffer) {
             return Edit::Change(Change::delete(r.from(), r.to()), 0, 0);
         }
         let ls = text::line_start(rope, text::line_of(rope, r.head));
-        let to = if r.head > ls { motion::prev_word_start(rope, r.head, false).max(ls) } else { r.head.saturating_sub(1) };
+        let to =
+            if r.head > ls { motion::prev_word_start(rope, r.head, false).max(ls) } else { r.head.saturating_sub(1) };
         Edit::Change(Change::delete(to, r.head), 0, 0)
     });
 }
@@ -181,7 +186,11 @@ pub fn delete_word_forward(buf: &mut Buffer) {
             return Edit::Change(Change::delete(r.from(), r.to()), 0, 0);
         }
         let le = text::line_end(rope, text::line_of(rope, r.head));
-        let to = if r.head < le { motion::next_word_start(rope, r.head, false).min(le) } else { (r.head + 1).min(rope.len_chars()) };
+        let to = if r.head < le {
+            motion::next_word_start(rope, r.head, false).min(le)
+        } else {
+            (r.head + 1).min(rope.len_chars())
+        };
         Edit::Change(Change::delete(r.head, to), 0, 0)
     });
 }
@@ -224,7 +233,49 @@ pub fn newline(buf: &mut Buffer, opts: &Opts) {
             s.push('\n');
             s.push_str(&indent);
         }
-        Edit::Change(Change::replace(r.from(), r.to(), s), caret, caret)
+        // a line holding nothing but the indent loses it (vim's autoindent, Sublime's trim_automatic_white_space)
+        let line = text::line_of(rope, r.from());
+        let ls = text::line_start(rope, line);
+        let from = if opts.auto_indent
+            && r.is_empty()
+            && r.from() > ls
+            && r.from() == text::line_end(rope, line)
+            && text::is_blank_line(rope, line)
+        {
+            ls
+        } else {
+            r.from()
+        };
+        Edit::Change(Change::replace(from, r.to(), s), caret, caret)
+    });
+}
+
+/// Esc in vim: a line left holding only its automatic indent (from `o`, `cc` or Enter) loses it. `insert_start`
+/// is where typing began: nothing typed since then means the indent was not typed either.
+pub fn trim_auto_indent(buf: &mut Buffer, opts: &Opts, insert_start: Option<usize>) {
+    if !opts.auto_indent {
+        return;
+    }
+    edit_each(buf, |rope, r| {
+        let line = text::line_of(rope, r.head);
+        let ls = text::line_start(rope, line);
+        let le = text::line_end(rope, line);
+        if !r.is_empty() || le == ls || r.head != le || !text::is_blank_line(rope, line) {
+            return Edit::Keep;
+        }
+        if insert_start == Some(r.head) {
+            return Edit::Change(Change::delete(ls, le), 0, 0);
+        }
+        if line == 0 || insert_start.is_some_and(|s| text::line_of(rope, s.min(rope.len_chars())) == line) {
+            return Edit::Keep;
+        }
+        // only an indent we could have made: the previous line's, or one level more
+        let ind = text::indent_of(rope, line);
+        let prev = text::indent_of(rope, line - 1);
+        if ind != prev && ind != format!("{prev}{}", opts.indent) {
+            return Edit::Keep;
+        }
+        Edit::Change(Change::delete(ls, le), 0, 0)
     });
 }
 
@@ -235,7 +286,10 @@ pub fn open_line(buf: &mut Buffer, below: bool, opts: &Opts) {
         let mut indent = if opts.auto_indent { text::indent_of(rope, line) } else { String::new() };
         if below {
             let le = text::line_end(rope, line);
-            if opts.auto_indent && last_non_ws(rope, text::line_start(rope, line), le).is_some_and(|c| matches!(c, '{' | '[' | '(' | ':')) {
+            if opts.auto_indent
+                && last_non_ws(rope, text::line_start(rope, line), le)
+                    .is_some_and(|c| matches!(c, '{' | '[' | '(' | ':'))
+            {
                 indent.push_str(&opts.indent);
             }
             let s = format!("\n{indent}");
@@ -287,6 +341,28 @@ pub fn indent_lines(buf: &mut Buffer, lines: &[usize], opts: &Opts) {
         .iter()
         .filter(|&&l| text::line_len(rope, l) > 0)
         .map(|&l| Change::insert(text::line_start(rope, l), opts.indent.clone()))
+        .collect();
+    buf.apply(ChangeSet::new(changes), None);
+}
+
+/// Vim's `>` / `<`: each non-empty line's indent becomes `levels` shiftwidths wider (or narrower), rewritten
+/// with spaces or tabs as `opts.indent` says (`"  \tx"` shifted once with 4-space indents is `"        x"`).
+pub fn shift_lines(buf: &mut Buffer, lines: &[usize], opts: &Opts, levels: isize) {
+    let rope = buf.rope();
+    let tw = opts.tab_width.max(1);
+    let use_tabs = opts.indent.starts_with('\t');
+    let changes = lines
+        .iter()
+        .filter(|&&l| text::line_len(rope, l) > 0)
+        .filter_map(|&l| {
+            let ls = text::line_start(rope, l);
+            let fnb = text::first_non_blank(rope, l);
+            let width = text::col_of(rope, fnb, tw);
+            let new = (width as isize + levels * tw as isize).max(0) as usize;
+            let indent =
+                if use_tabs { format!("{}{}", "\t".repeat(new / tw), " ".repeat(new % tw)) } else { " ".repeat(new) };
+            (rope.slice(ls..fnb) != indent.as_str()).then(|| Change::replace(ls, fnb, indent))
+        })
         .collect();
     buf.apply(ChangeSet::new(changes), None);
 }
@@ -343,7 +419,8 @@ pub fn toggle_comment(buf: &mut Buffer, lines: &[usize], token: &str) {
             })
             .collect()
     } else {
-        let min_indent = content.iter().map(|&l| text::first_non_blank(rope, l) - text::line_start(rope, l)).min().unwrap_or(0);
+        let min_indent =
+            content.iter().map(|&l| text::first_non_blank(rope, l) - text::line_start(rope, l)).min().unwrap_or(0);
         content.iter().map(|&l| Change::insert(text::line_start(rope, l) + min_indent, format!("{token} "))).collect()
     };
     buf.apply(ChangeSet::new(changes), None);
@@ -376,15 +453,32 @@ pub fn move_lines(buf: &mut Buffer, up: bool) {
         let block_to = text::line_end(rope, e) + 1;
         shifts.push((block_from, block_to, if up { -(other as isize) } else { other as isize }));
     }
-    let shift = |p: usize| {
-        shifts.iter().find(|(f, t, _)| p >= *f && p < *t).map_or(p, |(_, _, d)| (p as isize + d) as usize)
-    };
+    let shift =
+        |p: usize| shifts.iter().find(|(f, t, _)| p >= *f && p < *t).map_or(p, |(_, _, d)| (p as isize + d) as usize);
     let sel = buf.sel.transform(|r| Range { anchor: shift(r.anchor), head: shift(r.head), col: r.col });
     buf.apply(ChangeSet::new(changes), Some(sel));
 }
 
-/// Duplicates the selected lines below themselves; the cursors move onto the copy.
+/// Duplicates the selected lines below themselves; the cursors move onto the copy. When every range is a
+/// selection, the selected text is duplicated instead (Sublime), the selections moving onto the second copy.
 pub fn duplicate_lines(buf: &mut Buffer) {
+    if buf.sel.ranges().iter().all(|r| !r.is_empty()) {
+        let rope = buf.rope();
+        let changes = buf
+            .sel
+            .ranges()
+            .iter()
+            .map(|r| Change::insert(r.from(), rope.slice(r.from()..r.to()).to_string()))
+            .collect();
+        let cs = ChangeSet::new(changes);
+        let sel = buf.sel.transform(|r| Range {
+            anchor: cs.map(r.anchor, crate::change::Assoc::After),
+            head: cs.map(r.head, crate::change::Assoc::After),
+            col: None,
+        });
+        buf.apply(cs, Some(sel));
+        return;
+    }
     let rope = buf.rope();
     let blocks = blocks(&selected_lines(rope, &buf.sel));
     let mut changes = Vec::new();
@@ -461,32 +555,45 @@ pub fn select_lines(buf: &mut Buffer) {
     buf.sel = sel;
 }
 
-/// `J`: joins each cursor's line with the next, separated by one space.
-pub fn join_lines(buf: &mut Buffer, lines: &[usize]) {
+/// Joins lines with their successor (`J`, Ctrl+J). `lines` are the lines to join; a single line joins with the next.
+/// `spaces`: the next line's indent goes and one space separates the parts (none after trailing white space, before
+/// a `)` or around an empty line); otherwise only the line break goes (`gJ`). `trim` also drops trailing white space.
+/// Returns where the last joint ended up, which is where vim leaves the cursor.
+pub fn join_lines(buf: &mut Buffer, lines: &[usize], spaces: bool, trim: bool) -> Option<usize> {
     let rope = buf.rope();
     let last = text::last_line(rope);
     let mut targets: Vec<usize> = lines.to_vec();
     if targets.len() > 1 {
         targets.pop(); // joining lines a..=b means joining a..b with their successor
     }
-    let changes = targets
+    let changes: Vec<Change> = targets
         .into_iter()
         .filter(|&l| l < last)
         .map(|l| {
+            let ls = text::line_start(rope, l);
             let le = text::line_end(rope, l);
+            if !spaces {
+                return Change::delete(le, le + 1);
+            }
             let fnb = text::first_non_blank(rope, l + 1);
             let next_empty = fnb == text::line_end(rope, l + 1);
             let next = text::char_at(rope, fnb);
-            let sep = if next_empty || next == Some(')') || le == text::line_start(rope, l) { "" } else { " " };
-            // trailing whitespace on this line goes too
             let mut from = le;
-            while from > text::line_start(rope, l) && matches!(rope.char(from - 1), ' ' | '\t') {
-                from -= 1;
+            if trim {
+                while from > ls && matches!(rope.char(from - 1), ' ' | '\t') {
+                    from -= 1;
+                }
             }
+            let trailing_ws = from > ls && matches!(rope.char(from - 1), ' ' | '\t');
+            let sep = if next_empty || next == Some(')') || from == ls || trailing_ws { "" } else { " " };
             Change::replace(from, fnb, sep)
         })
         .collect();
-    buf.apply(ChangeSet::new(changes), None);
+    let joint = changes.last().map(|c| c.from);
+    let cs = ChangeSet::new(changes);
+    let joint = joint.map(|j| cs.map(j, crate::change::Assoc::Before));
+    buf.apply(cs, None);
+    joint
 }
 
 /// Adds a cursor on the line above the topmost cursor (or below the bottom one), at the same column.
@@ -542,7 +649,10 @@ pub fn add_next_occurrence(buf: &mut Buffer, whole_word: bool, skip: bool) -> bo
     let rope = buf.rope();
     if buf.sel.ranges().iter().all(|r| r.is_empty()) {
         let sel = buf.sel.transform(|r| {
-            let (a, b) = motion::word_object(rope, r.head, false, false);
+            // a caret just after a word (where typing leaves it) takes that word, as in Sublime
+            let at_word = |p: usize| p < rope.len_chars() && text::is_word_char(rope.char(p));
+            let h = if !at_word(r.head) && r.head > 0 && at_word(r.head - 1) { r.head - 1 } else { r.head };
+            let (a, b) = motion::word_object(rope, h, false, false);
             if a < b && text::is_word_char(rope.char(a)) { Range::new(a, b) } else { r }
         });
         buf.sel = sel;

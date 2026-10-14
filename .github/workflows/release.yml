@@ -1,0 +1,201 @@
+name: Release
+
+# Builds shrew for every desktop platform and drafts a GitHub release.
+#
+# - Push a tag `vX.Y.Z` matching [workspace.package] version in Cargo.toml (scripts/release.sh does both)
+#   -> a draft release with every asset attached. Review it on GitHub and press Publish: from then on running
+#   shrews offer the update (the in-app updater reads /releases/latest, which ignores drafts).
+# - Run it by hand (Actions > Release > Run workflow) -> the same assets as workflow artifacts only, no release.
+#
+# Assets per target triple. The first two are a contract with crates/shrew-update (asset_name / checksum_name)
+# and scripts/install.sh: do not rename them.
+#   shrew-<triple>                    raw binary (shrew-<triple>.exe on Windows), what the updater downloads
+#   shrew-<triple>.sha256             its checksum in sha256sum format: "<hex>  shrew-<triple>"
+#   shrew-v<version>-<triple>.tar.gz  for people: binary, README, LICENSE (+ .desktop and icon on Linux)
+#   shrew-v<version>-<triple>.zip     the same on Windows
+#
+# Builds are unsigned: macOS binaries get an ad-hoc signature (Gatekeeper still asks the first time), Windows shows
+# SmartScreen. No system packages are installed: shrew is pure Rust and loads OS libraries at runtime.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  version:
+    name: version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the workspace version (and check the tag matches it)
+        id: version
+        shell: bash
+        run: |
+          version=$(sed -n '/^\[workspace\.package\]/,/^\[/{s/^version *= *"\([^"]*\)".*/\1/p}' Cargo.toml)
+          if [ -z "$version" ]; then
+            echo "::error::No version in [workspace.package] of Cargo.toml"
+            exit 1
+          fi
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match the workspace version $version (expected v$version)"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Building shrew $version"
+
+  build:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04 # oldest supported glibc (2.35), so the binary runs on more distros
+            native: true
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-22.04-arm
+            native: true
+          - target: x86_64-apple-darwin
+            os: macos-latest # Apple silicon runner, cross-compiles to Intel
+            native: false
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            native: true
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            native: true
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    env:
+      TARGET: ${{ matrix.target }}
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build
+        shell: bash
+        run: cargo build --release --locked -p shrew --target "$TARGET"
+
+      - name: Ad-hoc sign (macOS)
+        if: runner.os == 'macOS'
+        run: codesign --force --sign - "target/$TARGET/release/shrew"
+
+      - name: Smoke test
+        if: matrix.native
+        shell: bash
+        run: |
+          exe="target/$TARGET/release/shrew"
+          [ "$RUNNER_OS" = Windows ] && exe="$exe.exe"
+          out=$("$exe" --version)
+          echo "$out"
+          case "$out" in
+            *"$VERSION"*) ;;
+            *) echo "::error::'shrew --version' printed '$out', expected it to contain $VERSION"; exit 1 ;;
+          esac
+
+      - name: Package
+        shell: bash
+        run: |
+          exe=""
+          [ "$RUNNER_OS" = Windows ] && exe=".exe"
+          bin="shrew-$TARGET$exe"
+          mkdir -p dist
+          cp "target/$TARGET/release/shrew$exe" "dist/$bin"
+
+          # sha256sum format, which the updater and install.sh parse: "<hex>  <file name>"
+          if command -v sha256sum >/dev/null; then sum=(sha256sum); else sum=(shasum -a 256); fi
+          (cd dist && "${sum[@]}" "$bin" > "shrew-$TARGET.sha256")
+          cat "dist/shrew-$TARGET.sha256"
+
+          name="shrew-v$VERSION-$TARGET"
+          mkdir -p "stage/$name"
+          cp "target/$TARGET/release/shrew$exe" README.md LICENSE "stage/$name/"
+          if [ "$RUNNER_OS" = Linux ]; then
+            cp assets/shrew.desktop assets/shrew.svg assets/shrew.png "stage/$name/"
+          fi
+          if [ "$RUNNER_OS" = Windows ]; then
+            (cd stage && 7z a -tzip "../dist/$name.zip" "$name" >/dev/null)
+          else
+            # COPYFILE_DISABLE: no macOS ._ resource-fork files in the tarball
+            (cd stage && COPYFILE_DISABLE=1 tar -czf "../dist/$name.tar.gz" "$name")
+          fi
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shrew-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: [version, build]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Check every asset is there
+        shell: bash
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          ls -l release-assets
+          missing=0
+          for t in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu x86_64-apple-darwin aarch64-apple-darwin x86_64-pc-windows-msvc; do
+            case "$t" in
+              *windows*) want=("shrew-$t.exe" "shrew-$t.sha256" "shrew-v$VERSION-$t.zip") ;;
+              *) want=("shrew-$t" "shrew-$t.sha256" "shrew-v$VERSION-$t.tar.gz") ;;
+            esac
+            for f in "${want[@]}"; do
+              if [ ! -s "release-assets/$f" ]; then
+                echo "::error::Missing release asset $f"
+                missing=1
+              fi
+            done
+          done
+          exit "$missing"
+
+      - name: Draft release with every asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cat > notes.md <<EOF
+          ## Install
+
+          Linux and macOS, into \`~/.local/bin\` (checksum verified):
+
+              curl -fsSL https://raw.githubusercontent.com/${GH_REPO}/main/scripts/install.sh | sh
+
+          Or download below. Running shrews update themselves: the status bar offers the new version once this
+          release is published.
+
+          - **Linux**: \`x86_64-unknown-linux-gnu\` (Intel/AMD) or \`aarch64-unknown-linux-gnu\` (ARM). The \`.tar.gz\` also has a \`.desktop\` file and icon.
+          - **macOS**: \`aarch64-apple-darwin\` (Apple silicon) or \`x86_64-apple-darwin\` (Intel). Unsigned: if macOS refuses to open it, run \`xattr -d com.apple.quarantine shrew\`.
+          - **Windows**: \`x86_64-pc-windows-msvc\`. Unsigned: SmartScreen > More info > Run anyway.
+
+          Each raw binary \`shrew-<target>\` has a \`shrew-<target>.sha256\` next to it (\`sha256sum -c\` format).
+          EOF
+          gh release create "$GITHUB_REF_NAME" release-assets/* --draft --title "shrew $GITHUB_REF_NAME" --notes-file notes.md --generate-notes --verify-tag

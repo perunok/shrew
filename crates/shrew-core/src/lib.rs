@@ -8,6 +8,7 @@ pub mod editor;
 pub mod features;
 pub mod history;
 pub mod input;
+pub mod keymap;
 pub mod lang;
 pub mod motion;
 pub mod ops;
@@ -23,6 +24,7 @@ pub use document::{Buffer, Document, View};
 pub use editor::{Clipboard, CursorShape, Editor, Event, Mode, Prompt, PromptKind, Register, Settings};
 pub use features::{Feature, Features};
 pub use input::{Key, KeyPress, Mods, MouseButton};
+pub use keymap::{Keymap, MapMode, Mapping, Rhs};
 pub use selection::{Range, Selection};
 
 pub use ropey;

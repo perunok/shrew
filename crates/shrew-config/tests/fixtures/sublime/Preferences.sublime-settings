@@ -1,0 +1,24 @@
+// Settings in here override those in "Default/Preferences.sublime-settings",
+// and are overridden in turn by syntax-specific settings.
+{
+	"theme": "Default Dark.sublime-theme",
+	"color_scheme": "Packages/Color Scheme - Default/Breakers.sublime-color-scheme",
+	"font_face": "Fira Code",
+	"font_size": 12.5,
+	"tab_size": 2,
+	"translate_tabs_to_spaces": true,
+	"line_numbers": true,
+	"highlight_line": true,
+	"draw_white_space": ["selection", "trailing"],
+	"auto_match_enabled": false,
+	"auto_indent": true,
+	"scroll_past_end": false,
+	"ignored_packages":
+	[
+		"Markdown",
+	],
+	/* things shrew has
+	   no use for */
+	"caret_style": "phase",
+	"save_on_focus_lost": true,
+}

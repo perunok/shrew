@@ -1,0 +1,81 @@
+name: CI
+
+# Format, lint and test the whole workspace on every desktop OS.
+#
+# No system packages are installed on Linux on purpose: shrew is pure Rust. winit (x11-dl, wayland "dlopen",
+# xkbcommon-dl), wgpu (ash for Vulkan, khronos-egl "dynamic") and the clipboard load their OS libraries at runtime,
+# so building and testing needs no -dev packages. If a change ever needs one, the dependency compiles or links C:
+# fix the dependency instead of adding apt-get here.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: short
+
+jobs:
+  fmt:
+    name: rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all --check
+
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      # Warnings are reported (annotated on the PR) but do not fail the build yet; switch to `-D warnings` once the
+      # workspace is clean.
+      - run: cargo clippy --workspace --all-targets --locked
+
+  test:
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace --locked
+
+  # Every optional cargo feature can be compiled out: make sure the lean builds keep compiling.
+  minimal:
+    name: no default features
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --workspace --no-default-features --locked
+
+  # Guard the "pure Rust" promise: no crate in the release build may compile C or C++.
+  pure-rust:
+    name: pure Rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: scripts/check-pure-rust.sh

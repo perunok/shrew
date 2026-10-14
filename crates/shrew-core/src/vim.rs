@@ -7,7 +7,7 @@ use crate::input::{Key, KeyPress};
 use crate::motion;
 use crate::ops;
 use crate::selection::{Range, Selection};
-use crate::text::{self, CharClass};
+use crate::text;
 use ropey::Rope;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -28,7 +28,11 @@ pub(crate) enum Motion {
     LastNonBlank,
     FileStart,
     FileEnd,
-    Find { ch: char, forward: bool, till: bool },
+    Find {
+        ch: char,
+        forward: bool,
+        till: bool,
+    },
     RepeatFind(bool),
     MatchPair,
     ParaFwd,
@@ -39,6 +43,8 @@ pub(crate) enum Motion {
     SearchNext(bool),
     SearchWord(bool),
     Mark(char, bool),
+    /// `N%`: the line N percent into the file.
+    LinePercent,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -52,7 +58,8 @@ impl Motion {
     fn kind(self) -> Kind {
         use Motion::*;
         match self {
-            Up | Down | NextLineStart | PrevLineStart | FileStart | FileEnd | ScreenTop | ScreenMiddle | ScreenBottom => Kind::Linewise,
+            Up | Down | NextLineStart | PrevLineStart | FileStart | FileEnd | ScreenTop | ScreenMiddle
+            | ScreenBottom | LinePercent => Kind::Linewise,
             Mark(_, true) => Kind::Linewise,
             WordEnd(_) | WordEndBack(_) | LineEnd | LastNonBlank | MatchPair => Kind::Inclusive,
             Find { forward: true, .. } => Kind::Inclusive,
@@ -80,6 +87,8 @@ pub(crate) enum Obj {
     Pair(char, char),
     Quote(char),
     Para,
+    /// `gn` / `gN`: the next (previous) search match, or the one under the cursor.
+    Match(bool),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -87,6 +96,8 @@ pub(crate) enum Target {
     Motion(Motion),
     Object(Obj, bool),
     Lines,
+    /// `d/pat<CR>`: up to a search match, typed in the prompt.
+    Search(bool),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -95,13 +106,18 @@ pub(crate) enum Cmd {
     Operate(Op, Target),
     /// An operator applied to the visual selection; `lines` forces linewise (`D`, `X`, `Y`, `C`, `S`, `R`).
     VisualOp(Op, bool),
+    /// `D` / `C` on a visual block: from the block's left edge to every line's end.
+    VisualToEol(Op),
     VisualObject(Obj, bool),
     Insert(InsertAt),
-    Paste { after: bool },
+    Paste {
+        after: bool,
+    },
     Undo,
     Redo,
     Repeat,
-    Join,
+    /// `J` (true: with spaces) and `gJ` (false).
+    Join(bool),
     Replace(char),
     ToggleCaseChar,
     Visual(Mode),
@@ -118,6 +134,10 @@ pub(crate) enum Cmd {
     Escape,
     Reselect,
     NextBuffer(bool),
+    /// `gn` / `gN` outside an operator: select the match in visual mode.
+    SelectMatch(bool),
+    /// `&` (this line, no flags) / `g&` (every line, same flags): the last `:s` again.
+    RepeatSubstitute(bool),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -149,13 +169,21 @@ impl Cmd {
     fn is_change(&self) -> bool {
         matches!(
             self,
-            Cmd::Operate(Op::Delete | Op::Change | Op::Indent | Op::Outdent | Op::Lower | Op::Upper | Op::ToggleCase, _)
-                | Cmd::Insert(_)
+            Cmd::Operate(
+                Op::Delete | Op::Change | Op::Indent | Op::Outdent | Op::Lower | Op::Upper | Op::ToggleCase,
+                _
+            ) | Cmd::Insert(_)
                 | Cmd::Paste { .. }
-                | Cmd::Join
+                | Cmd::VisualOp(
+                    Op::Delete | Op::Change | Op::Indent | Op::Outdent | Op::Lower | Op::Upper | Op::ToggleCase,
+                    _
+                )
+                | Cmd::VisualToEol(_)
+                | Cmd::Join(_)
                 | Cmd::Replace(_)
                 | Cmd::ToggleCaseChar
                 | Cmd::Increment(_)
+                | Cmd::RepeatSubstitute(_)
         )
     }
 }
@@ -173,7 +201,7 @@ pub(crate) enum Parse {
 }
 
 enum MotionParse {
-    Done(Motion, usize),
+    Done(Motion),
     Pending,
     No,
 }
@@ -181,6 +209,11 @@ enum MotionParse {
 #[inline]
 fn ch(k: &KeyPress) -> Option<char> {
     k.text()
+}
+
+/// The pending-key marker for insert-mode Ctrl+O (shift: it was typed at the end of the line).
+pub(crate) fn is_insert_once(k: &KeyPress) -> bool {
+    k.key == Key::Char('o') && k.mods.ctrl && k.mods.logo
 }
 
 #[inline]
@@ -220,8 +253,8 @@ fn parse_motion(keys: &[KeyPress], i: usize) -> MotionParse {
         _ => {
             if let Some(c) = ctrl(k) {
                 return match c {
-                    'p' => MotionParse::Done(Up, i + 1),
-                    'j' => MotionParse::Done(Down, i + 1),
+                    'p' => MotionParse::Done(Up),
+                    'j' => MotionParse::Done(Down),
                     _ => MotionParse::No,
                 };
             }
@@ -258,32 +291,36 @@ fn parse_motion(keys: &[KeyPress], i: usize) -> MotionParse {
                 'g' => {
                     let Some(n) = next else { return MotionParse::Pending };
                     return match ch(n) {
-                        Some('g') => MotionParse::Done(FileStart, i + 2),
-                        Some('e') => MotionParse::Done(WordEndBack(false), i + 2),
-                        Some('E') => MotionParse::Done(WordEndBack(true), i + 2),
-                        Some('_') => MotionParse::Done(LastNonBlank, i + 2),
-                        Some('j') => MotionParse::Done(Down, i + 2),
-                        Some('k') => MotionParse::Done(Up, i + 2),
-                        Some('0') => MotionParse::Done(LineStart, i + 2),
-                        Some('$') => MotionParse::Done(LineEnd, i + 2),
+                        Some('g') => MotionParse::Done(FileStart),
+                        Some('e') => MotionParse::Done(WordEndBack(false)),
+                        Some('E') => MotionParse::Done(WordEndBack(true)),
+                        Some('_') => MotionParse::Done(LastNonBlank),
+                        Some('j') => MotionParse::Done(Down),
+                        Some('k') => MotionParse::Done(Up),
+                        Some('0') => MotionParse::Done(LineStart),
+                        Some('$') => MotionParse::Done(LineEnd),
                         _ => MotionParse::No,
                     };
                 }
                 'f' | 'F' | 't' | 'T' => {
                     let Some(n) = next else { return MotionParse::Pending };
                     let Some(target) = ch(n) else { return MotionParse::No };
-                    return MotionParse::Done(Find { ch: target, forward: c == 'f' || c == 't', till: c == 't' || c == 'T' }, i + 2);
+                    return MotionParse::Done(Find {
+                        ch: target,
+                        forward: c == 'f' || c == 't',
+                        till: c == 't' || c == 'T',
+                    });
                 }
                 '`' | '\'' => {
                     let Some(n) = next else { return MotionParse::Pending };
                     let Some(mark) = ch(n) else { return MotionParse::No };
-                    return MotionParse::Done(Mark(mark, c == '\''), i + 2);
+                    return MotionParse::Done(Mark(mark, c == '\''));
                 }
                 _ => return MotionParse::No,
             }
         }
     };
-    MotionParse::Done(m, i + 1)
+    MotionParse::Done(m)
 }
 
 fn parse_object(keys: &[KeyPress], i: usize) -> Option<Result<(Obj, bool), ()>> {
@@ -292,7 +329,7 @@ fn parse_object(keys: &[KeyPress], i: usize) -> Option<Result<(Obj, bool), ()>> 
         'a' => true,
         _ => return Some(Err(())),
     };
-    let Some(c) = keys.get(i + 1) else { return None };
+    let c = keys.get(i + 1)?;
     let obj = match ch(c) {
         Some('w') => Obj::Word(false),
         Some('W') => Obj::Word(true),
@@ -358,47 +395,58 @@ pub(crate) fn parse(keys: &[KeyPress], mode: Mode, recording: bool) -> Parse {
             }
             return done(Operate(op, Target::Lines));
         }
+        if let Some(c @ ('/' | '?')) = ch(t) {
+            return done(Operate(op, Target::Search(c == '/')));
+        }
+        if ch(t) == Some('g') {
+            match keys.get(j + 1).map(ch) {
+                None => return Parse::Pending,
+                Some(Some(c @ ('n' | 'N'))) => return done(Operate(op, Target::Object(Obj::Match(c == 'n'), false))),
+                _ => {}
+            }
+        }
         match parse_object(keys, j) {
             None => return Parse::Pending,
             Some(Ok((obj, around))) => return done(Operate(op, Target::Object(obj, around))),
             Some(Err(())) => {}
         }
         return match parse_motion(keys, j) {
-            MotionParse::Done(m, _) => done(Operate(op, Target::Motion(m))),
+            MotionParse::Done(m) => done(Operate(op, Target::Motion(m))),
             MotionParse::Pending => Parse::Pending,
             MotionParse::No => Parse::Invalid,
         };
     }
 
-    if visual {
-        if let Some(c) = ch(k) {
-            if c == 'i' || c == 'a' {
-                return match parse_object(keys, i) {
-                    None => Parse::Pending,
-                    Some(Ok((obj, around))) => done(VisualObject(obj, around)),
-                    Some(Err(())) => Parse::Invalid,
-                };
-            }
-            let lines = |op| done(VisualOp(op, true));
-            match c {
-                'x' => return done(VisualOp(Op::Delete, false)),
-                's' => return done(VisualOp(Op::Change, false)),
-                'X' | 'D' => return lines(Op::Delete),
-                'C' | 'S' | 'R' => return lines(Op::Change),
-                'Y' => return lines(Op::Yank),
-                'u' => return done(VisualOp(Op::Lower, false)),
-                'U' => return done(VisualOp(Op::Upper, false)),
-                '~' => return done(VisualOp(Op::ToggleCase, false)),
-                'o' | 'O' => return done(SwapEnds),
-                'I' => return done(Insert(InsertAt::Before)),
-                'A' => return done(Insert(InsertAt::After)),
-                _ => {}
-            }
+    if visual && let Some(c) = ch(k) {
+        if c == 'i' || c == 'a' {
+            return match parse_object(keys, i) {
+                None => Parse::Pending,
+                Some(Ok((obj, around))) => done(VisualObject(obj, around)),
+                Some(Err(())) => Parse::Invalid,
+            };
+        }
+        let lines = |op| done(VisualOp(op, true));
+        match c {
+            'x' => return done(VisualOp(Op::Delete, false)),
+            's' => return done(VisualOp(Op::Change, false)),
+            // in a block, D and C go to the end of every line
+            'D' if mode == Mode::VisualBlock => return done(VisualToEol(Op::Delete)),
+            'C' if mode == Mode::VisualBlock => return done(VisualToEol(Op::Change)),
+            'X' | 'D' => return lines(Op::Delete),
+            'C' | 'S' | 'R' => return lines(Op::Change),
+            'Y' => return lines(Op::Yank),
+            'u' => return done(VisualOp(Op::Lower, false)),
+            'U' => return done(VisualOp(Op::Upper, false)),
+            '~' => return done(VisualOp(Op::ToggleCase, false)),
+            'o' | 'O' => return done(SwapEnds),
+            'I' => return done(Insert(InsertAt::Before)),
+            'A' => return done(Insert(InsertAt::After)),
+            _ => {}
         }
     }
 
     match parse_motion(keys, i) {
-        MotionParse::Done(m, _) => return done(Move(m)),
+        MotionParse::Done(m) => return done(Move(m)),
         MotionParse::Pending => return Parse::Pending,
         MotionParse::No => {}
     }
@@ -422,7 +470,11 @@ pub(crate) fn parse(keys: &[KeyPress], mode: Mode, recording: bool) -> Parse {
         return match k.key {
             Key::PageDown => done(Scroll(ScrollKind::PageDown)),
             Key::PageUp => done(Scroll(ScrollKind::PageUp)),
-            Key::Delete => done(if visual { VisualOp(Op::Delete, false) } else { Operate(Op::Delete, Target::Motion(Motion::Right)) }),
+            Key::Delete => done(if visual {
+                VisualOp(Op::Delete, false)
+            } else {
+                Operate(Op::Delete, Target::Motion(Motion::Right))
+            }),
             Key::Insert => done(Insert(InsertAt::Before)),
             _ => Parse::Invalid,
         };
@@ -453,14 +505,18 @@ pub(crate) fn parse(keys: &[KeyPress], mode: Mode, recording: bool) -> Parse {
         'P' => done(Paste { after: false }),
         'u' => done(Undo),
         '.' => done(Repeat),
-        'J' => done(Join),
+        'J' => done(Join(true)),
+        '&' => done(RepeatSubstitute(false)),
         '~' => done(ToggleCaseChar),
         'v' => done(Visual(Mode::Visual)),
         'V' => done(Visual(Mode::VisualLine)),
         ':' => done(Prompt(PromptKind::Command)),
         '/' => done(Prompt(PromptKind::Search { forward: true })),
         '?' => done(Prompt(PromptKind::Search { forward: false })),
-        'r' => need_char(Replace),
+        'r' => match next {
+            Some(n) if n.key == Key::Enter => done(Replace('\n')),
+            _ => need_char(Replace),
+        },
         'm' => need_char(SetMark),
         '@' => need_char(PlayMacro),
         'q' if recording => done(StopMacro),
@@ -483,7 +539,10 @@ pub(crate) fn parse(keys: &[KeyPress], mode: Mode, recording: bool) -> Parse {
             Some('v') => done(Reselect),
             Some('t') => done(NextBuffer(true)),
             Some('T') => done(NextBuffer(false)),
-            Some('J') => done(Join),
+            Some('J') => done(Join(false)),
+            Some('n') => done(SelectMatch(true)),
+            Some('N') => done(SelectMatch(false)),
+            Some('&') => done(RepeatSubstitute(true)),
             Some('I') => done(Insert(InsertAt::LineStartCol0)),
             _ => Parse::Invalid,
         },
@@ -494,27 +553,149 @@ pub(crate) fn parse(keys: &[KeyPress], mode: Mode, recording: bool) -> Parse {
 impl Editor {
     pub(crate) fn vim_key(&mut self, k: KeyPress) {
         self.pending.push(k);
-        let keys = self.pending.clone();
+        let mut keys = self.pending.clone();
+        // Ctrl+O from insert mode: one command, then back to inserting
+        let once = keys.first().copied().filter(is_insert_once);
+        if once.is_some() {
+            keys.remove(0);
+            if keys.is_empty() {
+                return;
+            }
+        }
         match parse(&keys, self.mode, self.macro_rec.is_some()) {
             Parse::Pending => {}
-            Parse::Invalid => self.pending.clear(),
+            Parse::Invalid => {
+                self.pending.clear();
+                if let Some(o) = once {
+                    self.resume_insert(o);
+                }
+            }
             Parse::Done(p) => {
                 self.pending.clear();
-                let record = p.cmd.is_change() && !self.replaying && self.mode == Mode::Normal;
+                if once.is_some() && p.cmd == Cmd::Escape {
+                    return; // Esc after Ctrl+O: stay in normal mode
+                }
+                let visual = self.mode.is_visual();
+                let record =
+                    p.cmd.is_change() && !self.replaying && once.is_none() && (self.mode == Mode::Normal || visual);
                 if record {
-                    self.dot_recording = Some(keys);
+                    // a visual change repeats on as much text from the cursor
+                    let mut rec = if visual { self.visual_dot_prefix() } else { Vec::new() };
+                    rec.extend(keys);
+                    self.dot_recording = Some(rec);
                 }
                 self.exec(p);
-                if self.mode != Mode::Insert {
-                    if record {
-                        if let Some(rec) = self.dot_recording.take() {
-                            self.dot = rec;
-                        }
+                let waiting_for_search = self.prompt.as_ref().is_some_and(|p| p.op.is_some());
+                if self.mode != Mode::Insert && !waiting_for_search {
+                    if record && let Some(rec) = self.dot_recording.take() {
+                        self.dot = rec;
                     }
                     self.commit();
                 }
+                if let Some(o) = once.filter(|_| self.mode == Mode::Normal) {
+                    if self.prompt.is_some() {
+                        self.pending = vec![o]; // back to inserting when the command line is done
+                    } else {
+                        self.resume_insert(o);
+                    }
+                }
             }
         }
+    }
+
+    /// Insert-mode Ctrl+O: normal mode for one command. The cursor stays put (a caret past the end of the line
+    /// sits on its last char until the command is done).
+    pub(crate) fn insert_ctrl_o(&mut self) {
+        if let Some(rec) = self.dot_recording.take() {
+            self.dot = rec;
+        }
+        let rope = &self.buf().doc.rope;
+        let h = self.buf().sel.primary().head;
+        let l = text::line_of(rope, h);
+        let eol = h == text::line_end(rope, l) && text::line_len(rope, l) > 0;
+        self.set_mode_raw(Mode::Normal);
+        self.commit();
+        self.clamp_cursors();
+        let mods = crate::input::Mods { ctrl: true, logo: true, shift: eol, alt: false };
+        self.pending = vec![KeyPress::new(Key::Char('o'), mods)];
+    }
+
+    /// After a command line opened from insert-mode Ctrl+O: back to inserting.
+    pub(crate) fn finish_insert_once(&mut self) {
+        if let Some(&o) = self.pending.first().filter(|k| is_insert_once(k)) {
+            self.pending.clear();
+            if self.mode == Mode::Normal {
+                self.resume_insert(o);
+            }
+        }
+    }
+
+    fn resume_insert(&mut self, once: KeyPress) {
+        self.set_mode_raw(Mode::Insert);
+        // after `$` the caret goes past the last char
+        let b = self.buf_mut();
+        let rope = &b.doc.rope;
+        b.sel = b.sel.transform(|r| {
+            if r.col == Some(usize::MAX) { Range::point(text::line_end(rope, text::line_of(rope, r.head))) } else { r }
+        });
+        if once.mods.shift {
+            // back after the last char when Ctrl+O was typed at the end of the line
+            let b = self.buf_mut();
+            let rope = &b.doc.rope;
+            b.sel = b.sel.transform(|r| {
+                let le = text::line_end(rope, text::line_of(rope, r.head));
+                if text::next_grapheme(rope, r.head) == le { Range::point(le) } else { r }
+            });
+        }
+    }
+
+    /// Keys that select as much text as the current visual selection, starting at the cursor (for `.`).
+    fn visual_dot_prefix(&self) -> Vec<KeyPress> {
+        let rope = &self.buf().doc.rope;
+        let tw = self.settings.tab_width;
+        let mut out = Vec::new();
+        let count = |out: &mut Vec<KeyPress>, n: usize, k: char| {
+            if n > 0 {
+                out.extend(n.to_string().chars().map(KeyPress::ch));
+                out.push(KeyPress::ch(k));
+            }
+        };
+        let (from, to) = match (self.block, self.buf().sel.ranges()) {
+            (Some((a, h)), _) => (a.min(h), a.max(h)),
+            (None, rs) => (rs.first().map_or(0, |r| r.from()), rs.last().map_or(0, |r| r.to())),
+        };
+        let (la, lz) = (text::line_of(rope, from), text::line_of(rope, to));
+        let eol = to == text::line_end(rope, lz) && text::line_len(rope, lz) > 0;
+        match self.mode {
+            Mode::VisualLine => {
+                out.push(KeyPress::ch('V'));
+                count(&mut out, lz - la, 'j');
+            }
+            Mode::VisualBlock => {
+                out.push(KeyPress::ctrl('v'));
+                count(&mut out, lz - la, 'j');
+                if eol {
+                    out.push(KeyPress::ch('$'));
+                } else {
+                    let (ca, cz) = (text::col_of(rope, from, tw), text::col_of(rope, to, tw));
+                    count(&mut out, ca.abs_diff(cz), 'l');
+                }
+            }
+            _ => {
+                out.push(KeyPress::ch('v'));
+                if lz > la {
+                    count(&mut out, lz - la, 'j');
+                    out.push(KeyPress::ch('0'));
+                }
+                if eol {
+                    out.push(KeyPress::ch('$'));
+                } else {
+                    let start = if lz > la { text::line_start(rope, lz) } else { from };
+                    count(&mut out, to - start, 'l');
+                }
+            }
+        }
+        out
     }
 
     fn exec(&mut self, p: Parsed) {
@@ -522,16 +703,36 @@ impl Editor {
         let count = p.count.unwrap_or(1);
         match p.cmd {
             Move(m) => self.do_move(m, p.count),
+            Operate(op, Target::Search(forward)) => {
+                // the prompt runs the operator when the pattern is entered
+                self.open_prompt(PromptKind::Search { forward });
+                if let Some(pr) = self.prompt.as_mut() {
+                    pr.op = Some((op, p.reg));
+                    pr.count = p.count;
+                }
+            }
             Operate(op, target) => {
                 let spans = self.op_spans(op, target, p.count);
-                self.apply_op(op, spans, p.reg, matches!(target, Target::Motion(Motion::Up | Motion::Down | Motion::FileStart)));
+                self.apply_op(
+                    op,
+                    spans,
+                    p.reg,
+                    matches!(target, Target::Motion(Motion::Up | Motion::Down | Motion::FileStart)),
+                    1,
+                );
             }
             VisualOp(op, lines) => {
                 let spans = self.visual_spans(lines);
-                let rept = if matches!(op, Op::Indent | Op::Outdent) { count } else { 1 };
-                for _ in 0..rept {
-                    self.apply_op(op, spans.clone(), p.reg, false);
+                self.apply_op(op, spans, p.reg, false, count);
+            }
+            VisualToEol(op) => {
+                if let Some((a, h)) = self.block {
+                    let rope = &self.buf().doc.rope;
+                    self.block = Some((a, text::line_end(rope, text::line_of(rope, h))));
+                    self.rebuild_block();
                 }
+                let spans = self.visual_spans(false);
+                self.apply_op(op, spans, p.reg, false, 1);
             }
             VisualObject(obj, around) => {
                 let b = self.buf();
@@ -540,9 +741,32 @@ impl Editor {
                     .sel
                     .ranges()
                     .iter()
-                    .map(|r| match object_span(rope, r.head, obj, around) {
-                        Some((a, z)) if z > a => Range::new(a.min(r.anchor), z - 1),
-                        _ => *r,
+                    .map(|r| {
+                        // `vipip`: a selection that already spans lines grows by the next paragraph
+                        if obj == Obj::Para && r.anchor != r.head {
+                            let l = text::line_of(rope, r.to()) + 1;
+                            if l <= text::last_line(rope) {
+                                let (_, z) = motion::paragraph_object_n(rope, text::line_start(rope, l), around, count);
+                                return Range::new(r.from(), z.saturating_sub(1).max(r.from()));
+                            }
+                            return *r;
+                        }
+                        let pair = matches!(obj, Obj::Pair(..));
+                        let mut n = count;
+                        let mut span = object_span(rope, r.head, obj, around, n);
+                        // `vi(i(`, `va(a(`: a selection that already is the block grows to the enclosing one
+                        while let Some((a, z)) = span.filter(|_| pair && r.anchor != r.head && n < count + 100) {
+                            if z > a && (a < r.from() || z - 1 > r.to()) {
+                                break;
+                            }
+                            n += 1;
+                            span = object_span(rope, r.head, obj, around, n);
+                        }
+                        match span {
+                            Some((a, z)) if z > a && pair => Range::new(a, z - 1),
+                            Some((a, z)) if z > a => Range::new(a.min(r.anchor), z - 1),
+                            _ => *r,
+                        }
                     })
                     .collect();
                 let prim = b.sel.primary_index();
@@ -564,13 +788,17 @@ impl Editor {
                 }
             }
             Repeat => {
-                let mut keys = self.dot.clone();
                 if let Some(n) = p.count {
-                    let (_, skip) = parse_count(&keys, 0);
-                    keys.drain(..skip);
+                    // `3.` replaces the count (and is remembered for the next `.`)
+                    let mut keys = std::mem::take(&mut self.dot);
+                    let reg_len = if keys.first().and_then(ch) == Some('"') { 2.min(keys.len()) } else { 0 };
+                    let (_, skip) = parse_count(&keys, reg_len);
+                    keys.drain(reg_len..skip);
                     let digits: Vec<KeyPress> = n.to_string().chars().map(KeyPress::ch).collect();
-                    keys.splice(0..0, digits);
+                    keys.splice(reg_len..reg_len, digits);
+                    self.dot = keys;
                 }
+                let keys = self.dot.clone();
                 self.replaying = true;
                 for k in keys {
                     self.handle_key(k);
@@ -580,46 +808,50 @@ impl Editor {
                     self.set_mode(Mode::Normal);
                 }
             }
-            Join => {
-                let spans = if self.mode.is_visual() { self.visual_spans(true) } else { Vec::new() };
-                let b = self.buf();
-                let rope = &b.doc.rope;
-                let lines: Vec<usize> = if spans.is_empty() {
-                    let l = b.cursor_line();
-                    (l..=(l + count.max(2) - 1).min(text::last_line(rope))).collect()
+            Join(spaces) => {
+                let visual = self.mode.is_visual();
+                let rope = &self.buf().doc.rope;
+                let last = text::last_line(rope);
+                let (first, lz) = if visual {
+                    let spans = self.visual_spans(true);
+                    let la = spans.iter().map(|s| text::line_of(rope, s.0)).min().unwrap_or(0);
+                    let lz =
+                        spans.iter().map(|s| text::line_of(rope, s.1.saturating_sub(1).max(s.0))).max().unwrap_or(0);
+                    (la, lz.max(la + 1))
                 } else {
-                    let mut v = Vec::new();
-                    for (a, z, _) in spans {
-                        let la = text::line_of(rope, a);
-                        let lz = text::line_of(rope, z.saturating_sub(1)).max(la + 1).min(text::last_line(rope));
-                        v.extend(la..=lz);
+                    let l = self.buf().cursor_line();
+                    if p.count.is_some_and(|c| c > 2) || l < last {
+                        (l, l + count.max(2) - 1)
+                    } else {
+                        (l, l) // J on the last line does nothing
                     }
-                    v
                 };
-                // the cursor lands on the first joint, like vim
-                let joint = lines.first().map(|&l| {
-                    let rope = &self.buf().doc.rope;
-                    let ls = text::line_start(rope, l);
-                    let mut e = text::line_end(rope, l);
-                    while e > ls && matches!(rope.char(e - 1), ' ' | '\t') {
-                        e -= 1;
+                let lz = lz.min(last);
+                if lz > first {
+                    let lines: Vec<usize> = (first..=lz).collect();
+                    self.set_mode_raw(Mode::Normal);
+                    // the cursor lands on the last joint, like vim
+                    let joint = ops::join_lines(self.buf_mut(), &lines, spaces, false);
+                    if let Some(j) = joint {
+                        self.buf_mut().sel = Selection::point(j);
                     }
-                    e
-                });
-                ops::join_lines(self.buf_mut(), &lines);
-                self.set_mode_raw(Mode::Normal);
-                if let Some(j) = joint {
-                    self.buf_mut().sel = Selection::point(j);
+                    self.clamp_cursors();
+                } else if visual {
+                    self.set_mode(Mode::Normal);
                 }
-                self.clamp_cursors();
             }
             Replace(c) => self.replace_chars(c, count),
             ToggleCaseChar => {
                 let spans = self.op_spans(Op::ToggleCase, Target::Motion(Motion::Right), Some(count));
-                self.apply_op(Op::ToggleCase, spans, None, false);
-                let b = self.buf_mut();
-                let rope = &b.doc.rope;
-                b.sel = b.sel.transform(|r| Range::point(text::clamp_normal(rope, (r.head + count).min(text::line_end(rope, text::line_of(rope, r.head))))));
+                let ends: Vec<usize> = spans.iter().map(|s| s.1).collect();
+                self.apply_op(Op::ToggleCase, spans, None, false, 1);
+                // the cursor moves past the toggled chars (case changes keep char counts for nearly all text)
+                let prim = self.buf().sel.primary_index().min(ends.len().saturating_sub(1));
+                if !ends.is_empty() {
+                    let b = self.buf_mut();
+                    let rope = &b.doc.rope;
+                    b.sel = Selection::new(ends.into_iter().map(|e| Range::point(text::clamp_normal(rope, e))), prim);
+                }
             }
             Visual(mode) => {
                 if self.mode == mode {
@@ -651,7 +883,12 @@ impl Editor {
                     b.sel = b.sel.transform(|r| Range::new(r.head, r.anchor));
                 }
             }
-            Prompt(kind) => self.open_prompt(kind),
+            Prompt(kind) => {
+                self.open_prompt(kind);
+                if let Some(pr) = self.prompt.as_mut() {
+                    pr.count = p.count;
+                }
+            }
             Scroll(s) => self.do_scroll(s, p.count),
             WriteQuit => self.run_ex("x"),
             ForceQuit => self.run_ex("q!"),
@@ -669,14 +906,25 @@ impl Editor {
             PlayMacro(r) => {
                 let r = if r == '@' { self.last_macro.unwrap_or('q') } else { r };
                 self.last_macro = Some(r);
-                let Some(keys) = self.macros.get(&r).cloned() else { return };
-                for _ in 0..count.min(10_000) {
-                    for k in &keys {
-                        self.handle_key(*k);
+                if r == ':' {
+                    // `@:` repeats the last command line
+                    for _ in 0..count.min(10_000) {
+                        self.repeat_last_ex();
                     }
+                    return;
                 }
+                let Some(keys) = self.macros.get(&r).cloned() else { return };
+                // the whole run is one undo step, like in vim
+                self.held(|e| {
+                    for _ in 0..count.min(10_000) {
+                        for k in &keys {
+                            e.handle_key(*k);
+                        }
+                    }
+                });
             }
             SetMark(c) => {
+                self.map_marks();
                 let id = self.buf().id;
                 let h = self.buf().sel.primary().head;
                 self.marks.insert((id, c), h);
@@ -702,12 +950,38 @@ impl Editor {
                     }
                 }
             }
-            NextBuffer(fwd) => self.run(if fwd { crate::commands::Command::NextBuffer } else { crate::commands::Command::PrevBuffer }),
+            NextBuffer(fwd) => {
+                self.run(if fwd { crate::commands::Command::NextBuffer } else { crate::commands::Command::PrevBuffer })
+            }
+            SelectMatch(forward) => {
+                let rope = self.buf().doc.rope.clone();
+                let h = self.buf().sel.primary().head;
+                if let Some((a, z)) = self.match_object(&rope, h, forward) {
+                    let anchor = if self.mode.is_visual() { self.buf().sel.primary().anchor } else { a };
+                    if !self.mode.is_visual() {
+                        self.set_mode(Mode::Visual);
+                    }
+                    let (anchor, head) = if forward { (anchor.min(a), z - 1) } else { (anchor.max(z - 1), a) };
+                    self.buf_mut().sel = Selection::single(Range::new(anchor, head));
+                }
+            }
+            RepeatSubstitute(all) => {
+                let line = self.buf().cursor_line();
+                let last = text::last_line(&self.buf().doc.rope);
+                if all { self.repeat_substitute(0, last, true) } else { self.repeat_substitute(line, line, false) }
+            }
         }
     }
 
     /// Where `m` takes a cursor at `pos`, or None when it cannot move (e.g. `f` without a match).
-    fn motion_target(&mut self, rope: &Rope, pos: usize, m: Motion, count: Option<usize>, sticky: Option<usize>) -> Option<(usize, Option<usize>)> {
+    fn motion_target(
+        &mut self,
+        rope: &Rope,
+        pos: usize,
+        m: Motion,
+        count: Option<usize>,
+        sticky: Option<usize>,
+    ) -> Option<(usize, Option<usize>)> {
         use Motion::*;
         let n = count.unwrap_or(1);
         let tw = self.settings.tab_width;
@@ -723,8 +997,22 @@ impl Editor {
             p
         };
         let t = match m {
-            Left => pos.saturating_sub(n).max(text::line_start(rope, line)),
-            Right => (pos + n).min(text::line_end(rope, line)),
+            Left => {
+                let ls = text::line_start(rope, line);
+                let mut p = pos;
+                for _ in 0..n.min(pos - ls) {
+                    p = text::prev_grapheme(rope, p).max(ls);
+                }
+                p
+            }
+            Right => {
+                let le = text::line_end(rope, line);
+                let mut p = pos;
+                for _ in 0..n.min(le.saturating_sub(pos)) {
+                    p = text::next_grapheme(rope, p).min(le);
+                }
+                p
+            }
             Up | Down => {
                 let d = if m == Up { -(n as isize) } else { n as isize };
                 let r = Range { anchor: pos, head: pos, col: sticky };
@@ -744,7 +1032,10 @@ impl Editor {
             LineStart => text::line_start(rope, line),
             FirstNonBlank => text::first_non_blank(rope, line),
             LineEnd => {
-                let l = (line + n - 1).min(last);
+                if line + n - 1 > last {
+                    return None; // `3$` / `3D` past the last line fails, like vim
+                }
+                let l = line + n - 1;
                 let e = text::line_end(rope, l);
                 return Some((if e > text::line_start(rope, l) { e - 1 } else { e }, Some(usize::MAX)));
             }
@@ -775,11 +1066,22 @@ impl Editor {
                 };
                 motion::find_in_line(rope, start, ch, forward, till, n)?
             }
+            MatchPair if count.is_some() => return self.motion_target(rope, pos, LinePercent, count, sticky),
             MatchPair => motion::match_pair_motion(rope, pos)?,
+            LinePercent => {
+                let total = last + 1;
+                let l = (n.min(100) * total).div_ceil(100).saturating_sub(1);
+                text::first_non_blank(rope, l.min(last))
+            }
             ParaFwd => repeat(pos, &|p| motion::paragraph_forward(rope, p)),
             ParaBack => repeat(pos, &|p| motion::paragraph_backward(rope, p)),
-            ScreenTop => text::first_non_blank(rope, (view.top + if view.top == 0 { 0 } else { so }).max(view.top + n - 1).min(last)),
-            ScreenMiddle => text::first_non_blank(rope, (view.top + view.rows / 2).min(last).min(view.top + (last - view.top) / 2)),
+            ScreenTop => text::first_non_blank(
+                rope,
+                (view.top + if view.top == 0 { 0 } else { so }).max(view.top + n - 1).min(last),
+            ),
+            ScreenMiddle => {
+                text::first_non_blank(rope, (view.top + view.rows / 2).min(last).min(view.top + (last - view.top) / 2))
+            }
             ScreenBottom => {
                 let bottom = (view.top + view.rows).saturating_sub(1).min(last);
                 let bottom = if bottom == last { bottom } else { bottom.saturating_sub(so) };
@@ -803,7 +1105,9 @@ impl Editor {
                 self.search = regex::Regex::new(&format!(r"\b{}\b", regex::escape(&word))).ok();
                 self.last_search_forward = forward;
                 let re = self.search.clone()?;
-                let mut p = if forward { pos } else { a };
+                // from the start of the word, so `*` on leading blanks finds the next occurrence of the word after
+                let mut p = a;
+                let _ = pos;
                 for _ in 0..n {
                     p = crate::search::find(rope, &re, p, forward)?.0;
                 }
@@ -811,7 +1115,23 @@ impl Editor {
             }
             Mark(c, linewise) => {
                 let id = self.buf().id;
-                let p = (*self.marks.get(&(id, c))?).min(len);
+                let p = match c {
+                    // the last visual selection's start and end
+                    '<' | '>' => {
+                        let (vmode, sel) = self.last_visual.as_ref()?;
+                        let (from, to) = (sel.ranges().first()?.from(), sel.ranges().last()?.to());
+                        match (c, vmode) {
+                            ('<', Mode::VisualLine) => text::line_start(rope, text::line_of(rope, from)),
+                            ('<', _) => from,
+                            (_, Mode::VisualLine) => {
+                                text::clamp_normal(rope, text::line_end(rope, text::line_of(rope, to)))
+                            }
+                            _ => to,
+                        }
+                    }
+                    c => *self.marks.get(&(id, c))?,
+                }
+                .min(len);
                 if linewise { text::first_non_blank(rope, text::line_of(rope, p)) } else { p }
             }
         };
@@ -823,9 +1143,24 @@ impl Editor {
         if mode == Mode::VisualBlock {
             let Some((anchor, head)) = self.block else { return };
             let rope = self.buf().doc.rope.clone();
-            if let Some((t, _)) = self.motion_target(&rope, head, m, count, None) {
-                self.block = Some((anchor, text::clamp_normal(&rope, t)));
+            // `$` makes the block reach every line's end; the head then sits on the line break
+            let eol = head == text::line_end(&rope, text::line_of(&rope, head))
+                && text::line_len(&rope, text::line_of(&rope, head)) > 0;
+            let sticky = if eol { Some(usize::MAX) } else { self.buf().sel.primary().col };
+            if let Some((t, col)) = self.motion_target(&rope, head, m, count, sticky) {
+                let t = if col == Some(usize::MAX) {
+                    text::line_end(&rope, text::line_of(&rope, t))
+                } else {
+                    text::clamp_normal(&rope, t)
+                };
+                self.block = Some((anchor, t));
                 self.rebuild_block();
+                // the head keeps its column across short lines
+                let b = self.buf_mut();
+                let p = b.sel.primary_index();
+                let mut ranges = b.sel.ranges().to_vec();
+                ranges[p].col = col;
+                b.sel = Selection::new(ranges, p);
             }
             return;
         }
@@ -841,14 +1176,28 @@ impl Editor {
                 continue;
             };
             moved = true;
-            let t = text::clamp_normal(&rope, t);
+            // in visual mode `$` takes the line break too
+            let t = if mode.is_visual() && col == Some(usize::MAX) {
+                text::line_end(&rope, text::line_of(&rope, t))
+            } else {
+                text::clamp_normal(&rope, t)
+            };
             let mut nr = if mode.is_visual() { Range::new(r.anchor, t) } else { Range::point(t) };
             nr.col = col;
             out.push(nr);
         }
         if moved {
             self.buf_mut().sel = Selection::new(out, prim);
-            if matches!(m, Motion::SearchNext(_) | Motion::SearchWord(_) | Motion::FileStart | Motion::FileEnd | Motion::Mark(..) | Motion::MatchPair) {
+            if matches!(
+                m,
+                Motion::SearchNext(_)
+                    | Motion::SearchWord(_)
+                    | Motion::FileStart
+                    | Motion::FileEnd
+                    | Motion::Mark(..)
+                    | Motion::MatchPair
+                    | Motion::LinePercent
+            ) {
                 let rows = self.buf().view.rows;
                 let line = self.buf().cursor_line();
                 let top = self.buf().view.top;
@@ -862,60 +1211,73 @@ impl Editor {
     /// `[from, to)` spans for an operator, one per cursor, plus whether each is linewise.
     fn op_spans(&mut self, op: Op, target: Target, count: Option<usize>) -> Vec<(usize, usize, bool)> {
         let rope = self.buf().doc.rope.clone();
-        let len = rope.len_chars();
-        let last = text::last_line(&rope);
         let n = count.unwrap_or(1);
         let heads: Vec<(usize, Option<usize>)> = self.buf().sel.ranges().iter().map(|r| (r.head, r.col)).collect();
-        let lines_span = |a: usize, b: usize| {
-            let (a, b) = (a.min(b), a.max(b).min(last));
-            let end = if b < last { text::line_start(&rope, b + 1) } else { len };
-            (text::line_start(&rope, a), end, true)
-        };
         let mut out = Vec::with_capacity(heads.len());
         for (pos, col) in heads {
             let line = text::line_of(&rope, pos);
             let span = match target {
-                Target::Lines => Some(lines_span(line, line + n - 1)),
-                Target::Object(obj, around) => object_span(&rope, pos, obj, around).map(|(a, z)| {
-                    if obj == Obj::Para {
+                Target::Lines => Some(lines_span(&rope, line, line + n - 1)),
+                Target::Search(_) => None,
+                Target::Object(Obj::Match(forward), _) => {
+                    self.match_object(&rope, pos, forward).map(|(a, z)| (a, z, false))
+                }
+                Target::Object(obj, around) => object_span(&rope, pos, obj, around, n).map(|(a, z)| match obj {
+                    Obj::Para => {
                         let la = text::line_of(&rope, a);
                         let lz = text::line_of(&rope, z.saturating_sub(1).max(a));
-                        lines_span(la, lz)
-                    } else {
-                        (a, z, false)
+                        lines_span(&rope, la, lz)
                     }
+                    Obj::Pair(..) => exclusive_span(&rope, a, z),
+                    _ => (a, z, false),
                 }),
                 Target::Motion(m) => {
                     let mut m = m;
+                    if m == Motion::MatchPair && count.is_some() {
+                        m = Motion::LinePercent;
+                    }
                     // cw is ce (on a word)
-                    if op == Op::Change {
-                        if let Motion::WordFwd(big) = m {
-                            if let Some(c) = text::char_at(&rope, pos).filter(|c| !c.is_whitespace()) {
-                                let cls = |c: char| if big { text::big_class(c) } else { text::class(c) };
-                                let at_end = text::char_at(&rope, pos + 1).is_none_or(|d| cls(d) != cls(c));
-                                if at_end && n == 1 {
-                                    out.push((pos, pos + 1, false));
-                                    continue;
-                                }
-                                m = Motion::WordEnd(big);
-                            }
+                    if op == Op::Change
+                        && let Motion::WordFwd(big) = m
+                        && let Some(c) = text::char_at(&rope, pos).filter(|c| !c.is_whitespace())
+                    {
+                        let cls = |c: char| if big { text::big_class(c) } else { text::class(c) };
+                        let at_end = text::char_at(&rope, pos + 1).is_none_or(|d| cls(d) != cls(c));
+                        if at_end && n == 1 {
+                            out.push((pos, text::grapheme_end(&rope, pos), false));
+                            continue;
                         }
+                        m = Motion::WordEnd(big);
+                    }
+                    if let Motion::WordFwd(big) = m {
+                        // the last word moved over ends at its line end, not at the next line's first word
+                        let mut prev = pos;
+                        let mut t = pos;
+                        for _ in 0..n {
+                            prev = t;
+                            t = motion::next_word_start(&rope, t, big);
+                        }
+                        let pl = text::line_of(&rope, prev);
+                        if text::line_of(&rope, t) > pl && prev < text::line_end(&rope, pl) {
+                            t = text::line_end(&rope, pl);
+                        }
+                        out.push(exclusive_span(&rope, pos, t));
+                        continue;
                     }
                     let Some((t, _)) = self.motion_target(&rope, pos, m, count, col) else { continue };
                     match m.kind() {
-                        Kind::Linewise => Some(lines_span(line, text::line_of(&rope, t))),
-                        Kind::Inclusive => Some((pos.min(t), (pos.max(t) + 1).min(len), false)),
-                        Kind::Exclusive => {
-                            let mut t = t;
-                            if matches!(m, Motion::WordFwd(_)) && text::line_of(&rope, t) > line {
-                                // dw on the last word of a line stops at the line end
-                                let le = text::line_end(&rope, line);
-                                if le > pos {
-                                    t = le;
-                                }
-                            }
-                            Some((pos.min(t), pos.max(t), false))
+                        Kind::Linewise => Some(lines_span(&rope, line, text::line_of(&rope, t))),
+                        Kind::Inclusive => {
+                            // an inclusive motion onto a line break (`D` on an empty line) takes nothing of it
+                            let end = pos.max(t);
+                            let end = if matches!(text::char_at(&rope, end), Some('\n') | None) {
+                                end
+                            } else {
+                                text::grapheme_end(&rope, end)
+                            };
+                            Some((pos.min(t), end, false))
                         }
+                        Kind::Exclusive => Some(exclusive_span(&rope, pos.min(t), pos.max(t))),
                     }
                 }
             };
@@ -929,8 +1291,6 @@ impl Editor {
     /// Spans of the visual selection; `force_lines` widens them to whole lines.
     fn visual_spans(&self, force_lines: bool) -> Vec<(usize, usize, bool)> {
         let rope = &self.buf().doc.rope;
-        let len = rope.len_chars();
-        let last = text::last_line(rope);
         let linewise = force_lines || self.mode == Mode::VisualLine;
         self.selection_spans()
             .into_iter()
@@ -938,8 +1298,7 @@ impl Editor {
                 if linewise {
                     let la = text::line_of(rope, a);
                     let lz = text::line_of(rope, z.saturating_sub(1).max(a));
-                    let end = if lz < last { text::line_start(rope, lz + 1) } else { len };
-                    (text::line_start(rope, la), end, true)
+                    lines_span(rope, la, lz)
                 } else {
                     (a, z, false)
                 }
@@ -947,8 +1306,82 @@ impl Editor {
             .collect()
     }
 
-    /// Runs an operator on spans (one per cursor) and leaves the cursors where vim would.
-    fn apply_op(&mut self, op: Op, spans: Vec<(usize, usize, bool)>, reg: Option<char>, keep_col_on_yank: bool) {
+    /// Text of the spans as a register (linewise parts are whole lines without the final break).
+    fn register_of(&self, spans: &[(usize, usize, bool)], blockwise: bool) -> Register {
+        let rope = &self.buf().doc.rope;
+        let parts = spans
+            .iter()
+            .map(|&(a, z, lw)| {
+                if lw {
+                    let la = text::line_of(rope, a);
+                    let lz = text::line_of(rope, z.saturating_sub(1).max(a));
+                    rope.slice(text::line_start(rope, la)..text::line_end(rope, lz)).to_string()
+                } else {
+                    rope.slice(a..z).to_string()
+                }
+            })
+            .collect();
+        Register { parts, linewise: spans.iter().any(|s| s.2), blockwise }
+    }
+
+    /// The text of the visual block, one part per line, short lines included as empty parts.
+    fn block_parts(&self) -> Option<Vec<String>> {
+        let (anchor, head) = self.block?;
+        let tw = self.settings.tab_width;
+        let rope = &self.buf().doc.rope;
+        let (la, lh) = (text::line_of(rope, anchor), text::line_of(rope, head));
+        let (ca, ch) = (text::col_of(rope, anchor, tw), text::col_of(rope, head, tw));
+        let (left, right) = (ca.min(ch), ca.max(ch));
+        let right = if head == text::line_end(rope, lh) && text::line_len(rope, lh) > 0 { usize::MAX } else { right };
+        let parts = (la.min(lh)..=la.max(lh))
+            .map(|l| {
+                let a = text::pos_at_col(rope, l, left, tw);
+                let le = text::line_end(rope, l);
+                if text::col_of(rope, a, tw) < left || a == le {
+                    return String::new();
+                }
+                let h = text::grapheme_end(rope, text::clamp_normal(rope, text::pos_at_col(rope, l, right, tw)).max(a))
+                    .min(le);
+                rope.slice(a..h).to_string()
+            })
+            .collect();
+        Some(parts)
+    }
+
+    /// Where vim leaves the cursor before an operator changes text (`[`-mark style): the start of a charwise span,
+    /// the first line of a linewise one. Undo comes back here.
+    fn place_op_cursor(&mut self, spans: &[(usize, usize, bool)], prim: usize) {
+        let tw = self.settings.tab_width;
+        let b = self.buf_mut();
+        if b.sel.len() != spans.len() {
+            return;
+        }
+        let rope = &b.doc.rope;
+        let heads: Vec<usize> = b.sel.ranges().iter().map(|r| r.head).collect();
+        let sel = Selection::new(
+            spans.iter().zip(heads).map(|(&(a, _, lw), h)| {
+                if lw {
+                    let l = text::line_of(rope, a);
+                    let col = text::col_of(rope, h, tw).min(text::col_of(rope, text::first_non_blank(rope, l), tw));
+                    Range::point(text::pos_at_col(rope, l, col, tw))
+                } else {
+                    Range::point(a)
+                }
+            }),
+            prim,
+        );
+        b.sel = sel;
+    }
+
+    /// Runs an operator on spans (one per cursor) and leaves the cursors where vim would. `levels` repeats `>`/`<`.
+    fn apply_op(
+        &mut self,
+        op: Op,
+        spans: Vec<(usize, usize, bool)>,
+        reg: Option<char>,
+        keep_col_on_yank: bool,
+        levels: usize,
+    ) {
         let was_block = self.mode == Mode::VisualBlock;
         if spans.is_empty() {
             if self.mode.is_visual() {
@@ -959,19 +1392,14 @@ impl Editor {
         let rope = self.buf().doc.rope.clone();
         let len = rope.len_chars();
         let last = text::last_line(&rope);
-        let prim = self.buf().sel.primary_index().min(spans.len() - 1);
+        // block operations leave the cursor at the top-left corner
+        let prim = if was_block { 0 } else { self.buf().sel.primary_index().min(spans.len() - 1) };
         let linewise = spans.iter().any(|s| s.2);
-        let text_of = |&(a, z, lw): &(usize, usize, bool)| {
-            if lw {
-                let la = text::line_of(&rope, a);
-                let lz = text::line_of(&rope, z.saturating_sub(1).max(a));
-                rope.slice(text::line_start(&rope, la)..text::line_end(&rope, lz)).to_string()
-            } else {
-                rope.slice(a..z).to_string()
-            }
-        };
         if matches!(op, Op::Delete | Op::Change | Op::Yank) {
-            let reg_val = Register { parts: spans.iter().map(text_of).collect(), linewise };
+            let reg_val = match self.block_parts().filter(|_| was_block && !linewise) {
+                Some(parts) => Register { parts, linewise: false, blockwise: true },
+                None => self.register_of(&spans, was_block),
+            };
             self.write_register(reg, reg_val, op == Op::Yank);
         }
         let opts = self.opts();
@@ -985,7 +1413,13 @@ impl Editor {
                             Range::point(h)
                         } else if lw {
                             let col = text::col_of(&rope, h, opts.tab_width);
-                            Range::point(text::clamp_normal(&rope, text::pos_at_col(&rope, text::line_of(&rope, a), col, opts.tab_width)).min(h.max(a)))
+                            Range::point(
+                                text::clamp_normal(
+                                    &rope,
+                                    text::pos_at_col(&rope, text::line_of(&rope, a), col, opts.tab_width),
+                                )
+                                .min(h.max(a)),
+                            )
                         } else {
                             Range::point(a)
                         }
@@ -1000,25 +1434,20 @@ impl Editor {
                     .iter()
                     .map(|&(a, z, lw)| {
                         // deleting through the last line takes the line break before it
-                        if lw && z == len && a > 0 && text::line_of(&rope, a) <= last { Change::delete(a - 1, z) } else { Change::delete(a, z) }
+                        let through_last = z > len || (z == len && text::line_len(&rope, last) > 0);
+                        let z = z.min(len);
+                        if lw && a > 0 && through_last { Change::delete(a - 1, z) } else { Change::delete(a, z) }
                     })
                     .collect();
                 let cs = ChangeSet::new(changes.clone());
                 let anchors: Vec<usize> = changes.iter().map(|c| cs.map(c.from, Assoc::Before)).collect();
                 self.set_mode_raw(Mode::Normal);
+                self.place_op_cursor(&spans, prim);
                 self.buf_mut().apply(cs, Some(Selection::new(anchors.into_iter().map(Range::point), prim)));
                 let b = self.buf_mut();
                 let rope = &b.doc.rope;
                 b.sel = b.sel.transform(|r| {
-                    let p = if linewise {
-                        let l = text::line_of(rope, r.head);
-                        let l = if r.head > 0 && r.head == rope.len_chars() && rope.char(r.head - 1) == '\n' { l } else { l };
-                        let p = text::line_start(rope, l);
-                        let p = if p > 0 && p >= rope.len_chars() { text::line_start(rope, text::line_of(rope, p - 1)) } else { p };
-                        text::first_non_blank(rope, text::line_of(rope, p))
-                    } else {
-                        r.head
-                    };
+                    let p = if linewise { text::first_non_blank(rope, text::line_of(rope, r.head)) } else { r.head };
                     Range::point(text::clamp_normal(rope, p))
                 });
             }
@@ -1040,7 +1469,31 @@ impl Editor {
                 let carets: Vec<usize> =
                     changes.iter().map(|c| cs.map(c.from, Assoc::Before) + c.text.chars().count()).collect();
                 self.set_mode_raw(Mode::Insert);
+                self.place_op_cursor(&spans, prim);
+                let first = carets[prim.min(carets.len() - 1)];
                 self.buf_mut().apply(cs, Some(Selection::new(carets.into_iter().map(Range::point), prim)));
+                self.mark_insert_start(first);
+                self.block_insert = was_block;
+            }
+            Op::Indent | Op::Outdent if was_block && !linewise => {
+                // a block shifts the text right of its left edge
+                let w = opts.tab_width.max(1) * levels.max(1);
+                let changes: Vec<Change> = spans
+                    .iter()
+                    .filter_map(|&(a, _, _)| {
+                        if op == Op::Indent {
+                            return Some(Change::insert(a, opts.indent.repeat(levels.max(1))));
+                        }
+                        let le = text::line_end(&rope, text::line_of(&rope, a));
+                        let n = rope.slice(a..le).chars().take_while(|c| *c == ' ' || *c == '\t').take(w).count();
+                        (n > 0).then(|| Change::delete(a, a + n))
+                    })
+                    .collect();
+                let corner = spans[0].0;
+                self.set_mode_raw(Mode::Normal);
+                self.place_op_cursor(&spans, prim);
+                self.buf_mut().apply(ChangeSet::new(changes), Some(Selection::point(corner)));
+                self.clamp_cursors();
             }
             Op::Indent | Op::Outdent => {
                 let mut lines = Vec::new();
@@ -1052,11 +1505,10 @@ impl Editor {
                 lines.sort_unstable();
                 lines.dedup();
                 self.set_mode_raw(Mode::Normal);
-                if op == Op::Indent {
-                    ops::indent_lines(self.buf_mut(), &lines, &opts);
-                } else {
-                    ops::outdent_lines(self.buf_mut(), &lines, &opts);
-                }
+                self.place_op_cursor(&spans, prim);
+                // vim re-indents: the width changes by a shiftwidth per level, written the 'expandtab' way
+                let levels = levels.max(1) as isize;
+                ops::shift_lines(self.buf_mut(), &lines, &opts, if op == Op::Indent { levels } else { -levels });
                 let b = self.buf_mut();
                 let rope = &b.doc.rope;
                 let first: Vec<usize> = spans.iter().map(|s| text::line_of(rope, s.0.min(rope.len_chars()))).collect();
@@ -1067,22 +1519,84 @@ impl Editor {
                 let changes: Vec<Change> = spans
                     .iter()
                     .map(|&(a, z, _)| {
+                        let z = z.min(len);
                         let s = rope.slice(a..z).to_string();
                         let t: String = match op {
                             Op::Lower => s.to_lowercase(),
                             Op::Upper => s.to_uppercase(),
-                            _ => s.chars().flat_map(|c| if c.is_uppercase() { c.to_lowercase().collect::<Vec<_>>() } else { c.to_uppercase().collect() }).collect(),
+                            _ => s
+                                .chars()
+                                .flat_map(|c| {
+                                    if c.is_uppercase() {
+                                        c.to_lowercase().collect::<Vec<_>>()
+                                    } else {
+                                        c.to_uppercase().collect()
+                                    }
+                                })
+                                .collect(),
                         };
                         Change::replace(a, z, t)
                     })
                     .collect();
                 let starts: Vec<usize> = spans.iter().map(|s| s.0).collect();
                 self.set_mode_raw(Mode::Normal);
-                self.buf_mut().apply(ChangeSet::new(changes), Some(Selection::new(starts.into_iter().map(Range::point), prim)));
+                self.place_op_cursor(&spans, prim);
+                self.buf_mut()
+                    .apply(ChangeSet::new(changes), Some(Selection::new(starts.into_iter().map(Range::point), prim)));
                 self.clamp_cursors();
             }
         }
-        let _ = was_block;
+        if was_block && self.mode == Mode::Normal {
+            // a block operation leaves one cursor, at its top-left corner
+            let b = self.buf_mut();
+            b.sel = b.sel.only_primary();
+        }
+    }
+
+    /// Runs `f` with the active buffer's undo group held open, so everything it does is one undo step.
+    pub(crate) fn held<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
+        let id = self.buf().id;
+        self.buf_mut().hold_history();
+        let r = f(self);
+        if let Some(b) = self.buffers.iter_mut().find(|b| b.id == id) {
+            b.release_history();
+        }
+        r
+    }
+
+    /// `gn`: the search match under the cursor, else the next one (the previous one for `gN`).
+    fn match_object(&self, rope: &Rope, pos: usize, forward: bool) -> Option<(usize, usize)> {
+        let re = self.search.as_ref()?;
+        let mut hits = Vec::new();
+        crate::search::line_matches(rope, re, text::line_of(rope, pos), &mut hits);
+        if let Some(&m) = hits.iter().find(|m| m.0 <= pos && pos < m.1) {
+            return Some(m);
+        }
+        crate::search::find(rope, re, pos, forward).map(|(a, z, _)| (a, z))
+    }
+
+    /// Remembers where an insert session started (vim's `'[` mark): Ctrl+U stops there, and visual-block inserts
+    /// put the cursor back there on Esc.
+    pub(crate) fn mark_insert_start(&mut self, pos: usize) {
+        // earlier edits move the old marks, not this new one
+        self.map_marks();
+        let id = self.buf().id;
+        self.marks.insert((id, '['), pos);
+    }
+
+    /// `d/pat<CR>` and friends: runs `op` from the cursor to `target` (an exclusive motion).
+    pub(crate) fn operate_to(&mut self, op: Op, reg: Option<char>, target: usize) {
+        let rope = self.buf().doc.rope.clone();
+        let pos = self.buf().sel.primary().head;
+        if pos == target {
+            return;
+        }
+        let span = exclusive_span(&rope, pos.min(target), pos.max(target));
+        self.buf_mut().sel = Selection::point(pos);
+        self.apply_op(op, vec![span], reg, false, 1);
+        if self.mode != Mode::Insert {
+            self.commit();
+        }
     }
 
     /// Changes mode without converting the selection (the caller sets it).
@@ -1100,7 +1614,11 @@ impl Editor {
         }
         let b = self.buf_mut();
         let rope = &b.doc.rope;
-        b.sel = b.sel.transform(|r| Range { anchor: text::clamp_normal(rope, r.head), head: text::clamp_normal(rope, r.head), col: r.col });
+        b.sel = b.sel.transform(|r| Range {
+            anchor: text::clamp_normal(rope, r.head),
+            head: text::clamp_normal(rope, r.head),
+            col: r.col,
+        });
     }
 
     fn enter_insert(&mut self, at: InsertAt) {
@@ -1112,13 +1630,22 @@ impl Editor {
             let block = self.mode == Mode::VisualBlock;
             let rope = self.buf().doc.rope.clone();
             let carets = spans.iter().map(|&(a, z)| {
-                let p = if at == InsertAt::Before { a } else if block { z.min(text::line_end(&rope, text::line_of(&rope, a))) } else { z };
+                let p = if at == InsertAt::Before {
+                    a
+                } else if block {
+                    z.min(text::line_end(&rope, text::line_of(&rope, a)))
+                } else {
+                    z
+                };
                 Range::point(p)
             });
             let sel = if block { Selection::new(carets, 0) } else { Selection::new(carets, prim) };
             self.block_insert = block;
             self.set_mode_raw(Mode::Insert);
             self.buf_mut().sel = sel;
+            // Esc puts the cursor back on the top-left corner of the block
+            let corner = spans.first().map_or(0, |s| s.0);
+            self.mark_insert_start(corner);
             return;
         }
         self.set_mode_raw(Mode::Insert);
@@ -1127,40 +1654,132 @@ impl Editor {
         match at {
             InsertAt::Before => {}
             InsertAt::After => {
-                b.sel = b.sel.transform(|r| Range::point((r.head + 1).min(text::line_end(rope, text::line_of(rope, r.head)))));
+                b.sel = b.sel.transform(|r| {
+                    Range::point(
+                        text::next_grapheme(rope, r.head).min(text::line_end(rope, text::line_of(rope, r.head))),
+                    )
+                });
             }
-            InsertAt::LineStart => b.sel = b.sel.transform(|r| Range::point(text::first_non_blank(rope, text::line_of(rope, r.head)))),
-            InsertAt::LineStartCol0 => b.sel = b.sel.transform(|r| Range::point(text::line_start(rope, text::line_of(rope, r.head)))),
-            InsertAt::LineEnd => b.sel = b.sel.transform(|r| Range::point(text::line_end(rope, text::line_of(rope, r.head)))),
+            InsertAt::LineStart => {
+                b.sel = b.sel.transform(|r| Range::point(text::first_non_blank(rope, text::line_of(rope, r.head))))
+            }
+            InsertAt::LineStartCol0 => {
+                b.sel = b.sel.transform(|r| Range::point(text::line_start(rope, text::line_of(rope, r.head))))
+            }
+            InsertAt::LineEnd => {
+                b.sel = b.sel.transform(|r| Range::point(text::line_end(rope, text::line_of(rope, r.head))))
+            }
             InsertAt::Below => ops::open_line(b, true, &opts),
             InsertAt::Above => ops::open_line(b, false, &opts),
+        }
+        let h = self.buf().sel.primary().head;
+        self.mark_insert_start(h);
+    }
+
+    /// `[count]i...<Esc>` and friends: types the inserted keys `count - 1` more times, like vim. Called when the
+    /// insert session ends, with the keys that started it (recorded for `.`).
+    pub(crate) fn repeat_insert(&mut self, keys: &[KeyPress]) {
+        let Some((parsed, used)) = (1..=keys.len()).find_map(|k| match parse(&keys[..k], Mode::Normal, false) {
+            Parse::Done(p) => Some((p, k)),
+            _ => None,
+        }) else {
+            return;
+        };
+        let Cmd::Insert(at) = parsed.cmd else { return };
+        let n = parsed.count.unwrap_or(1).min(10_000);
+        if n <= 1 {
+            return;
+        }
+        let mut body = &keys[used..];
+        if let Some(last) = body.last()
+            && (last.key == Key::Esc || matches!(ctrl(last), Some('[' | 'c')))
+        {
+            body = &body[..body.len() - 1];
+        }
+        let opts = self.opts();
+        for _ in 1..n {
+            // the copies of `O` go below the first one, like vim
+            if matches!(at, InsertAt::Below | InsertAt::Above) {
+                ops::open_line(self.buf_mut(), true, &opts);
+            }
+            for &k in body {
+                self.insert_key(k);
+            }
         }
     }
 
     fn paste(&mut self, reg: Option<char>, after: bool, count: usize) {
-        let Some(r) = self.read_register(reg) else {
-            self.error("register is empty");
-            return;
+        let r = match self.read_register(reg) {
+            Some(r) => r,
+            // over a selection an empty register still deletes it, like vim
+            None if self.mode.is_visual() => Register::default(),
+            None => {
+                self.error("register is empty");
+                return;
+            }
         };
         if self.mode.is_visual() {
-            // replace the selection; the register keeps its contents
-            let spans = self.visual_spans(false);
-            let saved = self.registers_snapshot();
-            self.apply_op(Op::Delete, spans, Some('_'), false);
-            self.restore_registers(saved);
-            let after = r.linewise;
-            if r.linewise {
-                // the deletion removed whole lines: put the new ones above the cursor line
-                return self.put(r, false, count);
-            }
-            return self.put(r, after && false, count);
+            return self.paste_over_selection(r, reg, after, count);
         }
         self.put(r, after, count);
+    }
+
+    /// `p`/`P` in visual mode: the selection is replaced by the register. `p` puts the replaced text in the unnamed
+    /// register (vim), `P` leaves the registers alone.
+    fn paste_over_selection(&mut self, r: Register, reg: Option<char>, after: bool, count: usize) {
+        let block = self.mode == Mode::VisualBlock;
+        let line_sel = self.mode == Mode::VisualLine;
+        let spans = self.visual_spans(false);
+        if spans.is_empty() {
+            return;
+        }
+        let replaced = self.register_of(&spans, block);
+        let rope = self.buf().doc.rope.clone();
+        let per_span = r.parts.len() == spans.len() && spans.len() > 1;
+        let joined = r.parts.join("\n");
+        let mut changes = Vec::with_capacity(spans.len());
+        let mut cursor_at = Vec::with_capacity(spans.len());
+        for (i, &(a, z, _)) in spans.iter().enumerate() {
+            let part = if per_span { r.parts[i].as_str() } else { joined.as_str() };
+            let body = vec![part; count.max(1)].join(if r.linewise { "\n" } else { "" });
+            if line_sel {
+                // whole lines are replaced; charwise text becomes its own line(s)
+                let la = text::line_of(&rope, a);
+                let lz = text::line_of(&rope, z.saturating_sub(1).max(a));
+                let ls = text::line_start(&rope, la);
+                changes.push(Change::replace(ls, text::line_end(&rope, lz), body.clone()));
+                let lead = body.chars().take_while(|c| *c == ' ' || *c == '\t').count();
+                cursor_at.push((changes.len() - 1, if r.linewise { lead } else { 0 }));
+            } else if r.linewise && !block {
+                // lines into a charwise selection: they go on lines of their own between the two halves
+                changes.push(Change::replace(a, z, format!("\n{body}\n")));
+                cursor_at.push((changes.len() - 1, 1));
+            } else {
+                let n = body.chars().count();
+                let multi_line = body.contains('\n');
+                changes.push(Change::replace(a, z, body));
+                cursor_at.push((changes.len() - 1, if multi_line || block { 0 } else { n.saturating_sub(1) }));
+            }
+        }
+        let cs = ChangeSet::new(changes.clone());
+        let carets: Vec<usize> =
+            cursor_at.iter().map(|&(i, off)| cs.map(changes[i].from, Assoc::Before) + off).collect();
+        let prim = if block { 0 } else { self.buf().sel.primary_index().min(carets.len() - 1) };
+        self.set_mode_raw(Mode::Normal);
+        self.place_op_cursor(&spans, prim);
+        self.buf_mut().apply(cs, Some(Selection::new(carets.into_iter().map(Range::point), prim)));
+        self.clamp_cursors();
+        if after && reg != Some('_') {
+            self.write_register(None, replaced, false);
+        }
     }
 
     fn put(&mut self, r: Register, after: bool, count: usize) {
         let n = self.buf().sel.len();
         let per_cursor = r.parts.len() == n && n > 1;
+        if r.blockwise && !per_cursor && !r.linewise {
+            return self.put_block(&r, after, count);
+        }
         let joined = r.parts.join("\n");
         let mut i = 0;
         let linewise = r.linewise;
@@ -1173,27 +1792,73 @@ impl Editor {
                 let line = text::line_of(rope, pos);
                 let lead = block.chars().take_while(|c| *c == ' ' || *c == '\t').count();
                 if after {
-                    ops::Edit::Change(Change::insert(text::line_end(rope, line), format!("\n{block}")), 1 + lead, 1 + lead)
+                    ops::Edit::Change(
+                        Change::insert(text::line_end(rope, line), format!("\n{block}")),
+                        1 + lead,
+                        1 + lead,
+                    )
                 } else {
                     ops::Edit::Change(Change::insert(text::line_start(rope, line), format!("{block}\n")), lead, lead)
                 }
             } else {
                 let s = part.repeat(count);
                 let le = text::line_end(rope, text::line_of(rope, pos));
-                let at = if after && pos < le { pos + 1 } else { pos };
-                let n = s.chars().count();
-                ops::Edit::Change(Change::insert(at, s), n.saturating_sub(1), n.saturating_sub(1))
+                let at = if after && pos < le { text::next_grapheme(rope, pos) } else { pos };
+                // the cursor ends on the last char put, or on the first when the text spans lines
+                let n = if s.contains('\n') { 0 } else { s.chars().count().saturating_sub(1) };
+                ops::Edit::Change(Change::insert(at, s), n, n)
             }
         });
         self.set_mode_raw(Mode::Normal);
         self.clamp_cursors();
     }
 
-    fn registers_snapshot(&self) -> Option<Register> {
-        None
+    /// Puts a blockwise register as a block: one part per line from the cursor down, at the cursor's column.
+    fn put_block(&mut self, r: &Register, after: bool, count: usize) {
+        let tw = self.settings.tab_width;
+        let rope = self.buf().doc.rope.clone();
+        let head = self.buf().sel.primary().head;
+        let line = text::line_of(&rope, head);
+        let last = text::last_line(&rope);
+        let mut col = text::col_of(&rope, head, tw);
+        if after && text::line_len(&rope, line) > 0 {
+            col = text::col_of(&rope, text::next_grapheme(&rope, head), tw);
+        }
+        let width =
+            r.parts.iter().map(|p| p.chars().map(|c| text::char_width(c, 0, tw)).sum::<usize>()).max().unwrap_or(0);
+        let mut changes = Vec::new();
+        let mut tail = String::new();
+        for (i, part) in r.parts.iter().enumerate() {
+            let part_w: usize = part.chars().map(|c| text::char_width(c, 0, tw)).sum();
+            let one = part.clone() + &" ".repeat(width - part_w.min(width));
+            let body = one.repeat(count.max(1));
+            let l = line + i;
+            if l > last {
+                tail.push('\n');
+                tail.push_str(&" ".repeat(col));
+                tail.push_str(body.trim_end_matches(' '));
+                continue;
+            }
+            let le = text::line_end(&rope, l);
+            let line_w = text::col_of(&rope, le, tw);
+            if line_w < col {
+                changes.push(Change::insert(le, format!("{}{}", " ".repeat(col - line_w), body.trim_end_matches(' '))));
+            } else {
+                let at = text::pos_at_col(&rope, l, col, tw);
+                let body = if at == le { body.trim_end_matches(' ').to_string() } else { body };
+                changes.push(Change::insert(at, body));
+            }
+        }
+        if !tail.is_empty() {
+            changes.push(Change::insert(rope.len_chars(), tail));
+        }
+        let cs = ChangeSet::new(changes);
+        let corner = text::pos_at_col(&rope, line, col, tw);
+        let cursor = cs.map(corner, Assoc::Before);
+        self.set_mode_raw(Mode::Normal);
+        self.buf_mut().apply(cs, Some(Selection::point(cursor)));
+        self.clamp_cursors();
     }
-
-    fn restore_registers(&mut self, _saved: Option<Register>) {}
 
     fn replace_chars(&mut self, c: char, count: usize) {
         let spans: Vec<(usize, usize)> = if self.mode.is_visual() {
@@ -1203,8 +1868,16 @@ impl Editor {
             let mut v = Vec::new();
             for r in self.buf().sel.ranges() {
                 let le = text::line_end(rope, text::line_of(rope, r.head));
-                if r.head + count <= le {
-                    v.push((r.head, r.head + count));
+                let mut z = r.head;
+                for _ in 0..count {
+                    if z >= le {
+                        z = usize::MAX;
+                        break;
+                    }
+                    z = text::next_grapheme(rope, z);
+                }
+                if z <= le {
+                    v.push((r.head, z));
                 }
             }
             if v.is_empty() {
@@ -1214,17 +1887,46 @@ impl Editor {
         };
         let rope = self.buf().doc.rope.clone();
         let visual = self.mode.is_visual();
+        let opts = self.opts();
         let changes: Vec<Change> = spans
             .iter()
             .map(|&(a, z)| {
-                let s: String = rope.slice(a..z).chars().map(|x| if x == '\n' { '\n' } else { c }).collect();
+                if c == '\n' && !visual {
+                    // r<CR>: the chars become one line break
+                    let indent =
+                        if opts.auto_indent { text::indent_of(&rope, text::line_of(&rope, a)) } else { String::new() };
+                    return Change::replace(a, z, format!("\n{indent}"));
+                }
+                // one replacement char per grapheme, line breaks stay
+                let mut s = String::new();
+                let mut p = a;
+                while p < z {
+                    let ch = rope.char(p);
+                    s.push(if ch == '\n' { '\n' } else { c });
+                    p = text::next_grapheme(&rope, p);
+                }
                 Change::replace(a, z, s)
             })
             .collect();
-        let heads: Vec<usize> = spans.iter().map(|&(a, z)| if visual { a } else { z - 1 }).collect();
-        let prim = self.buf().sel.primary_index().min(heads.len() - 1);
+        let cs = ChangeSet::new(changes.clone());
+        let heads: Vec<usize> = changes
+            .iter()
+            .map(|ch| {
+                let start = cs.map(ch.from, Assoc::Before);
+                let n = ch.text.chars().count();
+                if visual {
+                    start
+                } else if c == '\n' {
+                    start + n
+                } else {
+                    start + n - 1
+                }
+            })
+            .collect();
+        let prim = if self.mode == Mode::VisualBlock { 0 } else { self.buf().sel.primary_index().min(heads.len() - 1) };
         self.set_mode_raw(Mode::Normal);
-        self.buf_mut().apply(ChangeSet::new(changes), Some(Selection::new(heads.into_iter().map(Range::point), prim)));
+        self.buf_mut().apply(cs, Some(Selection::new(heads.into_iter().map(Range::point), prim)));
+        self.clamp_cursors();
     }
 
     fn increment(&mut self, delta: i64) {
@@ -1312,30 +2014,40 @@ impl Editor {
     }
 }
 
-/// Text object span `[from, to)` at `pos`.
-fn object_span(rope: &Rope, pos: usize, obj: Obj, around: bool) -> Option<(usize, usize)> {
+/// Text object span `[from, to)` at `pos`, `count` levels/words/paragraphs wide.
+fn object_span(rope: &Rope, pos: usize, obj: Obj, around: bool, count: usize) -> Option<(usize, usize)> {
     match obj {
-        Obj::Word(big) => Some(motion::word_object(rope, pos, big, around)),
-        Obj::Pair(o, c) => {
-            let (a, z) = motion::pair_object(rope, pos, o, c, around)?;
-            if !around {
-                // `i{` on a block whose braces sit on their own lines: just the inner lines
-                let la = text::line_of(rope, a);
-                if text::char_at(rope, a) == Some('\n') && a < z {
-                    let lz = text::line_of(rope, z);
-                    if lz > la + 1 && text::first_non_blank(rope, lz) == z {
-                        return Some((a + 1, text::line_start(rope, lz)));
-                    }
-                }
-            }
-            Some((a, z))
-        }
+        Obj::Word(big) => Some(motion::word_object_n(rope, pos, big, around, count)),
+        Obj::Pair(o, c) => motion::pair_object_n(rope, pos, o, c, around, count),
         Obj::Quote(q) => motion::quote_object(rope, pos, q, around),
-        Obj::Para => Some(motion::paragraph_object(rope, pos, around)),
+        Obj::Para => Some(motion::paragraph_object_n(rope, pos, around, count)),
+        Obj::Match(_) => None, // needs the search pattern: see Editor::match_object
     }
 }
 
-#[allow(dead_code)]
-fn class_at(rope: &Rope, pos: usize) -> Option<CharClass> {
-    text::char_at(rope, pos).map(text::class)
+/// Whole lines `a..=b`: from the start of `a` to the start of the line after `b` (or the end of the text). When
+/// they include an empty last line the end is one past the text, so it differs from stopping just before it.
+fn lines_span(rope: &Rope, a: usize, b: usize) -> (usize, usize, bool) {
+    let last = text::last_line(rope);
+    let (a, b) = (a.min(b), a.max(b).min(last));
+    let end = if b < last {
+        text::line_start(rope, b + 1)
+    } else {
+        rope.len_chars() + usize::from(text::line_len(rope, last) == 0)
+    };
+    (text::line_start(rope, a), end, true)
+}
+
+/// An exclusive span `[a, z)` with vim's two adjustments for one that ends in column 0 of a later line
+/// (`:h exclusive-linewise`): it becomes linewise when it starts at or before the first non-blank of its line,
+/// otherwise it stops at the end of the previous line.
+fn exclusive_span(rope: &Rope, a: usize, z: usize) -> (usize, usize, bool) {
+    let (la, lz) = (text::line_of(rope, a), text::line_of(rope, z));
+    if z > a && lz > la && z == text::line_start(rope, lz) {
+        if a <= text::first_non_blank(rope, la) {
+            return lines_span(rope, la, lz - 1);
+        }
+        return (a, text::line_end(rope, lz - 1), false);
+    }
+    (a, z, false)
 }

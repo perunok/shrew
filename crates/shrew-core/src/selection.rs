@@ -43,7 +43,8 @@ impl Range {
             return Range { anchor: p, head: p, col: self.col };
         }
         // the selection grows with text typed at its edges only on the outside
-        let (a_assoc, h_assoc) = if self.forward() { (Assoc::After, Assoc::Before) } else { (Assoc::Before, Assoc::After) };
+        let (a_assoc, h_assoc) =
+            if self.forward() { (Assoc::After, Assoc::Before) } else { (Assoc::Before, Assoc::After) };
         Range { anchor: cs.map(self.anchor, a_assoc), head: cs.map(self.head, h_assoc), col: self.col }
     }
 }
@@ -78,13 +79,15 @@ impl Selection {
             return;
         }
         let prim = self.ranges[self.primary];
-        let mut idx: SmallVec<[(Range, bool); 4]> = self.ranges.iter().enumerate().map(|(i, r)| (*r, i == self.primary)).collect();
+        let mut idx: SmallVec<[(Range, bool); 4]> =
+            self.ranges.iter().enumerate().map(|(i, r)| (*r, i == self.primary)).collect();
         idx.sort_by_key(|(r, _)| (r.from(), r.to()));
         let mut out: SmallVec<[Range; 1]> = SmallVec::new();
         let mut primary = 0;
         for (r, is_p) in idx {
             if let Some(last) = out.last_mut() {
-                let overlaps = r.from() < last.to() || (r.from() == last.from() && (r.is_empty() || last.is_empty()) && r.from() == last.to());
+                let overlaps = r.from() < last.to()
+                    || (r.from() == last.from() && (r.is_empty() || last.is_empty()) && r.from() == last.to());
                 if overlaps || (r.from() == last.from() && r.to() == last.to()) {
                     let from = last.from().min(r.from());
                     let to = last.to().max(r.to());
@@ -130,7 +133,38 @@ impl Selection {
     }
 
     pub fn map(&self, cs: &ChangeSet) -> Selection {
-        self.transform(|r| r.map(cs))
+        if self.ranges.len() < 32 {
+            return self.transform(|r| r.map(cs));
+        }
+        // many cursors: map every end in one sorted pass instead of scanning the changes per cursor
+        let mut ends: Vec<(usize, Assoc)> = Vec::with_capacity(self.ranges.len() * 2);
+        let mut order: Vec<usize> = Vec::with_capacity(self.ranges.len() * 2);
+        for r in &self.ranges {
+            let (a, h) = if r.is_empty() {
+                (Assoc::After, Assoc::After)
+            } else if r.forward() {
+                (Assoc::After, Assoc::Before)
+            } else {
+                (Assoc::Before, Assoc::After)
+            };
+            ends.push((r.anchor, a));
+            ends.push((r.head, h));
+        }
+        order.extend(0..ends.len());
+        order.sort_by_key(|&i| ends[i].0);
+        let mut sorted: Vec<(usize, Assoc)> = order.iter().map(|&i| ends[i]).collect();
+        cs.map_sorted(&mut sorted);
+        for (k, &i) in order.iter().enumerate() {
+            ends[i].0 = sorted[k].0;
+        }
+        Selection::new(
+            self.ranges.iter().enumerate().map(|(i, r)| Range {
+                anchor: ends[2 * i].0,
+                head: ends[2 * i + 1].0,
+                col: r.col,
+            }),
+            self.primary,
+        )
     }
 
     pub fn push(&self, r: Range) -> Selection {

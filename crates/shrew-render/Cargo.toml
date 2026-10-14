@@ -5,4 +5,22 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+default = ["embed-font"]
+# Bundle JetBrains Mono (Regular/Bold/Italic, ~830 KB) so the first frame never waits for a font scan.
+embed-font = []
+
 [dependencies]
+wgpu.workspace = true
+cosmic-text = { workspace = true, features = ["shape-run-cache"] }
+etagere.workspace = true
+bytemuck.workspace = true
+image.workspace = true
+log.workspace = true
+pollster.workspace = true
+unicode-width.workspace = true
+rustc-hash = "2"
+
+[dev-dependencies]
+# Only for examples/window.rs (a live-surface smoke test); the crate itself stays winit-free.
+winit.workspace = true

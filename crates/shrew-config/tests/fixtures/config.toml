@@ -1,0 +1,34 @@
+# my shrew config
+[editor]
+tab_width = 3          # odd, but mine
+font_size = 16
+theme = "solarized"    # unknown: warning
+leader = ","
+bogus = 1              # unknown: warning
+
+[features]
+relative_numbers = true
+whitespace = "yes"     # wrong type: warning
+nonexistent = true     # warning
+
+[keys.normal]
+"<leader>w" = ":w"
+"Y" = "y$"
+"<C-k>" = "delete_line"
+"Q" = "save_al"        # unknown command: warning when applied
+
+[keys.insert]
+"jk" = "<Esc>"
+
+[keys.select]          # unknown mode: warning
+"x" = "y"
+
+[import]
+vimrc = "off"
+sublime = "/nonexistent/sublime/User"
+
+[mcp]
+port = 99999           # out of range: warning
+
+[update]
+check = false

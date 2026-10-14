@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=shrew
+GenericName=Text Editor
+Comment=Tiny, fast, keyboard-first GPU text editor (vim + Sublime)
+Exec=shrew %F
+Icon=shrew
+Terminal=false
+StartupNotify=true
+StartupWMClass=shrew
+Categories=Development;TextEditor;
+Keywords=editor;text;code;vim;sublime;programming;
+MimeType=text/plain;text/markdown;text/x-markdown;text/x-rust;text/x-csrc;text/x-chdr;text/x-c++src;text/x-c++hdr;text/x-go;text/x-python;text/x-python3;text/javascript;application/javascript;application/x-javascript;text/x-typescript;application/typescript;application/json;application/x-yaml;text/x-yaml;application/toml;text/x-toml;text/x-java;text/x-kotlin;text/x-csharp;text/x-lua;text/x-ruby;text/x-php;application/x-php;application/x-shellscript;text/x-shellscript;text/x-sh;text/html;text/css;text/x-scss;application/xml;text/xml;application/sql;text/x-sql;text/x-makefile;text/x-cmake;text/x-dockerfile;text/x-nix;text/x-haskell;text/x-ocaml;text/x-elixir;text/x-erlang;text/x-scala;text/x-r;text/x-julia;text/x-vim;text/x-ini;text/x-patch;text/x-diff;text/x-log;text/x-glsl;text/x-zig;text/x-dart;text/x-swift;text/x-protobuf;text/x-csv;text/csv;

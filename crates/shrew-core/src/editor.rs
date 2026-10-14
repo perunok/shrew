@@ -70,6 +70,8 @@ impl Clipboard for MemoryClipboard {
 pub struct Register {
     pub parts: Vec<String>,
     pub linewise: bool,
+    /// Yanked from a visual block: one part per line, put back as a block.
+    pub blockwise: bool,
 }
 
 impl Register {
@@ -82,8 +84,8 @@ impl Register {
     }
     fn from_text(t: String) -> Register {
         match t.strip_suffix('\n') {
-            Some(body) => Register { parts: vec![body.to_string()], linewise: true },
-            None => Register { parts: vec![t], linewise: false },
+            Some(body) => Register { parts: vec![body.to_string()], linewise: true, blockwise: false },
+            None => Register { parts: vec![t], linewise: false, blockwise: false },
         }
     }
 }
@@ -102,6 +104,10 @@ pub struct Prompt {
     saved_sel: Selection,
     saved_top: usize,
     history_pos: Option<usize>,
+    /// Vim count for the search (`3/foo`).
+    pub(crate) count: Option<usize>,
+    /// Operator waiting for the search target (`d/foo<CR>`), with its register.
+    pub(crate) op: Option<(crate::vim::Op, Option<char>)>,
 }
 
 /// Things only the app can do.
@@ -180,6 +186,8 @@ pub struct Editor {
     cmd_history: Vec<String>,
     search_history: Vec<String>,
     mouse: MouseState,
+    /// User mappings (`:nnoremap`, config `[keys]`, imported vimrc/Sublime bindings) and the keys held for them.
+    pub keymap: crate::keymap::Keymap,
 }
 
 impl Default for Editor {
@@ -226,6 +234,7 @@ impl Editor {
             cmd_history: Vec::new(),
             search_history: Vec::new(),
             mouse: MouseState::default(),
+            keymap: crate::keymap::Keymap::default(),
         };
         e.add_buffer(Document::default());
         e
@@ -264,7 +273,10 @@ impl Editor {
 
     /// Puts a loaded document in a buffer: replaces an untouched scratch buffer, else adds one.
     pub fn install_document(&mut self, doc: Document) {
-        let reuse = self.buffers.len() == 1 && self.buffers[0].doc.path.is_none() && !self.buffers[0].doc.dirty && self.buffers[0].doc.is_empty();
+        let reuse = self.buffers.len() == 1
+            && self.buffers[0].doc.path.is_none()
+            && !self.buffers[0].doc.dirty
+            && self.buffers[0].doc.is_empty();
         if reuse {
             let id = self.buffers[0].id;
             self.buffers[0] = Buffer::new(id, doc);
@@ -379,7 +391,7 @@ impl Editor {
                 b.sel = b.sel.transform(|r| {
                     let mut p = r.head;
                     if insert_like && p > text::line_start(rope, text::line_of(rope, p)) {
-                        p -= 1;
+                        p = text::prev_grapheme(rope, p);
                     }
                     Range::point(text::clamp_normal(rope, p))
                 });
@@ -438,13 +450,15 @@ impl Editor {
         let (la, lh) = (text::line_of(rope, anchor), text::line_of(rope, head));
         let (ca, ch) = (text::col_of(rope, anchor, tw), text::col_of(rope, head, tw));
         let (left, right) = (ca.min(ch), ca.max(ch));
+        // the head on a line break: `$` was used, every line goes to its end
+        let right = if head == text::line_end(rope, lh) && text::line_len(rope, lh) > 0 { usize::MAX } else { right };
         let mut ranges = Vec::new();
         let mut primary = 0;
         let lines: Vec<usize> = if la <= lh { (la..=lh).collect() } else { (lh..=la).rev().collect() };
         for l in lines {
             let a = text::pos_at_col(rope, l, left, tw);
-            if text::col_of(rope, a, tw) < left && text::line_len(rope, l) > 0 {
-                continue; // line too short
+            if text::col_of(rope, a, tw) < left || a == text::line_end(rope, l) {
+                continue; // the line does not reach into the block
             }
             let h = text::clamp_normal(rope, text::pos_at_col(rope, l, right, tw)).max(a);
             if l == lh {
@@ -453,7 +467,7 @@ impl Editor {
             ranges.push(if ca <= ch { Range::new(a, h) } else { Range::new(h, a) });
         }
         if ranges.is_empty() {
-            ranges.push(Range::point(head));
+            ranges.push(Range::point(text::clamp_normal(rope, head)));
         }
         b.sel = Selection::new(ranges, primary);
     }
@@ -467,7 +481,7 @@ impl Editor {
             .ranges()
             .iter()
             .filter_map(|r| match self.mode {
-                Mode::Visual | Mode::VisualBlock => Some((r.from(), (r.to() + 1).min(len))),
+                Mode::Visual | Mode::VisualBlock => Some((r.from(), text::grapheme_end(rope, r.to()).min(len))),
                 Mode::VisualLine => {
                     let a = text::line_of(rope, r.from());
                     let z = text::line_of(rope, r.to());
@@ -489,7 +503,7 @@ impl Editor {
 
     /// Keys typed so far of an unfinished vim command (shown in the status line).
     pub fn pending_keys(&self) -> String {
-        self.pending.iter().map(|k| k.to_string()).collect()
+        self.pending.iter().filter(|k| !crate::vim::is_insert_once(k)).map(|k| k.to_string()).collect()
     }
 
     pub fn recording_macro(&self) -> Option<char> {
@@ -499,14 +513,48 @@ impl Editor {
     // ----- registers -----
 
     pub(crate) fn write_register(&mut self, name: Option<char>, reg: Register, yank: bool) {
+        let unnamed = name.is_none();
         let name = name.unwrap_or('"');
         if name == '_' {
             return;
         }
-        if yank {
+        // "A appends to "a
+        let reg = if name.is_ascii_uppercase() {
+            let lower = name.to_ascii_lowercase();
+            let reg = match self.registers.get(&lower) {
+                Some(old) if old.linewise || reg.linewise => Register {
+                    parts: vec![format!("{}\n{}", old.parts.join("\n"), reg.parts.join("\n"))],
+                    linewise: true,
+                    blockwise: false,
+                },
+                Some(old) => Register {
+                    parts: vec![old.parts.join("\n") + &reg.parts.join("\n")],
+                    linewise: false,
+                    blockwise: false,
+                },
+                None => reg,
+            };
+            self.registers.insert(lower, reg.clone());
+            reg
+        } else {
+            reg
+        };
+        if yank && unnamed {
             self.registers.insert('0', reg.clone());
+        } else if !yank && unnamed {
+            // deletes: whole lines or multi-line text shift through "1.."9, smaller ones go to "-
+            if reg.linewise || reg.parts.iter().any(|p| p.contains('\n')) {
+                for i in (1..9u8).rev() {
+                    if let Some(r) = self.registers.remove(&char::from(b'0' + i)) {
+                        self.registers.insert(char::from(b'1' + i), r);
+                    }
+                }
+                self.registers.insert('1', reg.clone());
+            } else {
+                self.registers.insert('-', reg.clone());
+            }
         }
-        if name != '"' && name != '+' && name != '*' {
+        if name != '"' && name != '+' && name != '*' && !name.is_ascii_uppercase() {
             self.registers.insert(name, reg.clone());
         }
         let to_clipboard = name == '+' || name == '*' || (name == '"' && self.features.on(Feature::Clipboard));
@@ -518,16 +566,21 @@ impl Editor {
 
     pub(crate) fn read_register(&mut self, name: Option<char>) -> Option<Register> {
         let name = name.unwrap_or('"');
+        // read-only registers: last search, last command line, file name
+        let text = |s: String| (!s.is_empty()).then(|| Register { parts: vec![s], linewise: false, blockwise: false });
+        match name {
+            '/' => return text(self.search_text.clone()),
+            ':' => return text(self.cmd_history.last().cloned().unwrap_or_default()),
+            '%' => return text(self.buf().doc.path.as_ref().map(|p| relative(p, &self.cwd)).unwrap_or_default()),
+            _ => {}
+        }
         let from_clipboard = name == '+' || name == '*' || (name == '"' && self.features.on(Feature::Clipboard));
-        if from_clipboard {
-            if let Some(t) = self.clipboard.get() {
-                if let Some(r) = self.registers.get(&'"') {
-                    if r.joined() == t {
-                        return Some(r.clone());
-                    }
-                }
-                return Some(Register::from_text(t));
+        if from_clipboard && let Some(t) = self.clipboard.get() {
+            // our own yank keeps its shape (linewise, blockwise, one part per cursor)
+            if let Some(r) = self.registers.get(&'"').filter(|r| r.joined() == t) {
+                return Some(r.clone());
             }
+            return Some(Register::from_text(t));
         }
         self.registers.get(&name).cloned()
     }
@@ -538,6 +591,24 @@ impl Editor {
         if let Some((_, keys)) = &mut self.macro_rec {
             keys.push(k);
         }
+        // user mappings see typed keys first; dot-repeat replays keys that were already mapped
+        if !self.replaying && self.map_key(k) {
+            self.after_key();
+            return;
+        }
+        self.dispatch_key(k);
+    }
+
+    /// Resolves keys held as the start of a longer mapping (`j` of `jk`) as if no more keys came. The app calls it
+    /// [`Keymap::timeout_ms`](crate::keymap::Keymap) after the last key while [`Editor::mapping_pending`] is true.
+    pub fn flush_pending_mappings(&mut self) {
+        if self.flush_mappings() {
+            self.after_key();
+        }
+    }
+
+    /// One key past the user keymap: built-in bindings, then the prompt, picker, vim or insert layer.
+    pub(crate) fn dispatch_key(&mut self, k: KeyPress) {
         if !self.replaying {
             self.message = None;
         }
@@ -589,9 +660,31 @@ impl Editor {
         if self.buffers.is_empty() {
             return;
         }
+        self.map_marks();
         let b = self.buf_mut();
-        b.sel = b.sel.clamp(b.doc.len());
+        // only rebuild the selection when something is out of range (cheap with a million cursors)
+        let len = b.doc.len();
+        if b.sel.ranges().iter().any(|r| r.anchor > len || r.head > len) {
+            b.sel = b.sel.clamp(len);
+        }
         b.scroll_to_cursor(so, tw);
+    }
+
+    /// Moves marks along with the edits made since the last key, in every buffer (vim keeps a mark on its text).
+    pub(crate) fn map_marks(&mut self) {
+        for b in &mut self.buffers {
+            let log = b.doc.take_mark_log();
+            if log.is_empty() || !self.marks.keys().any(|(id, _)| *id == b.id) {
+                continue;
+            }
+            for ((id, _), pos) in self.marks.iter_mut() {
+                if *id == b.id {
+                    for cs in &log {
+                        *pos = cs.map(*pos, crate::change::Assoc::Before);
+                    }
+                }
+            }
+        }
     }
 
     /// Key bindings that work in every mode (Sublime-style chords), checked before the vim layer.
@@ -625,7 +718,8 @@ impl Editor {
             ('q', _) => Quit,
             ('p', true) => CommandPalette,
             ('p', false) => OpenFile,
-            ('o', false) if insert => OpenFile,
+            // vim's insert-mode Ctrl+O runs one normal command; Ctrl+P opens files there
+            ('o', false) if insert && !self.vim() => OpenFile,
             ('n', false) if insert => NewFile,
             ('w', false) if !self.vim() => CloseBuffer,
             ('z', false) => Undo,
@@ -652,6 +746,7 @@ impl Editor {
             ('v', false) if insert => Paste,
             (']', false) => Indent,
             ('[', false) if !self.vim() => Outdent,
+            ('j', false) if !self.vim() => JoinLines,
             ('b', true) => SwitchBuffer,
             ('u', true) => CheckForUpdates,
             _ => return None,
@@ -667,7 +762,13 @@ impl Editor {
         match cmd {
             Save => self.save(None),
             SaveAll => {
-                let n = self.buffers.iter_mut().filter(|b| b.doc.dirty && b.doc.path.is_some()).map(|b| b.doc.save()).filter(Result::is_ok).count();
+                let n = self
+                    .buffers
+                    .iter_mut()
+                    .filter(|b| b.doc.dirty && b.doc.path.is_some())
+                    .map(|b| b.doc.save())
+                    .filter(Result::is_ok)
+                    .count();
                 self.info(format!("saved {n} file(s)"));
             }
             Quit => self.quit(false),
@@ -725,7 +826,7 @@ impl Editor {
             }
             JoinLines => {
                 let lines = self.target_lines();
-                ops::join_lines(self.buf_mut(), &lines);
+                ops::join_lines(self.buf_mut(), &lines, true, true);
                 self.commit();
                 self.exit_visual();
             }
@@ -747,9 +848,12 @@ impl Editor {
                     self.occurrence_word = true;
                 }
                 let word = self.occurrence_word;
-                self.with_carets(|b, _| {
-                    ops::add_next_occurrence(b, word, cmd == SkipOccurrence);
-                }, true);
+                self.with_carets(
+                    |b, _| {
+                        ops::add_next_occurrence(b, word, cmd == SkipOccurrence);
+                    },
+                    true,
+                );
             }
             SelectAllOccurrences => {
                 let word = self.buf().sel.ranges().iter().all(|r| r.is_empty()) || self.occurrence_word;
@@ -837,7 +941,10 @@ impl Editor {
             let prim = b.sel.primary_index();
             let back: Vec<bool> = b.sel.ranges().iter().map(|r| !r.forward()).collect();
             if spans.len() == b.sel.len() && visual {
-                b.sel = Selection::new(spans.iter().zip(back).map(|(&(a, z), bk)| if bk { Range::new(z, a) } else { Range::new(a, z) }), prim);
+                b.sel = Selection::new(
+                    spans.iter().zip(back).map(|(&(a, z), bk)| if bk { Range::new(z, a) } else { Range::new(a, z) }),
+                    prim,
+                );
             }
         }
         f(self.buf_mut(), &opts);
@@ -899,26 +1006,44 @@ impl Editor {
         if self.mode == Mode::Insert && self.vim() {
             self.set_mode(Mode::Normal);
         }
-        if !self.buf_mut().undo() {
-            self.info("already at oldest change");
+        match self.buf_mut().history_step(false) {
+            Some(jump) => self.fix_cursor_after_history(jump),
+            None => self.info("already at oldest change"),
         }
-        self.fix_cursor_after_history();
     }
 
     pub fn redo(&mut self) {
-        if !self.buf_mut().redo() {
-            self.info("already at newest change");
+        match self.buf_mut().history_step(true) {
+            Some(jump) => self.fix_cursor_after_history(jump),
+            None => self.info("already at newest change"),
         }
-        self.fix_cursor_after_history();
     }
 
-    fn fix_cursor_after_history(&mut self) {
+    /// Vim puts the cursor on the first changed line: at the column the change started from when that is the same
+    /// line (or the line just above, for `o`), else on the first non-blank. Multi-cursor groups and Sublime mode
+    /// get their selection back as it was.
+    fn fix_cursor_after_history(&mut self, jump: crate::document::HistoryJump) {
         if self.mode.is_visual() {
             self.set_mode(Mode::Normal);
         }
-        if self.mode == Mode::Normal {
-            let b = self.buf_mut();
-            let rope = &b.doc.rope;
+        if self.mode != Mode::Normal {
+            return;
+        }
+        let b = self.buf_mut();
+        let rope = &b.doc.rope;
+        if jump.single && b.sel.len() == 1 {
+            let mut line = text::line_of(rope, jump.top);
+            if jump.start.0 + 1 == line && line > 0 {
+                line -= 1;
+            }
+            let line = line.min(text::last_line(rope));
+            let pos = if jump.start.0 == line {
+                (text::line_start(rope, line) + jump.start.1).min(text::line_end(rope, line))
+            } else {
+                text::first_non_blank(rope, line)
+            };
+            b.sel = Selection::point(text::clamp_normal(rope, pos));
+        } else {
             b.sel = b.sel.transform(|r| Range::point(text::clamp_normal(rope, r.from())));
         }
     }
@@ -930,9 +1055,17 @@ impl Editor {
         let reg = if spans.is_empty() {
             // nothing selected: whole lines
             let lines = ops::selected_lines(rope, &b.sel);
-            Register { parts: lines.iter().map(|&l| text::line_text(rope, l)).collect(), linewise: true }
+            Register {
+                parts: lines.iter().map(|&l| text::line_text(rope, l)).collect(),
+                linewise: true,
+                blockwise: false,
+            }
         } else {
-            Register { parts: spans.iter().map(|&(a, z)| rope.slice(a..z).to_string()).collect(), linewise: self.mode == Mode::VisualLine }
+            Register {
+                parts: spans.iter().map(|&(a, z)| rope.slice(a..z).to_string()).collect(),
+                linewise: self.mode == Mode::VisualLine,
+                blockwise: self.mode == Mode::VisualBlock,
+            }
         };
         self.write_register(None, reg, !cut);
         if cut {
@@ -948,8 +1081,15 @@ impl Editor {
     }
 
     fn sublime_paste(&mut self) {
-        let Some(reg) = self.read_register(None) else { return };
+        let Some(mut reg) = self.read_register(None) else { return };
         let n = self.buf().sel.len();
+        if n > 1 && reg.parts.len() == 1 && !reg.linewise {
+            // as many lines as cursors: one line each (Sublime)
+            let lines: Vec<String> = reg.parts[0].split('\n').map(str::to_string).collect();
+            if lines.len() == n {
+                reg.parts = lines;
+            }
+        }
         let per_cursor = reg.parts.len() == n && n > 1;
         let all_empty = self.buf().sel.ranges().iter().all(|r| r.is_empty());
         if self.mode.is_visual() {
@@ -995,23 +1135,36 @@ impl Editor {
     }
 
     fn quit(&mut self, force: bool) {
-        if !force {
-            if let Some(b) = self.buffers.iter().find(|b| b.doc.dirty) {
-                let name = b.doc.display_name();
-                self.error(format!("\"{name}\" has unsaved changes (:q! to discard, :wq to save)"));
-                return;
-            }
+        if !force && let Some(b) = self.buffers.iter().find(|b| b.doc.dirty) {
+            let name = b.doc.display_name();
+            self.error(format!("\"{name}\" has unsaved changes (:q! to discard, :wq to save)"));
+            return;
         }
         self.events.push(Event::Quit);
     }
 
     // ----- insert mode (also the whole of non-vim mode) -----
 
-    fn insert_key(&mut self, k: KeyPress) {
+    pub(crate) fn insert_key(&mut self, k: KeyPress) {
         let opts = self.opts();
         let m = k.mods;
         let tw = self.settings.tab_width;
+        if !self.vim() && self.sublime_chord(k) {
+            return;
+        }
+        if self.vim() && self.insert_register(k) {
+            return;
+        }
         if let Some(c) = k.text() {
+            if !self.vim() {
+                // Sublime undoes typing a word at a time: a word starting after white space opens a new step
+                let b = self.buf();
+                let h = b.sel.primary().head;
+                let after_space = h > 0 && b.sel.primary().is_empty() && b.rope().char(h - 1).is_whitespace();
+                if after_space && !c.is_whitespace() {
+                    self.commit();
+                }
+            }
             ops::insert_char(self.buf_mut(), c, &opts);
             return;
         }
@@ -1019,7 +1172,9 @@ impl Editor {
         match k.key {
             Key::Esc => self.insert_escape(),
             Key::Char('[') if m.ctrl && self.vim() => self.insert_escape(),
-            Key::Char('c') if m.ctrl && self.vim() && self.buf().sel.ranges().iter().all(|r| r.is_empty()) => self.insert_escape(),
+            Key::Char('c') if m.ctrl && self.vim() && self.buf().sel.ranges().iter().all(|r| r.is_empty()) => {
+                self.insert_escape()
+            }
             Key::Enter => ops::newline(self.buf_mut(), &opts),
             Key::Tab if shift => {
                 let lines = ops::selected_lines(self.buf().rope(), &self.buf().sel);
@@ -1046,8 +1201,48 @@ impl Editor {
             Key::Backspace if m.ctrl || m.alt => ops::delete_word_back(self.buf_mut()),
             Key::Backspace => ops::backspace(self.buf_mut(), &opts),
             Key::Char('h') if m.ctrl => ops::backspace(self.buf_mut(), &opts),
+            Key::Char('w') if m.ctrl && self.vim() => {
+                // vim stops once at the place the insert started
+                let id = self.buf().id;
+                let start = self.marks.get(&(id, '[')).copied();
+                ops::edit_each(self.buf_mut(), |rope, r| {
+                    let ls = text::line_start(rope, text::line_of(rope, r.head));
+                    let mut to = if r.head > ls {
+                        crate::motion::prev_word_start(rope, r.head, false).max(ls)
+                    } else {
+                        r.head.saturating_sub(1)
+                    };
+                    if let Some(s) = start.filter(|&s| s < r.head && s > to) {
+                        to = s;
+                    }
+                    ops::Edit::Change(crate::change::Change::delete(to, r.head), 0, 0)
+                });
+                self.marks.remove(&(id, '['));
+            }
+            Key::Char('o') if m.ctrl && self.vim() => self.insert_ctrl_o(),
+            Key::Char('t') if m.ctrl && self.vim() => {
+                let lines = ops::selected_lines(self.buf().rope(), &self.buf().sel);
+                ops::indent_lines(self.buf_mut(), &lines, &opts);
+            }
             Key::Char('w') if m.ctrl => ops::delete_word_back(self.buf_mut()),
-            Key::Char('u') if m.ctrl && self.vim() => ops::delete_to_line_start(self.buf_mut()),
+            Key::Char('u') if m.ctrl && self.vim() => {
+                // vim: the text typed since the insert started, else back to the indent, else the whole line start
+                let id = self.buf().id;
+                let start = self.marks.get(&(id, '[')).copied();
+                ops::edit_each(self.buf_mut(), |rope, r| {
+                    let line = text::line_of(rope, r.head);
+                    let ls = text::line_start(rope, line);
+                    let fnb = text::first_non_blank(rope, line);
+                    let to = match start {
+                        Some(s) if s < r.head && s >= ls => s,
+                        _ if fnb < r.head => fnb,
+                        _ => ls,
+                    };
+                    ops::Edit::Change(crate::change::Change::delete(to, r.head), 0, 0)
+                });
+                // the next Ctrl+U goes further
+                self.marks.remove(&(id, '['));
+            }
             Key::Delete if m.ctrl => ops::delete_word_forward(self.buf_mut()),
             Key::Delete => ops::delete_forward(self.buf_mut()),
             Key::Left | Key::Right | Key::Up | Key::Down | Key::Home | Key::End | Key::PageUp | Key::PageDown => {
@@ -1059,19 +1254,117 @@ impl Editor {
         }
     }
 
+    /// Vim's insert-mode Ctrl+R {register}: types the register's contents. Returns true when it took the key.
+    fn insert_register(&mut self, k: KeyPress) -> bool {
+        let ctrl_r = KeyPress::ctrl('r');
+        if self.pending.first() != Some(&ctrl_r) {
+            if k == ctrl_r {
+                self.pending.push(k);
+                return true;
+            }
+            return false;
+        }
+        self.pending.clear();
+        let Some(name) = k.text() else { return true };
+        if let Some(reg) = self.read_register(Some(name)) {
+            let mut s = reg.parts.join("\n");
+            if reg.linewise {
+                s.push('\n');
+            }
+            ops::insert_str(self.buf_mut(), &s);
+        }
+        true
+    }
+
+    /// Sublime's Ctrl+K chords: Ctrl+K Ctrl+D skips an occurrence, Ctrl+K Ctrl+K deletes to the line end,
+    /// Ctrl+K Ctrl+U / Ctrl+K Ctrl+L upper/lower-case the selection. Returns true when it took the key.
+    fn sublime_chord(&mut self, k: KeyPress) -> bool {
+        let ctrl_k = KeyPress::ctrl('k');
+        if self.pending.first() != Some(&ctrl_k) {
+            if k == ctrl_k {
+                self.pending.push(k);
+                return true;
+            }
+            return false;
+        }
+        self.pending.clear();
+        let Key::Char(c) = k.key else { return false };
+        if !k.mods.ctrl {
+            return false;
+        }
+        match c {
+            'd' => self.run(Command::SkipOccurrence),
+            'k' => {
+                ops::edit_each(self.buf_mut(), |rope, r| {
+                    let le = text::line_end(rope, text::line_of(rope, r.head));
+                    let to = if r.head == le { (le + 1).min(rope.len_chars()) } else { le };
+                    if r.is_empty() {
+                        ops::Edit::Change(crate::change::Change::delete(r.head, to), 0, 0)
+                    } else {
+                        ops::Edit::Keep
+                    }
+                });
+                self.commit();
+            }
+            'u' | 'l' => {
+                let up = c == 'u';
+                ops::edit_each(self.buf_mut(), |rope, r| {
+                    let (a, z) = if r.is_empty() {
+                        crate::motion::word_object(rope, r.head, false, false)
+                    } else {
+                        (r.from(), r.to())
+                    };
+                    let s = rope.slice(a..z).to_string();
+                    let t = if up { s.to_uppercase() } else { s.to_lowercase() };
+                    let n = t.chars().count();
+                    if r.is_empty() {
+                        ops::Edit::Change(crate::change::Change::replace(a, z, t), r.head - a, r.head - a)
+                    } else if r.forward() {
+                        ops::Edit::Change(crate::change::Change::replace(a, z, t), 0, n)
+                    } else {
+                        ops::Edit::Change(crate::change::Change::replace(a, z, t), n, 0)
+                    }
+                });
+                self.commit();
+            }
+            _ => return false,
+        }
+        true
+    }
+
     fn insert_escape(&mut self) {
-        if let Some(rec) = self.dot_recording.take() {
+        let rec = self.dot_recording.take();
+        if self.vim() {
+            // `3ix<Esc>`: the typed text goes in count times
+            let keys = if self.replaying { Some(self.dot.clone()) } else { rec.clone() };
+            if let Some(keys) = keys {
+                self.repeat_insert(&keys);
+            }
+            let opts = self.opts();
+            let id = self.buf().id;
+            let start = self.marks.get(&(id, '[')).copied();
+            ops::trim_auto_indent(self.buf_mut(), &opts, start);
+        }
+        if let Some(rec) = rec {
             self.dot = rec;
         }
         if self.vim() {
             self.set_mode(Mode::Normal);
             if std::mem::take(&mut self.block_insert) {
+                // back to the top-left corner of the block
+                let id = self.buf().id;
+                let corner = self.marks.get(&(id, '[')).copied();
                 let b = self.buf_mut();
-                b.sel = b.sel.only_primary();
+                let rope = &b.doc.rope;
+                b.sel = match corner {
+                    Some(c) => Selection::point(text::clamp_normal(rope, c)),
+                    None => b.sel.only_primary(),
+                };
             }
         } else {
             let b = self.buf_mut();
-            b.sel = if b.sel.len() > 1 { b.sel.only_primary().collapse() } else { b.sel.collapse() };
+            // Sublime keeps the first cursor; a lone selection collapses to its caret
+            b.sel = if b.sel.len() > 1 { Selection::single(b.sel.ranges()[0]).collapse() } else { b.sel.collapse() };
             self.commit();
         }
         self.occurrence_word = false;
@@ -1094,8 +1387,8 @@ impl Editor {
                     let p = crate::motion::word_end(rope, r.head, false);
                     (p + 1).min(len)
                 }
-                Key::Left => r.head.saturating_sub(1),
-                Key::Right => (r.head + 1).min(len),
+                Key::Left => text::prev_grapheme(rope, r.head),
+                Key::Right => text::next_grapheme(rope, r.head),
                 Key::Home if ctrl => 0,
                 Key::End if ctrl => len,
                 Key::Home => {
@@ -1135,7 +1428,7 @@ impl Editor {
         self.commit();
         let b = self.buf();
         let rope = &b.doc.rope;
-        let pos = pos.min(rope.len_chars());
+        let pos = text::grapheme_start(rope, pos.min(rope.len_chars()));
         let unit = match clicks {
             2 => {
                 let (a, z) = crate::motion::word_object(rope, pos, false, false);
@@ -1173,7 +1466,7 @@ impl Editor {
         let clicks = self.mouse.clicks;
         let b = self.buf_mut();
         let rope = &b.doc.rope;
-        let pos = pos.min(rope.len_chars());
+        let pos = text::grapheme_start(rope, pos.min(rope.len_chars()));
         let (a, z) = match clicks {
             2 => crate::motion::word_object(rope, pos.min(rope.len_chars().saturating_sub(1)), false, false),
             n if n >= 3 => {
@@ -1223,8 +1516,36 @@ impl Editor {
 
     pub(crate) fn set_search(&mut self, pattern: &str) {
         self.search_text = pattern.to_string();
-        self.search = search::compile(pattern);
+        self.search = self.compile_search(pattern);
         self.search_visible = true;
+    }
+
+    /// Search patterns are vim regexes in vim mode and plain Rust regexes otherwise (both smart-case).
+    pub(crate) fn compile_search(&self, pattern: &str) -> Option<Regex> {
+        if self.vim() { search::compile_vim(pattern) } else { search::compile(pattern) }
+    }
+
+    /// The end of `d/pat<CR>`: runs the operator from the cursor to the `count`-th match.
+    fn search_operate(&mut self, op: crate::vim::Op, reg: Option<char>, forward: bool, count: usize) {
+        let Some(re) = self.search.clone() else { return };
+        let rope = &self.buf().doc.rope;
+        let mut t = self.buf().sel.primary().head;
+        for _ in 0..count {
+            match search::find(rope, &re, t, forward) {
+                Some((a, _, _)) => t = a,
+                None => {
+                    self.dot_recording = None;
+                    let pat = self.search_text.clone();
+                    return self.error(format!("pattern not found: {pat}"));
+                }
+            }
+        }
+        self.operate_to(op, reg, t);
+        if self.mode != Mode::Insert
+            && let Some(rec) = self.dot_recording.take()
+        {
+            self.dot = rec;
+        }
     }
 
     pub(crate) fn search_next(&mut self, reverse: bool, count: usize) {
@@ -1258,7 +1579,11 @@ impl Editor {
             let t = self.search_text.clone();
             self.error(format!("pattern not found: {t}"));
         } else if wrapped {
-            self.info(if forward { "search hit BOTTOM, continuing at TOP" } else { "search hit TOP, continuing at BOTTOM" });
+            self.info(if forward {
+                "search hit BOTTOM, continuing at TOP"
+            } else {
+                "search hit TOP, continuing at BOTTOM"
+            });
         }
     }
 
@@ -1266,15 +1591,39 @@ impl Editor {
 
     pub fn open_prompt(&mut self, kind: PromptKind) {
         let b = self.buf();
-        self.prompt = Some(Prompt { kind, text: String::new(), cursor: 0, saved_sel: b.sel.clone(), saved_top: b.view.top, history_pos: None });
+        self.prompt = Some(Prompt {
+            kind,
+            text: String::new(),
+            cursor: 0,
+            saved_sel: b.sel.clone(),
+            saved_top: b.view.top,
+            history_pos: None,
+            count: None,
+            op: None,
+        });
     }
 
     fn prompt_key(&mut self, k: KeyPress) {
+        self.prompt_key_inner(k);
+        if self.prompt.is_none() {
+            // a command line typed after insert-mode Ctrl+O goes back to inserting
+            self.finish_insert_once();
+        }
+    }
+
+    fn prompt_key_inner(&mut self, k: KeyPress) {
         let Some(p) = self.prompt.as_mut() else { return };
+        if p.op.is_some() {
+            // `d/foo<CR>` repeats with `.` as a whole
+            if let Some(rec) = &mut self.dot_recording {
+                rec.push(k);
+            }
+        }
         let m = k.mods;
         let byte = |s: &str, c: usize| s.char_indices().nth(c).map_or(s.len(), |(b, _)| b);
         match k.key {
             Key::Esc => {
+                self.dot_recording = None;
                 let p = self.prompt.take().unwrap();
                 if let PromptKind::Search { .. } = p.kind {
                     let b = self.buf_mut();
@@ -1285,6 +1634,7 @@ impl Editor {
             }
             Key::Char('c' | '[') if m.ctrl => {
                 self.prompt = None;
+                self.dot_recording = None;
                 return;
             }
             Key::Enter => {
@@ -1295,17 +1645,31 @@ impl Editor {
                             self.cmd_history.retain(|h| h != &p.text);
                             self.cmd_history.push(p.text.clone());
                         }
-                        self.run_ex(&p.text);
+                        match p.count {
+                            // `3:` is `:.,.+2`
+                            Some(n) if n > 1 => {
+                                self.run_ex(&format!(".,.+{}{}", n - 1, p.text.trim_start_matches(':')))
+                            }
+                            _ => self.run_ex(&p.text),
+                        }
                     }
                     PromptKind::Search { forward } => {
-                        let pat = if p.text.is_empty() { self.search_history.last().cloned().unwrap_or_default() } else { p.text.clone() };
+                        let pat = if p.text.is_empty() {
+                            self.search_history.last().cloned().unwrap_or_default()
+                        } else {
+                            p.text.clone()
+                        };
                         if !pat.is_empty() {
                             self.search_history.retain(|h| h != &pat);
                             self.search_history.push(pat.clone());
                             self.set_search(&pat);
                             let b = self.buf_mut();
                             b.sel = p.saved_sel;
-                            self.search_next(!forward, 1);
+                            let count = p.count.unwrap_or(1);
+                            match p.op {
+                                Some((op, reg)) => self.search_operate(op, reg, forward, count),
+                                None => self.search_next(!forward, count),
+                            }
                             self.last_search_forward = forward;
                         }
                     }
@@ -1381,45 +1745,61 @@ impl Editor {
             }
         }
         // incremental search
-        if let Some(p) = &self.prompt {
-            if let PromptKind::Search { forward } = p.kind {
-                let pat = p.text.clone();
-                let saved = p.saved_sel.clone();
-                let top = p.saved_top;
-                self.search = search::compile(&pat);
-                self.search_text = pat;
-                self.search_visible = true;
-                let b = self.buf_mut();
-                b.sel = saved.clone();
-                b.view.top = top;
-                if let Some(re) = &self.search {
-                    let rope = &self.buffers[self.active].doc.rope;
-                    if let Some((a, _, _)) = search::find(rope, re, saved.primary().head, forward) {
-                        let visual = self.mode.is_visual();
-                        let b = self.buf_mut();
-                        b.sel = if visual { Selection::single(Range::new(saved.primary().anchor, a)) } else { Selection::point(a) };
-                    }
+        if let Some(p) = &self.prompt
+            && let PromptKind::Search { forward } = p.kind
+        {
+            let pat = p.text.clone();
+            let saved = p.saved_sel.clone();
+            let top = p.saved_top;
+            self.search = self.compile_search(&pat);
+            self.search_text = pat;
+            self.search_visible = true;
+            let b = self.buf_mut();
+            b.sel = saved.clone();
+            b.view.top = top;
+            if let Some(re) = &self.search {
+                let rope = &self.buffers[self.active].doc.rope;
+                // the preview looks a few MB around the cursor; Enter searches the whole file
+                if let Some((a, _, _)) = search::find_near(rope, re, saved.primary().head, forward, 4 << 20) {
+                    let visual = self.mode.is_visual();
+                    let b = self.buf_mut();
+                    b.sel = if visual {
+                        Selection::single(Range::new(saved.primary().anchor, a))
+                    } else {
+                        Selection::point(a)
+                    };
                 }
             }
         }
     }
 
-    /// Runs an ex command line (`:w`, `:%s/a/b/g`, `:42`, `:set nowrap`, ...).
+    /// Runs an ex command line (`:w`, `:%s/a/b/g`, `:42`, `:'<,'>d`, `:g/pat/d`, `:set nowrap`, ...).
     pub fn run_ex(&mut self, line: &str) {
-        let line = line.trim().trim_start_matches(':');
-        if line.is_empty() {
+        // only leading blanks go: `:normal` takes the rest of the line literally
+        let line = line.trim_start().trim_start_matches(':').trim_start();
+        if line.trim().is_empty() {
             return;
         }
-        if let Ok(n) = line.parse::<usize>() {
-            self.goto_line(n);
+        // `:nnoremap jk <Esc>` and friends, typed at runtime
+        if self.run_map_command(line) {
             return;
         }
-        if let Some(rest) = line.strip_prefix('%').filter(|r| r.starts_with('s')) {
-            return self.substitute(rest, true);
+        let (range, rest) = match self.ex_range(line) {
+            Ok(r) => r,
+            Err(e) => return self.error(e),
+        };
+        let rest = rest.trim_start();
+        if rest.trim().is_empty() {
+            // a bare address jumps to it
+            if let Some((_, b)) = range {
+                self.goto_line(b + 1);
+            }
+            return;
         }
-        if line.starts_with("s/") || line.starts_with("s#") {
-            return self.substitute(line, false);
+        if self.ex_ranged(range, rest) {
+            return;
         }
+        let line = rest;
         let (cmd, arg) = match line.find(char::is_whitespace) {
             Some(i) => (&line[..i], line[i..].trim()),
             None => (line, ""),
@@ -1564,6 +1944,333 @@ impl Editor {
         }
     }
 
+    /// Lines of the visual selection (or the last one, for `'<,'>` typed later).
+    fn visual_lines(&self) -> Option<(usize, usize)> {
+        let rope = &self.buf().doc.rope;
+        let (from, to) = if self.mode.is_visual() {
+            let spans = self.selection_spans();
+            (spans.first()?.0, spans.last()?.1.saturating_sub(1))
+        } else {
+            let (_, sel) = self.last_visual.as_ref()?;
+            let rs = sel.ranges();
+            (rs.first()?.from(), rs.last()?.to())
+        };
+        let a = text::line_of(rope, from);
+        Some((a, text::line_of(rope, to.max(from))))
+    }
+
+    /// One ex address (`12`, `.`, `$`, `'a`, `'<`, `/pat/`, `?pat?`, with `+N`/`-N` offsets) and the rest of the line.
+    fn ex_address<'a>(&self, s: &'a str, cur: usize) -> Result<(Option<usize>, &'a str), String> {
+        let rope = &self.buf().doc.rope;
+        let last = text::last_line(rope);
+        let mut rest = s;
+        let mut base = None;
+        match rest.chars().next() {
+            Some(c) if c.is_ascii_digit() => {
+                let n = rest.chars().take_while(char::is_ascii_digit).count();
+                base = Some(rest[..n].parse::<usize>().unwrap_or(usize::MAX).saturating_sub(1));
+                rest = &rest[n..];
+            }
+            Some('.') => {
+                base = Some(cur);
+                rest = &rest[1..];
+            }
+            Some('$') => {
+                base = Some(last);
+                rest = &rest[1..];
+            }
+            Some('\'') => {
+                let m = rest[1..].chars().next().ok_or("missing mark")?;
+                base = Some(match m {
+                    '<' => self.visual_lines().ok_or("no visual selection")?.0,
+                    '>' => self.visual_lines().ok_or("no visual selection")?.1,
+                    m => {
+                        let p = *self.marks.get(&(self.buf().id, m)).ok_or_else(|| format!("mark not set: {m}"))?;
+                        text::line_of(rope, p)
+                    }
+                });
+                rest = &rest[1 + m.len_utf8()..];
+            }
+            Some(d @ ('/' | '?')) => {
+                let body = &rest[1..];
+                let end = split_unescaped(body, d).first().map_or(body.len(), |p| p.len());
+                let pat = &body[..end];
+                rest = body.get(end + 1..).unwrap_or("");
+                let pat = if pat.is_empty() { self.search_text.clone() } else { pat.to_string() };
+                let re = search::compile_vim(&pat).ok_or("invalid pattern")?;
+                // searches start on the line after (before) the cursor line
+                let from = if d == '/' { text::line_end(rope, cur) } else { text::line_start(rope, cur) };
+                let (a, _, _) =
+                    search::find(rope, &re, from, d == '/').ok_or_else(|| format!("pattern not found: {pat}"))?;
+                base = Some(text::line_of(rope, a));
+            }
+            _ => {}
+        }
+        // offsets: `+3`, `-`, `.+1`
+        while let Some(sign @ ('+' | '-')) = rest.chars().next() {
+            let n = rest[1..].chars().take_while(char::is_ascii_digit).count();
+            let k = if n == 0 { 1 } else { rest[1..=n].parse::<usize>().unwrap_or(0) };
+            let b = base.unwrap_or(cur);
+            base = Some(if sign == '+' { b.saturating_add(k) } else { b.saturating_sub(k) });
+            rest = &rest[1 + n..];
+        }
+        Ok((base.map(|b| b.min(last)), rest))
+    }
+
+    /// The range at the start of an ex command (`%`, `a,b`, `a;b`, `'<,'>`), as 0-based lines.
+    fn ex_range<'a>(&self, s: &'a str) -> Result<LineRange<'a>, String> {
+        if let Some(rest) = s.strip_prefix('%') {
+            return Ok((Some((0, text::last_line(&self.buf().doc.rope))), rest));
+        }
+        let cur = self.buf().cursor_line();
+        let (a, rest) = self.ex_address(s, cur)?;
+        let Some(rest2) = rest.strip_prefix([',', ';']) else {
+            return Ok((a.map(|a| (a, a)), rest));
+        };
+        let a = a.unwrap_or(cur);
+        // `a;b`: b is relative to a
+        let (b, rest) = self.ex_address(rest2, if rest.starts_with(';') { a } else { cur })?;
+        let b = b.unwrap_or(cur);
+        Ok((Some((a.min(b), a.max(b))), rest))
+    }
+
+    /// Ex commands that take a line range. Returns false for any other command.
+    fn ex_ranged(&mut self, range: Option<(usize, usize)>, cmd: &str) -> bool {
+        let cur = self.buf().cursor_line();
+        let default = if self.mode.is_visual() { self.visual_lines().unwrap_or((cur, cur)) } else { (cur, cur) };
+        let (a, b) = range.unwrap_or(default);
+        let name_len = cmd.chars().take_while(|c| c.is_ascii_alphabetic()).count();
+        let (name, arg) = cmd.split_at(name_len);
+        // `:s/a/b/`, `:s#a#b#`: any non-alphanumeric delimiter right after the name
+        let subst_arg = |n: &str| matches!(n, "s" | "su" | "sub" | "substitute");
+        if subst_arg(name)
+            && arg.chars().next().is_some_and(|c| !c.is_alphanumeric() && !c.is_whitespace() && c != '"' && c != '|')
+        {
+            self.substitute(arg, a, b);
+            return true;
+        }
+        if name.is_empty() && cmd.starts_with('&') {
+            // `:&` repeats the last :s without its flags, `:&&` with them
+            self.repeat_substitute(a, b, cmd.starts_with("&&"));
+            return true;
+        }
+        let bang = arg.starts_with('!');
+        let raw_arg = arg.trim_start_matches('!').trim_start();
+        let arg = raw_arg.trim();
+        match name {
+            "d" | "de" | "del" | "dele" | "delet" | "delete" => {
+                let reg = arg.chars().next();
+                let lines: Vec<usize> = (a..=b).collect();
+                let rope = &self.buf().doc.rope;
+                let text: Vec<String> = lines.iter().map(|&l| text::line_text(rope, l)).collect();
+                self.write_register(
+                    reg,
+                    Register { parts: vec![text.join("\n")], linewise: true, blockwise: false },
+                    false,
+                );
+                self.exit_visual();
+                ops::delete_lines(self.buf_mut(), &lines);
+                let rope = &self.buf().doc.rope;
+                let p = text::first_non_blank(rope, a.min(text::last_line(rope)));
+                self.buf_mut().sel = Selection::point(p);
+                self.commit();
+            }
+            "y" | "ya" | "yank" => {
+                let reg = arg.chars().next();
+                let rope = &self.buf().doc.rope;
+                let text: Vec<String> = (a..=b).map(|l| text::line_text(rope, l)).collect();
+                self.write_register(
+                    reg,
+                    Register { parts: vec![text.join("\n")], linewise: true, blockwise: false },
+                    true,
+                );
+                self.exit_visual();
+            }
+            "" if cmd.starts_with(['>', '<']) => {
+                let levels = cmd.chars().take_while(|&c| c == cmd.as_bytes()[0] as char).count();
+                let lines: Vec<usize> = (a..=b).collect();
+                let opts = self.opts();
+                self.exit_visual();
+                for _ in 0..levels {
+                    if cmd.starts_with('>') {
+                        ops::indent_lines(self.buf_mut(), &lines, &opts);
+                    } else {
+                        ops::outdent_lines(self.buf_mut(), &lines, &opts);
+                    }
+                }
+                let rope = &self.buf().doc.rope;
+                let p = text::first_non_blank(rope, b);
+                self.buf_mut().sel = Selection::point(p);
+                self.commit();
+            }
+            "j" | "jo" | "joi" | "join" => {
+                let b = if range.is_some_and(|(x, y)| x != y) { b } else { b + 1 };
+                let lines: Vec<usize> = (a..=b.min(text::last_line(&self.buf().doc.rope))).collect();
+                self.exit_visual();
+                if lines.len() > 1 {
+                    ops::join_lines(self.buf_mut(), &lines, !bang, false);
+                    let rope = &self.buf().doc.rope;
+                    self.buf_mut().sel = Selection::point(text::first_non_blank(rope, a));
+                    self.commit();
+                }
+            }
+            "m" | "mo" | "move" | "t" | "co" | "cop" | "copy" => {
+                // `0` is "above the first line"
+                let dest = if arg == "0" {
+                    Some(-1)
+                } else {
+                    match self.ex_address(arg, self.buf().cursor_line()) {
+                        Ok((Some(d), _)) => Some(d as isize),
+                        _ => None,
+                    }
+                };
+                let Some(dest) = dest else {
+                    self.error("invalid address");
+                    return true;
+                };
+                self.exit_visual();
+                self.move_or_copy_lines(a, b, dest, name.starts_with('m'));
+            }
+            "g" | "gl" | "global" | "v" | "vg" | "vglobal" => {
+                let invert = name.starts_with('v') || bang;
+                let (a, b) = range.unwrap_or((0, text::last_line(&self.buf().doc.rope)));
+                self.global(a, b, arg, invert);
+            }
+            "norm" | "norma" | "normal" => {
+                // the rest of the line is taken literally, trailing blanks too
+                let keys = KeyPress::parse_seq(raw_arg);
+                self.exit_visual();
+                let id = self.buf().id;
+                self.buf_mut().hold_history();
+                for l in a..=b {
+                    let rope = &self.buf().doc.rope;
+                    if l > text::last_line(rope) {
+                        break;
+                    }
+                    let p = text::line_start(rope, l);
+                    self.buf_mut().sel = Selection::point(p);
+                    for &k in &keys {
+                        self.dispatch_key(k);
+                    }
+                    if self.mode != Mode::Normal {
+                        self.dispatch_key(KeyPress::plain(Key::Esc));
+                    }
+                    self.pending.clear();
+                }
+                if let Some(buf) = self.buffers.iter_mut().find(|x| x.id == id) {
+                    buf.release_history();
+                }
+            }
+            _ => return false,
+        }
+        true
+    }
+
+    /// `&`, `:&&`, `g&`: the last substitution again on lines `a..=b`, with its flags or without.
+    pub(crate) fn repeat_substitute(&mut self, a: usize, b: usize, keep_flags: bool) {
+        let Some(last) = self.registers.get(&LAST_SUBSTITUTE).cloned() else {
+            return self.error("no previous substitute");
+        };
+        let [pat, rep, flags] = &last.parts[..] else { return };
+        let flags = if keep_flags { flags.as_str() } else { "" };
+        // a delimiter that cannot clash with the pattern
+        self.substitute(&format!("\u{1}{pat}\u{1}{rep}\u{1}{flags}"), a, b);
+    }
+
+    /// `@:`: the last command line again.
+    pub(crate) fn repeat_last_ex(&mut self) {
+        match self.cmd_history.last().cloned() {
+            Some(cmd) => self.run_ex(&cmd),
+            None => self.error("no previous command line"),
+        }
+    }
+
+    /// `:m` / `:t`: moves (or copies) lines `a..=b` below line `dest` (-1: above the first line).
+    fn move_or_copy_lines(&mut self, a: usize, b: usize, dest: isize, mv: bool) {
+        if mv && dest >= a as isize && dest <= b as isize {
+            return; // onto itself
+        }
+        let rope = &self.buf().doc.rope;
+        let block: Vec<String> = (a..=b).map(|l| text::line_text(rope, l)).collect();
+        let block = block.join("\n");
+        let mut changes = Vec::new();
+        // insert first (positions in the original text), then delete
+        let ins = if dest < 0 {
+            crate::change::Change::insert(0, format!("{block}\n"))
+        } else {
+            crate::change::Change::insert(text::line_end(rope, dest as usize), format!("\n{block}"))
+        };
+        changes.push(ins.clone());
+        if mv {
+            let last = text::last_line(rope);
+            let (from, to) = if b < last {
+                (text::line_start(rope, a), text::line_start(rope, b + 1))
+            } else if a > 0 {
+                (text::line_end(rope, a - 1), rope.len_chars()) // the last line takes the break before it
+            } else {
+                (0, rope.len_chars())
+            };
+            changes.push(crate::change::Change::delete(from, to));
+        }
+        let cs = crate::change::ChangeSet::new(changes);
+        // the cursor goes to the last line put
+        let start = cs.map(ins.from, crate::change::Assoc::Before) + usize::from(dest >= 0);
+        let n = b - a;
+        let b_ = self.buf_mut();
+        b_.apply(cs, None);
+        let rope = &b_.doc.rope;
+        let first = text::line_of(rope, start.min(rope.len_chars()));
+        b_.sel = Selection::point(text::first_non_blank(rope, (first + n).min(text::last_line(rope))));
+        self.commit();
+    }
+
+    /// `:g/pat/cmd` (and `:v`): runs `cmd` on every line in `a..=b` that matches (or not). `d` is done in one go;
+    /// other commands run bottom-up so earlier line numbers stay valid.
+    fn global(&mut self, a: usize, b: usize, arg: &str, invert: bool) {
+        let Some(delim) = arg.chars().next() else { return self.error("usage: :g/pattern/command") };
+        let body = &arg[delim.len_utf8()..];
+        let parts = split_unescaped(body, delim);
+        let pat = parts.first().copied().unwrap_or("");
+        let cmd = body.get(pat.len() + delim.len_utf8()..).unwrap_or("").trim();
+        let pat = if pat.is_empty() { self.search_text.clone() } else { pat.to_string() };
+        let Some(re) = search::compile_vim(&pat) else { return self.error("invalid pattern") };
+        let rope = &self.buf().doc.rope;
+        let lines: Vec<usize> = (a..=b.min(text::last_line(rope)))
+            .filter(|&l| {
+                let line = rope.line(l);
+                let s: std::borrow::Cow<str> = line.into();
+                re.is_match(s.strip_suffix('\n').unwrap_or(&s)) != invert
+            })
+            .collect();
+        self.set_search(&pat);
+        self.exit_visual();
+        if lines.is_empty() {
+            return self.error(format!("pattern not found: {pat}"));
+        }
+        let cmd = if cmd.is_empty() { "p" } else { cmd };
+        let last_hit = *lines.last().unwrap();
+        if matches!(cmd, "d" | "de" | "del" | "delete") {
+            ops::delete_lines(self.buf_mut(), &lines);
+            // the cursor ends on the line after the last deleted one
+            let rope = &self.buf().doc.rope;
+            let line = (last_hit + 1 - lines.len()).min(text::last_line(rope));
+            self.buf_mut().sel = Selection::point(text::first_non_blank(rope, line));
+            self.commit();
+            return self.info(format!("{} fewer lines", lines.len()));
+        }
+        if cmd == "p" {
+            return self.info(format!("{} matching lines", lines.len()));
+        }
+        // bottom-up keeps the line numbers above valid; one undo step for all of it
+        let ok = self.held(|e| lines.iter().rev().all(|&l| e.ex_ranged(Some((l, l)), cmd)));
+        if !ok {
+            return self.error(format!("not supported in :g: {cmd}"));
+        }
+        let rope = &self.buf().doc.rope;
+        let p = text::first_non_blank(rope, last_hit.min(text::last_line(rope)));
+        self.buf_mut().sel = Selection::point(p);
+    }
+
     pub fn goto_line(&mut self, n: usize) {
         let b = self.buf_mut();
         let rope = &b.doc.rope;
@@ -1576,65 +2283,78 @@ impl Editor {
         self.buf_mut().center_on_cursor();
     }
 
-    /// `:s/pat/rep/flags` on the cursor lines, or every line with `%`.
-    fn substitute(&mut self, cmd: &str, all_lines: bool) {
-        let body = &cmd[1..];
-        let Some(delim) = body.chars().next() else { return };
-        let parts: Vec<&str> = split_unescaped(&body[delim.len_utf8()..], delim);
+    /// `:s/pat/rep/flags` on lines `a..=b`. `cmd` starts at the delimiter. Patterns are vim regexes; flags `g`
+    /// (every match), `i`/`I` (ignore/match case), `n` (count only), `e` (no error when nothing matches).
+    fn substitute(&mut self, cmd: &str, a: usize, b: usize) {
+        let Some(delim) = cmd.chars().next() else { return };
+        let parts: Vec<&str> = split_unescaped(&cmd[delim.len_utf8()..], delim);
         let (pat, rep, flags) = match parts.as_slice() {
             [p] => (*p, "", ""),
             [p, r] => (*p, *r, ""),
-            [p, r, f, ..] => (*p, *r, *f),
+            [p, r, f, ..] => (*p, *r, f.trim()),
             _ => return,
         };
         let pat = if pat.is_empty() { self.search_text.clone() } else { pat.to_string() };
-        let Some(re) = search::compile(&pat) else { return self.error("invalid pattern") };
-        // vim's \1 and & in the replacement
-        let mut rep_out = String::new();
-        let mut chars = rep.chars().peekable();
-        while let Some(c) = chars.next() {
-            match c {
-                '\\' => match chars.next() {
-                    Some(d) if d.is_ascii_digit() => rep_out.push_str(&format!("${{{d}}}")),
-                    Some('n') => rep_out.push('\n'),
-                    Some('t') => rep_out.push('\t'),
-                    Some(o) => rep_out.push(o),
-                    None => {}
-                },
-                '&' => rep_out.push_str("${0}"),
-                '$' => rep_out.push_str("$$"),
-                c => rep_out.push(c),
-            }
-        }
-        let global = flags.contains('g');
-        let b = self.buf();
-        let rope = &b.doc.rope;
-        let lines: Vec<usize> = if all_lines {
-            (0..=text::last_line(rope)).collect()
-        } else if self.mode.is_visual() {
-            self.target_lines()
+        let case = if flags.contains('i') {
+            "\\c"
+        } else if flags.contains('I') {
+            "\\C"
         } else {
-            ops::selected_lines(rope, &b.sel)
+            ""
         };
+        let Some(re) = search::compile_vim(&format!("{case}{pat}")) else { return self.error("invalid pattern") };
+        // `&`, `g&` and `:&&` repeat it
+        self.registers.insert(
+            LAST_SUBSTITUTE,
+            Register {
+                parts: vec![pat.clone(), rep.to_string(), flags.to_string()],
+                linewise: false,
+                blockwise: false,
+            },
+        );
+        let rep = search::Replacement::parse(rep);
+        let global = flags.contains('g');
+        let rope = &self.buf().doc.rope;
+        let b = b.min(text::last_line(rope));
         let mut changes = Vec::new();
         let mut count = 0;
-        for l in lines {
-            let s = text::line_text(rope, l);
-            let new = if global { re.replace_all(&s, rep_out.as_str()) } else { re.replace(&s, rep_out.as_str()) };
-            if new != s {
-                count += if global { re.find_iter(&s).count() } else { 1 };
-                let ls = text::line_start(rope, l);
-                changes.push(crate::change::Change::replace(ls, ls + s.chars().count(), new.into_owned()));
+        let mut hit_line = None;
+        let mut out = String::new();
+        // one change per match (the scan skips lines without one at memchr speed)
+        search::for_each_match(rope, &re, (a, b), true, true, |line, from, to, caps| {
+            if !global && hit_line == Some(line) {
+                return;
             }
-        }
-        if count == 0 {
-            return self.error(format!("pattern not found: {pat}"));
-        }
+            hit_line = Some(line);
+            out.clear();
+            if let Some(caps) = caps {
+                rep.expand(caps, &mut out);
+            }
+            changes.push(crate::change::Change::replace(from, to, out.as_str()));
+            count += 1;
+        });
+        let first_start = changes.first().map_or(0, |c| text::line_start(rope, text::line_of(rope, c.from)));
+        let Some(last_start) = changes.last().map(|c| c.from).filter(|_| count > 0) else {
+            if !flags.contains('e') {
+                self.error(format!("pattern not found: {pat}"));
+            }
+            return;
+        };
         self.set_search(&pat);
-        let b = self.buf_mut();
-        b.apply(crate::change::ChangeSet::new(changes), None);
-        let rope = &b.doc.rope;
-        b.sel = b.sel.transform(|r| Range::point(text::clamp_normal(rope, r.head)));
+        if flags.contains('n') {
+            return self.info(format!("{count} match(es)"));
+        }
+        let nl = changes.last().map_or(0, |c| c.text.matches('\n').count());
+        let cs = crate::change::ChangeSet::new(changes);
+        let at = cs.map(last_start, crate::change::Assoc::Before);
+        let buf = self.buf_mut();
+        // vim starts the change on the first substituted line: undo comes back there
+        buf.sel = Selection::point(first_start);
+        buf.apply(cs, None);
+        // the cursor goes to the last substituted line (its last line when the replacement split it)
+        let rope = &buf.doc.rope;
+        let line = text::line_of(rope, at) + nl;
+        buf.sel = Selection::point(text::first_non_blank(rope, line.min(text::last_line(rope))));
         self.commit();
         self.exit_visual();
         self.info(format!("{count} substitution(s)"));
@@ -1648,7 +2368,11 @@ impl Editor {
         }
         let items = crate::commands::COMMANDS
             .iter()
-            .map(|(c, name, title)| PickerItem { label: (*title).to_string(), detail: format!(":{name}"), data: PickerData::Command(*c) })
+            .map(|(c, name, title)| PickerItem {
+                label: (*title).to_string(),
+                detail: format!(":{name}"),
+                data: PickerData::Command(*c),
+            })
             .collect();
         self.picker = Some(Picker::new(PickerKind::Commands, items));
     }
@@ -1670,15 +2394,19 @@ impl Editor {
     pub fn open_feature_picker(&mut self) {
         let items = features::FEATURES
             .iter()
-            .map(|i| PickerItem { label: feature_label(&self.features, i), detail: i.description.into(), data: PickerData::Feature(i.feature) })
+            .map(|i| PickerItem {
+                label: feature_label(&self.features, i),
+                detail: i.description.into(),
+                data: PickerData::Feature(i.feature),
+            })
             .collect();
         let mut p = Picker::new(PickerKind::Features, items);
-        if let Some(old) = &self.picker {
-            if old.kind == PickerKind::Features {
-                p.query = old.query.clone();
-                p.refilter();
-                p.selected = old.selected.min(p.matches.len().saturating_sub(1));
-            }
+        if let Some(old) = &self.picker
+            && old.kind == PickerKind::Features
+        {
+            p.query = old.query.clone();
+            p.refilter();
+            p.selected = old.selected.min(p.matches.len().saturating_sub(1));
         }
         self.picker = Some(p);
     }
@@ -1759,6 +2487,12 @@ impl Editor {
     }
 }
 
+/// An ex range (0-based lines, None when there was none) and the rest of the command line.
+type LineRange<'a> = (Option<(usize, usize)>, &'a str);
+
+/// Hidden register holding the last `:s` (pattern, replacement, flags) for `&`, `g&` and `:&&`.
+const LAST_SUBSTITUTE: char = '\u{1}';
+
 /// Moves `r.head` by `delta` lines keeping the sticky column. Returns (new head, column).
 pub(crate) fn vertical(rope: &ropey::Rope, r: Range, delta: isize, tab_width: usize) -> (usize, usize) {
     let col = r.col.unwrap_or_else(|| text::col_of(rope, r.head, tab_width));
@@ -1818,13 +2552,16 @@ fn complete_command(text: &str, cwd: &Path) -> Option<String> {
         .filter_map(|e| {
             let name = e.file_name().to_string_lossy().into_owned();
             let slash = if e.file_type().is_ok_and(|t| t.is_dir()) { "/" } else { "" };
-            (name.starts_with(prefix) && (!name.starts_with('.') || prefix.starts_with('.'))).then(|| format!("{name}{slash}"))
+            (name.starts_with(prefix) && (!name.starts_with('.') || prefix.starts_with('.')))
+                .then(|| format!("{name}{slash}"))
         })
         .collect();
     names.sort();
     let first = names.first()?;
     // longest common prefix
-    let common = names.iter().fold(first.clone(), |acc, n| acc.chars().zip(n.chars()).take_while(|(a, b)| a == b).map(|(a, _)| a).collect());
+    let common = names
+        .iter()
+        .fold(first.clone(), |acc, n| acc.chars().zip(n.chars()).take_while(|(a, b)| a == b).map(|(a, _)| a).collect());
     Some(format!("{cmd} {dir_part}{common}"))
 }
 

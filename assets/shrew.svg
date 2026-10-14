@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>shrew</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F8B35E"/>
+      <stop offset="1" stop-color="#DE5F2C"/>
+    </linearGradient>
+    <clipPath id="tile">
+      <rect width="256" height="256" rx="56"/>
+    </clipPath>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <g clip-path="url(#tile)">
+    <!-- head and shoulders facing right; the long pointed snout is what makes it a shrew -->
+    <path fill="#3B2216" d="M -12 272
+      C -6 192, 30 118, 88 98
+      C 124 86, 152 94, 174 110
+      C 192 124, 210 136, 230 144
+      C 244 150, 242 166, 226 166
+      C 204 166, 184 164, 164 170
+      C 136 180, 114 212, 106 272 Z"/>
+    <!-- lighter chin and throat -->
+    <path fill="#6B3F27" d="M 106 272
+      C 114 212, 136 180, 164 170
+      C 176 167, 186 166, 198 166
+      C 172 184, 154 222, 150 272 Z"/>
+    <!-- ear -->
+    <circle cx="84" cy="104" r="23" fill="#3B2216"/>
+    <circle cx="84" cy="106" r="11" fill="#C47A55"/>
+    <!-- eye: small, like a shrew's -->
+    <circle cx="146" cy="117" r="10" fill="#FFF4E6"/>
+    <circle cx="148" cy="118" r="5" fill="#1C0F09"/>
+    <!-- nose -->
+    <circle cx="234" cy="155" r="10" fill="#F4A1A1"/>
+    <!-- whiskers -->
+    <g stroke="#FFF4E6" stroke-width="4" stroke-linecap="round" fill="none" opacity="0.8">
+      <path d="M 206 160 Q 214 184 230 200"/>
+      <path d="M 196 162 Q 198 190 206 210"/>
+    </g>
+  </g>
+</svg>

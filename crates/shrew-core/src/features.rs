@@ -23,6 +23,8 @@ pub enum Feature {
     Clipboard,
     Mcp,
     UpdateCheck,
+    Vimrc,
+    SublimeImport,
 }
 
 pub struct FeatureInfo {
@@ -39,12 +41,17 @@ const fn f(feature: Feature, key: &'static str, default: bool, description: &'st
 
 pub static FEATURES: &[FeatureInfo] = &[
     f(Feature::Vim, "vim", true, "Modal editing (normal/insert/visual). Off: always typing, Sublime-style"),
-    f(Feature::Syntax, "syntax", true, "Syntax highlighting (tree-sitter, incremental, parsers load lazily)"),
+    f(Feature::Syntax, "syntax", true, "Syntax highlighting (Sublime grammars, incremental, in the background)"),
     f(Feature::BracketMatch, "bracket_match", true, "Highlight the bracket matching the one at the cursor"),
     f(Feature::AutoPairs, "auto_pairs", true, "Close brackets and quotes as you type them"),
     f(Feature::AutoIndent, "auto_indent", true, "Keep and extend indentation on new lines"),
     f(Feature::LineNumbers, "line_numbers", true, "Line number gutter"),
-    f(Feature::RelativeNumbers, "relative_numbers", false, "Line numbers relative to the cursor (vim's relativenumber)"),
+    f(
+        Feature::RelativeNumbers,
+        "relative_numbers",
+        false,
+        "Line numbers relative to the cursor (vim's relativenumber)",
+    ),
     f(Feature::CurrentLine, "current_line", true, "Highlight the line the cursor is on"),
     f(Feature::IndentGuides, "indent_guides", true, "Thin vertical lines at each indent level"),
     f(Feature::Whitespace, "whitespace", false, "Show tabs and trailing spaces"),
@@ -57,6 +64,13 @@ pub static FEATURES: &[FeatureInfo] = &[
     f(Feature::Clipboard, "clipboard", true, "Share yanks and pastes with the system clipboard"),
     f(Feature::Mcp, "mcp", false, "MCP server so AI assistants can read and edit open files"),
     f(Feature::UpdateCheck, "update_check", true, "Check GitHub for new releases at startup"),
+    f(Feature::Vimrc, "vimrc", true, "Read options and mappings from ~/.vimrc or init.vim at startup (see [import])"),
+    f(
+        Feature::SublimeImport,
+        "sublime_import",
+        true,
+        "Read Sublime Text's user settings and key bindings at startup (see [import])",
+    ),
 ];
 
 pub fn info(feature: Feature) -> &'static FeatureInfo {

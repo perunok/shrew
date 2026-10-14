@@ -5,5 +5,37 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[[bin]]
+name = "shrew"
+path = "src/main.rs"
+
+[features]
+default = ["syntax", "picker", "clipboard", "mcp", "update", "embed-font"]
+# Syntax highlighting with Sublime grammars (syntect + fancy-regex, pure Rust), on a background thread.
+syntax = ["dep:shrew-syntax"]
+# Extra `.sublime-syntax` files from Sublime Text's Packages/User folders.
+syntax-sublime-user = ["syntax", "shrew-syntax/sublime-user"]
+# `.tmTheme` color schemes (`theme = "/path/to/x.tmTheme"`).
+syntax-tmtheme = ["syntax", "shrew-syntax/tmtheme"]
+# Fuzzy file picker (Ctrl+P), walking the project in the background.
+picker = ["shrew-core/picker"]
+# System clipboard (arboard: Wayland data-control and X11, pure Rust).
+clipboard = ["dep:arboard"]
+# MCP server so AI assistants can read and edit open buffers (off at runtime until enabled).
+mcp = ["dep:shrew-mcp"]
+# Self-update from GitHub Releases (pure-Rust TLS).
+update = ["dep:shrew-update"]
+# Bundle JetBrains Mono so the first frame never waits for a font scan.
+embed-font = ["shrew-render/embed-font"]
+
 [dependencies]
-shrew-core.workspace = true
+shrew-core = { path = "../shrew-core", default-features = false }
+shrew-render = { path = "../shrew-render", default-features = false }
+shrew-config = { path = "../shrew-config" }
+shrew-syntax = { path = "../shrew-syntax", optional = true }
+shrew-mcp = { path = "../shrew-mcp", optional = true }
+shrew-update = { path = "../shrew-update", optional = true }
+winit.workspace = true
+arboard = { workspace = true, optional = true }
+log.workspace = true
+env_logger.workspace = true

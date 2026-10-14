@@ -946,6 +946,7 @@ impl Editor {
                 self.prompt = None;
                 self.about = Some(0);
             }
+            ToggleMinimap => self.toggle_feature(Feature::Minimap),
         }
     }
 

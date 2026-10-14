@@ -63,6 +63,7 @@ pub enum Command {
     OpenConfig,
     McpSetup,
     About,
+    ToggleMinimap,
 }
 
 use Command::*;
@@ -130,6 +131,7 @@ pub static COMMANDS: &[(Command, &str, &str)] = &[
     (OpenConfig, "config", "Shrew: Open Config File"),
     (McpSetup, "mcp", "Shrew: AI Assistants (MCP) Setup"),
     (About, "about", "About shrew"),
+    (ToggleMinimap, "toggle_minimap", "View: Toggle Minimap"),
 ];
 
 impl Command {

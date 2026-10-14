@@ -38,6 +38,7 @@ pub fn run(cli: &Cli, out: &std::path::Path) -> Result<(), String> {
             ed.features.on(Feature::LineNumbers),
             ed.buffers.len() > 1,
         )
+        .with_minimap(crate::minimap::width(st))
     };
     // a first layout pass sizes the views, so keys like Ctrl+D scroll by the real page
     let lay = layout(&r, &st);
@@ -139,4 +140,6 @@ fn bench(st: &mut State, r: &mut Renderer, scene: &mut Scene, ui: &mut Ui, lay: 
     run("same frame", 0, st);
     run("scroll 1 line", 1, st);
     run("scroll 1 page", lay.rows as isize, st);
+    let mm = &ui.minimap;
+    eprintln!("minimap          {} rebuilds, last {:.1?}", mm.builds, mm.last_build);
 }

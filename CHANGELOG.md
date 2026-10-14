@@ -47,6 +47,9 @@ Nothing has been released yet: the first release, 0.1.0, will be everything belo
   regenerates every screenshot in the docs with it.
 - `scripts/check-pure-rust.sh` fails the build when a dependency compiles or links C.
 - README in a new shape: screenshots gallery, features, performance numbers, the Shrew Manifesto.
+- A Sublime-style minimap (the `minimap` feature, on by default; `[minimap] width`): each line as thin blocks in
+  its syntax colors, with the visible lines boxed, the cursors, selections and search matches marked. Click to jump,
+  drag to scroll. Built from the lines on show only and cached, so an unchanged frame rebuilds nothing.
 
 ### Changed
 

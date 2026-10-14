@@ -107,6 +107,7 @@ the table below for your build and config.
 | `update_check` | Check GitHub for new releases at startup (at most once a day) | on | `update` |
 | `vimrc` | Read options and mappings from `~/.vimrc` or `init.vim` at startup (see `[import]`) | on | |
 | `sublime_import` | Read Sublime Text's user settings and key bindings at startup (see `[import]`) | on | |
+| `minimap` | Sublime-style minimap at the right of the editor: click or drag to scroll (see `[minimap]`) | on | |
 
 Keys also work without the underscore (`:set nolinenumbers`). The usual vim spellings work too: `:set nu`, `rnu`,
 `hls`, `list`, `et`, `ts=2`, `so=8`.

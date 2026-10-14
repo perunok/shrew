@@ -39,6 +39,8 @@ pub const DEFAULT_ACCENT: &str = "theme";
 pub const DEFAULT_FONT_WEIGHT: u16 = 400;
 /// Same default as shrew-mcp's `DEFAULT_PORT`.
 pub const DEFAULT_MCP_PORT: u16 = 7356;
+/// `[minimap] width`, in logical pixels.
+pub const DEFAULT_MINIMAP_WIDTH: u16 = 100;
 
 /// Something in a config or imported file that was skipped. Never fatal.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -86,6 +88,8 @@ pub struct EditorConfig {
     /// `<leader>` in mappings, vim notation (`\`, `,`, `<Space>`).
     pub leader: Option<String>,
     pub mapping_timeout_ms: Option<u64>,
+    /// `[minimap] width` in logical pixels.
+    pub minimap_width: Option<u16>,
 }
 
 impl EditorConfig {
@@ -122,6 +126,9 @@ impl EditorConfig {
     pub fn mapping_timeout_ms(&self) -> u64 {
         self.mapping_timeout_ms.unwrap_or(1000)
     }
+    pub fn minimap_width(&self) -> u16 {
+        self.minimap_width.unwrap_or(DEFAULT_MINIMAP_WIDTH)
+    }
 
     pub(crate) fn merge(&mut self, o: &EditorConfig) {
         fn take<T: Clone>(a: &mut Option<T>, b: &Option<T>) {
@@ -144,6 +151,7 @@ impl EditorConfig {
         take(&mut self.cursor_blink, &o.cursor_blink);
         take(&mut self.leader, &o.leader);
         take(&mut self.mapping_timeout_ms, &o.mapping_timeout_ms);
+        take(&mut self.minimap_width, &o.minimap_width);
     }
 }
 

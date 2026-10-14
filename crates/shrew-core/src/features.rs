@@ -25,6 +25,7 @@ pub enum Feature {
     UpdateCheck,
     Vimrc,
     SublimeImport,
+    Minimap,
 }
 
 pub struct FeatureInfo {
@@ -71,6 +72,7 @@ pub static FEATURES: &[FeatureInfo] = &[
         true,
         "Read Sublime Text's user settings and key bindings at startup (see [import])",
     ),
+    f(Feature::Minimap, "minimap", true, "Sublime-style minimap at the right edge of the editor (see [minimap])"),
 ];
 
 pub fn info(feature: Feature) -> &'static FeatureInfo {

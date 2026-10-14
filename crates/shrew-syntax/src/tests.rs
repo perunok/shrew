@@ -468,3 +468,27 @@ fn user_syntax_dir() {
     assert_eq!(color_at(&hl, &d.rope, 0, "nibble"), style(&s.theme(), "keyword.control"));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn generations_say_which_lines_changed() {
+    let s = service();
+    let mut buf = Buffer::new(1, doc("lib.rs", &rust_source(300)));
+    let mut hl = s.highlighter(&buf.doc);
+    let g0 = hl.generation();
+    assert_eq!(hl.changed_since(g0), Some(0..0), "nothing new yet");
+    hl.set_viewport(0, 50);
+    settle(&mut hl);
+    let g1 = hl.generation();
+    assert!(g1 > g0, "results arrived");
+    if g1 - g0 < 32 {
+        assert_eq!(hl.changed_since(g0).expect("recent enough").start, 0);
+    }
+    assert_eq!(hl.changed_since(g1), Some(0..0));
+    // an edit moves lines: anything may have changed
+    let at = buf.doc.rope.line_to_char(10);
+    buf.apply(ChangeSet::single(Change::insert(at, "x")), None);
+    hl.sync(&mut buf.doc);
+    assert_eq!(hl.changed_since(g1).map(|r| r.end), Some(usize::MAX));
+    // too long ago to tell
+    assert!(hl.generation() <= 32 || hl.changed_since(0).is_none());
+}

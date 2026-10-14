@@ -15,6 +15,8 @@ use std::sync::atomic::Ordering;
 /// Edited lines keep their old (clamped) spans until re-highlighted, so typing never flickers; past this many
 /// rewritten lines they are dropped instead.
 const CARRY_OVER: usize = 256;
+/// Generations whose changed lines [`Highlighter::changed_since`] remembers.
+const RECENT: usize = 32;
 
 pub struct Highlighter {
     engine: Arc<Engine>,
@@ -25,6 +27,10 @@ pub struct Highlighter {
     viewport: (usize, usize),
     syntax: Option<String>,
     settled: bool,
+    /// Bumped whenever the cached spans change, so views derived from them (the minimap) know to rebuild.
+    generation: u64,
+    /// The lines each of the last few generations changed, oldest first.
+    recent: std::collections::VecDeque<(u64, Range<usize>)>,
 }
 
 impl Highlighter {
@@ -49,6 +55,8 @@ impl Highlighter {
             viewport,
             syntax: None,
             settled: false,
+            generation: 0,
+            recent: Default::default(),
         }
     }
 
@@ -96,6 +104,7 @@ impl Highlighter {
         // results published before this edit are in the old coordinates: apply them, then map
         self.apply_updates(out);
         self.remap(&inv, rope);
+        self.bump(0..usize::MAX); // lines moved: anything may have
         self.version = version;
         self.len_chars = rope.len_chars();
         self.settled = false;
@@ -181,7 +190,18 @@ impl Highlighter {
                 }
             }
         }
+        if let Some(r) = &changed {
+            self.bump(r.clone());
+        }
         changed
+    }
+
+    fn bump(&mut self, lines: Range<usize>) {
+        self.generation += 1;
+        if self.recent.len() == RECENT {
+            self.recent.pop_front();
+        }
+        self.recent.push_back((self.generation, lines));
     }
 
     /// Picks up finished highlighting. Returns the lines that changed (redraw if they are on screen).
@@ -242,6 +262,30 @@ impl Highlighter {
     /// The document version the cache matches.
     pub fn version(&self) -> u64 {
         self.version
+    }
+
+    /// Changes whenever any line's spans may have changed (new results, an edit mapped through, a new grammar).
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    /// The lines whose spans changed after `generation` (empty when none did), or `None` when that is too long ago
+    /// to tell. Views derived from the spans redo just those lines.
+    pub fn changed_since(&self, generation: u64) -> Option<Range<usize>> {
+        if generation >= self.generation {
+            return Some(0..0);
+        }
+        if self.recent.front().is_none_or(|(g, _)| *g > generation + 1) {
+            return None;
+        }
+        let mut out: Option<Range<usize>> = None;
+        for (_, r) in self.recent.iter().filter(|(g, _)| *g > generation) {
+            out = Some(match out {
+                Some(o) => o.start.min(r.start)..o.end.max(r.end),
+                None => r.clone(),
+            });
+        }
+        out
     }
 }
 

@@ -50,6 +50,8 @@ pub struct Ui {
     /// Bracket match for (buffer, version, position): searching can walk far, so it runs once per position.
     bracket: Option<BracketCache>,
     line: LineBuf,
+    /// The minimap's block cache, hover and drag (see [`crate::minimap`]).
+    pub minimap: crate::minimap::Minimap,
 }
 
 impl Ui {
@@ -117,6 +119,7 @@ pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: 
 
     tabs(scene, st, ui, lay, &c);
     editor(scene, st, ui, lay, &c, scroll);
+    crate::minimap::draw(scene, st, ui, lay, &c, scroll);
     status(scene, st, ui, lay, &c);
     cmdline(scene, &st.ed, st, lay, &c);
     if st.ed.picker.is_some() {

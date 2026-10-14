@@ -62,6 +62,7 @@ enum Drag {
     None,
     Text,
     Scrollbar,
+    Minimap,
 }
 
 #[derive(Default)]
@@ -386,7 +387,13 @@ impl ApplicationHandler<UserEvent> for App {
             }
             WindowEvent::Ime(ime) => self.ime(ime),
             WindowEvent::CursorMoved { position, .. } => self.pointer_moved(position.x as f32, position.y as f32),
-            WindowEvent::CursorLeft { .. } => {}
+            WindowEvent::CursorLeft { .. } => {
+                if let Some(lay) = self.lay
+                    && crate::minimap::hover(&mut self.ui, &lay, None)
+                {
+                    self.redraw();
+                }
+            }
             WindowEvent::MouseInput { state, button, .. } => self.mouse_button(state, button),
             WindowEvent::MouseWheel { delta, .. } => self.wheel(delta),
             WindowEvent::DroppedFile(path) => {
@@ -502,7 +509,7 @@ impl App {
                 r.set_font(font);
             }
         }
-        let Some(lay) = self.layout() else { return };
+        let Some(lay) = self.layout().map(|l| l.with_minimap(crate::minimap::width(&self.st))) else { return };
         let (Some(r), Some(window)) = (&mut self.renderer, &self.window) else { return };
         let now = Instant::now();
         self.ui.blink_off = self.st.cursor_blink && self.ui.focused && blink_phase(self.blink_epoch, now);
@@ -692,7 +699,11 @@ impl App {
             self.st.after_input();
             return self.input(now);
         }
-        if let Some((track, total)) = hits.scrollbar
+        if crate::minimap::press(&mut self.st, &mut self.ui, &lay, x, y) {
+            self.drag = Drag::Minimap;
+            return self.input(now);
+        }
+        if let Some((track, total)) = self.ui.hits.scrollbar
             && track.contains(x, y)
         {
             self.drag = Drag::Scrollbar;
@@ -752,7 +763,15 @@ impl App {
                     self.redraw();
                 }
             }
+            Drag::Minimap => {
+                if crate::minimap::drag(&mut self.st, &mut self.ui, &lay, y) {
+                    self.redraw();
+                }
+            }
             Drag::None => {}
+        }
+        if crate::minimap::hover(&mut self.ui, &lay, Some((x, y))) {
+            self.redraw();
         }
         let icon = if self.st.ed.picker.is_none()
             && self.st.ed.about.is_none()

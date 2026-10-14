@@ -32,7 +32,8 @@ list), pick a theme, accent or font, or change the font size, shrew updates that
 choice survives a restart. Your comments, ordering and formatting are kept.
 
 **Contents:** [`[editor]`](#editor) · [`[theme]`](#theme) · [`[font]`](#font) · [`[features]`](#features) ·
-[`[keys]`](#keys) · [`[import]`](#import) · [`[mcp]`](#mcp) · [`[update]`](#update) · [Full example](#full-example)
+[`[keys]`](#keys) · [`[import]`](#import) · [`[mcp]`](#mcp) · [`[update]`](#update) · [`[minimap]`](#minimap) ·
+[Full example](#full-example)
 
 ## `[editor]`
 
@@ -101,7 +102,7 @@ README has [the full table with defaults](../README.md#features). The keys are:
 
 `vim`, `syntax`, `bracket_match`, `auto_pairs`, `auto_indent`, `line_numbers`, `relative_numbers`, `current_line`,
 `indent_guides`, `whitespace`, `search_highlight`, `word_highlight`, `smooth_scroll`, `cursor_animation`, `picker`,
-`palette`, `clipboard`, `mcp`, `update_check`, `vimrc`, `sublime_import`.
+`palette`, `clipboard`, `mcp`, `update_check`, `vimrc`, `sublime_import`, `minimap`.
 
 ```toml
 [features]
@@ -258,6 +259,18 @@ These environment variables are for testing and mirrors:
 | `SHREW_UPDATE_REPO` | GitHub `owner/name` to take releases from (default `perunok/shrew`) |
 | `SHREW_UPDATE_FEED_URL` | Any URL serving GitHub's "latest release" JSON |
 
+## `[minimap]`
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `width` | integer | `100` | Width of the minimap in logical pixels (40 to 400) |
+
+The minimap is the `minimap` feature: `:set nominimap`, the palette (*View: Toggle Minimap*) or `minimap = false`
+under `[features]` turn it off. It sits at the right edge of the editor, left of the scrollbar, and steps aside when
+the window leaves the text fewer than 50 columns. Each line is drawn as thin blocks in its syntax colors, with the
+current line, cursors, selections, search matches and a box over the visible lines on top. Click it to jump, drag it
+to scroll; the wheel scrolls the editor as anywhere else.
+
 ## Full example
 
 ```toml
@@ -311,4 +324,7 @@ port = 7356
 
 [update]
 check = true
+
+[minimap]
+width = 100
 ```

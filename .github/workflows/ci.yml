@@ -8,7 +8,7 @@ name: CI
 # fix the dependency instead of adding apt-get here.
 on:
   push:
-    branches: [main]
+    branches: [master, main]
   pull_request:
   workflow_dispatch:
 

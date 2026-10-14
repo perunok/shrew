@@ -399,6 +399,11 @@ impl Renderer {
         self.fonts.ready()
     }
 
+    /// Installed monospace font families, sorted. Just the embedded one until [`Renderer::fonts_ready`].
+    pub fn monospace_families(&self) -> Vec<String> {
+        crate::fonts::monospace_families(&self.fonts.system)
+    }
+
     /// Whether the background system-font scan is done (or disabled).
     pub fn fonts_ready(&self) -> bool {
         self.fonts.ready()

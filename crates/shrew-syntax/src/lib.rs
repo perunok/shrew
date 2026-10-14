@@ -1,5 +1,5 @@
 //! Syntax highlighting for shrew: Sublime grammars via syntect (pure Rust, fancy-regex), run entirely off the UI
-//! thread, plus the built-in `shrew` themes and their UI palette.
+//! thread, colored by a [`shrew_theme::Theme`] (see [`Theme::new`]).
 //!
 //! * [`Syntaxes`] owns one worker thread. It loads the grammar dump in the background at startup; until then (and
 //!   for any line not highlighted yet) [`Highlighter::spans_for_line`] returns `None` and the line is drawn plain.
@@ -22,7 +22,7 @@
 //! hl.poll();
 //! for line in 0..doc.rope.len_lines() {
 //!     match hl.spans_for_line(line) {
-//!         Some(spans) => { /* draw spans; uncovered text in theme.palette.foreground */ }
+//!         Some(spans) => { /* draw spans; uncovered text in theme.foreground */ }
 //!         None => { /* draw plain */ }
 //!     }
 //! }
@@ -36,9 +36,9 @@ mod work;
 
 pub use engine::{Options, Syntaxes, Wake, sublime_user_dirs};
 pub use highlighter::Highlighter;
-/// For [`Theme::from_syntect`] / [`Theme::syntect`] without a direct dependency.
+/// For [`Theme::syntect`] without a direct dependency.
 pub use syntect;
-pub use theme::{BUILTIN_THEMES, Palette, Rgb, Span, Theme};
+pub use theme::{Rgb, Span, Theme};
 pub use work::{MAX_LINE_CHARS, WINDOWED_BYTES, WINDOWED_LINES};
 
 #[cfg(test)]

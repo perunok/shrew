@@ -199,6 +199,10 @@ impl ApplicationHandler<UserEvent> for App {
         );
         let wake = self.st.wake.clone();
         r.set_wake(Arc::new(move || wake()));
+        // the desktop's light/dark preference, where winit knows it (macOS, Windows)
+        if let Some(t) = window.theme() {
+            self.st.set_os_dark(t == winit::window::Theme::Dark);
+        }
         window.set_cursor(CursorIcon::Text);
         self.icon = CursorIcon::Text;
         self.renderer = Some(r);
@@ -300,6 +304,10 @@ impl ApplicationHandler<UserEvent> for App {
                 self.redraw();
             }
             WindowEvent::ModifiersChanged(m) => self.mods = m.state(),
+            WindowEvent::ThemeChanged(t) => {
+                self.st.set_os_dark(t == winit::window::Theme::Dark);
+                self.redraw();
+            }
             WindowEvent::KeyboardInput { event, .. } => {
                 if event.state != ElementState::Pressed {
                     return;
@@ -404,6 +412,14 @@ impl App {
     }
 
     fn frame(&mut self) {
+        // a theme/font picker previews its highlighted row, whatever moved it (keys, wheel, mouse)
+        self.st.sync_preview();
+        if let Some(r) = &self.renderer
+            && self.st.look.font_families.is_none()
+            && r.fonts_ready()
+        {
+            self.st.look.font_families = Some(r.monospace_families());
+        }
         if self.st.font_changed {
             self.st.font_changed = false;
             let font: FontConfig = self.st.font.clone();

@@ -1,0 +1,59 @@
+# Oceanic: Oceanic Next.
+# UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
+# lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
+name = "Oceanic"
+scheme = "dark"
+
+[ui]
+bg = "#1b2b34"
+surface = "#17252d"
+surface-raised = "#22323c"
+surface-hover = "#2b3c47"
+border = "#343d46"
+border-strong = "#4f5b66"
+text = "#d8dee9"
+text-muted = "#a7adba"
+text-faint = "#7c8893"
+accent = "#6699cc"
+accent-fg = "#0a1114"
+accent-soft = "#2a4152"
+accent-text = "#7bafe3"
+selection = "#324c63"
+danger = "#fe767b"
+danger-fg = "#0a1114"
+danger-soft = "#3f343d"
+success = "#99c794"
+success-soft = "#304644"
+warning = "#fac863"
+warning-soft = "#41463c"
+
+[syntax]
+keyword = "#c594c5"
+control = "#c594c5"
+string = "#99c794"
+string-escape = "#5fb3b3"
+number = "#f99157"
+constant = "#f99157"
+comment = { fg = "#6d7c88", italic = true }  # lifted from #65737e
+doc-comment = { fg = "#6d7c88", italic = true }
+function = "#6a9ccd"  # lifted from #6699cc
+method = "#6a9ccd"  # lifted from #6699cc
+type = "#fac863"
+builtin-type = "#fac863"
+property = "#5fb3b3"
+variable = "#d8dee9"
+parameter = "#d8dee9"
+namespace = "#fac863"
+macro = "#6a9ccd"  # lifted from #6699cc
+attribute = "#c594c5"
+tag = "#ee7178"  # lifted from #ec5f67
+operator = "#5fb3b3"
+punctuation = "#5fb3b3"
+regex = "#5fb3b3"
+heading = { fg = "#6a9ccd", bold = true }  # lifted from #6699cc
+link = { fg = "#fac863", underline = true }
+emphasis = "#c594c5"
+diff-added = "#99c794"
+diff-removed = "#ee7178"  # lifted from #ec5f67
+diff-changed = "#fac863"
+invalid = "#ee7178"  # lifted from #ec5f67

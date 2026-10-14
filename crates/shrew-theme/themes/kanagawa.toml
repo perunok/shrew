@@ -1,0 +1,59 @@
+# Kanagawa: Kanagawa by rebelot, wave.
+# UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
+# lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
+name = "Kanagawa"
+scheme = "dark"
+
+[ui]
+bg = "#1f1f28"
+surface = "#16161d"
+surface-raised = "#2a2a37"
+surface-hover = "#363646"
+border = "#363646"
+border-strong = "#54546d"
+text = "#dcd7ba"
+text-muted = "#b4b09e"
+text-faint = "#8a8980"
+accent = "#7e9cd8"
+accent-fg = "#0a0a0d"
+accent-soft = "#32384b"
+accent-text = "#84a2df"
+selection = "#39445d"
+danger = "#ef717f"
+danger-fg = "#0a0a0d"
+danger-soft = "#402b35"
+success = "#98bb6c"
+success-soft = "#343a34"
+warning = "#ff9e3b"
+warning-soft = "#45352b"
+
+[syntax]
+keyword = "#9a86bc"  # lifted from #957fb8
+control = "#9a86bc"  # lifted from #957fb8
+string = "#98bb6c"
+string-escape = "#c0a36e"
+number = "#d27e99"
+constant = "#ffa066"
+comment = { fg = "#727169", italic = true }
+doc-comment = { fg = "#727169", italic = true }
+function = "#7e9cd8"
+method = "#7e9cd8"
+type = "#7aa89f"
+builtin-type = "#7aa89f"
+property = "#e6c384"
+variable = "#dcd7ba"
+parameter = "#b8b4d0"
+namespace = "#7aa89f"
+macro = "#e46876"
+attribute = "#7fb4ca"
+tag = "#e46876"
+operator = "#c0a36e"
+punctuation = "#9cabca"
+regex = "#c0a36e"
+heading = { fg = "#7e9cd8", bold = true }
+link = { fg = "#7fb4ca", underline = true }
+emphasis = "#e46876"
+diff-added = "#79966d"  # lifted from #76946a
+diff-removed = "#d37275"  # lifted from #c34043
+diff-changed = "#dca561"
+invalid = "#ee5e5e"  # lifted from #e82424

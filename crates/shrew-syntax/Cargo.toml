@@ -1,6 +1,6 @@
 [package]
 name = "shrew-syntax"
-description = "Background, incremental syntax highlighting for shrew (syntect, pure Rust) and its built-in themes."
+description = "Background, incremental syntax highlighting for shrew (syntect, pure Rust)."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,12 +9,11 @@ license.workspace = true
 default = []
 # Load extra `.sublime-syntax` files from Sublime Text's Packages/User folders (and configured dirs).
 sublime-user = ["syntect/yaml-load"]
-# Load `.tmTheme` color schemes.
-tmtheme = ["syntect/plist-load"]
 
 [dependencies]
 # The engine types only (Document, ChangeSet, lang); the app picks shrew-core's features.
 shrew-core = { path = "../shrew-core", default-features = false }
+shrew-theme = { path = "../shrew-theme" }
 ropey.workspace = true
 syntect.workspace = true
 log.workspace = true

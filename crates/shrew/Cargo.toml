@@ -15,8 +15,6 @@ default = ["syntax", "picker", "clipboard", "mcp", "update", "embed-font"]
 syntax = ["dep:shrew-syntax"]
 # Extra `.sublime-syntax` files from Sublime Text's Packages/User folders.
 syntax-sublime-user = ["syntax", "shrew-syntax/sublime-user"]
-# `.tmTheme` color schemes (`theme = "/path/to/x.tmTheme"`).
-syntax-tmtheme = ["syntax", "shrew-syntax/tmtheme"]
 # Fuzzy file picker (Ctrl+P), walking the project in the background.
 picker = ["shrew-core/picker"]
 # System clipboard (arboard: Wayland data-control and X11, pure Rust).
@@ -32,6 +30,7 @@ embed-font = ["shrew-render/embed-font"]
 shrew-core = { path = "../shrew-core", default-features = false }
 shrew-render = { path = "../shrew-render", default-features = false }
 shrew-config = { path = "../shrew-config" }
+shrew-theme = { path = "../shrew-theme" }
 shrew-syntax = { path = "../shrew-syntax", optional = true }
 shrew-mcp = { path = "../shrew-mcp", optional = true }
 shrew-update = { path = "../shrew-update", optional = true }

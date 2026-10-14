@@ -1,0 +1,59 @@
+# Rosé Pine: Rosé Pine (rosepinetheme.com/palette).
+# UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
+# lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
+name = "Rosé Pine"
+scheme = "dark"
+
+[ui]
+bg = "#1f1d2e"
+surface = "#191724"
+surface-raised = "#26233a"
+surface-hover = "#2d2a45"
+border = "#403d52"
+border-strong = "#524f67"
+text = "#e0def4"
+text-muted = "#908caa"
+text-faint = "#6e6a86"
+accent = "#c4a7e7"
+accent-fg = "#0b0a10"
+accent-soft = "#403953"
+accent-text = "#c4a7e7"
+selection = "#534866"
+danger = "#ef7295"
+danger-fg = "#0b0a10"
+danger-soft = "#422b3f"
+success = "#9ccfd8"
+success-soft = "#343b4b"
+warning = "#f6c177"
+warning-soft = "#44393a"
+
+[syntax]
+keyword = "#4199bd"  # lifted from #31748f
+control = "#4199bd"  # lifted from #31748f
+string = "#f6c177"
+string-escape = "#ebbcba"
+number = "#f6c177"
+constant = "#ebbcba"
+comment = { fg = "#736f8c", italic = true }  # lifted from #6e6a86
+doc-comment = { fg = "#736f8c", italic = true }
+function = "#ebbcba"
+method = "#ebbcba"
+type = "#9ccfd8"
+builtin-type = "#9ccfd8"
+property = "#9ccfd8"
+variable = "#e0def4"
+parameter = { fg = "#c4a7e7", italic = true }
+namespace = "#c4a7e7"
+macro = "#c4a7e7"
+attribute = "#c4a7e7"
+tag = "#9ccfd8"
+operator = "#908caa"
+punctuation = "#908caa"
+regex = "#c4a7e7"
+heading = { fg = "#c4a7e7", bold = true }
+link = { fg = "#9ccfd8", underline = true }
+emphasis = "#eb6f92"
+diff-added = "#9ccfd8"
+diff-removed = "#eb6f92"
+diff-changed = "#ebbcba"
+invalid = "#eb6f92"

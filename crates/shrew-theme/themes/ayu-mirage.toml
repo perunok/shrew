@@ -1,0 +1,59 @@
+# Ayu Mirage: Ayu Mirage (ayu-theme/ayu-colors).
+# UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
+# lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
+name = "Ayu Mirage"
+scheme = "dark"
+
+[ui]
+bg = "#242936"
+surface = "#1f2430"
+surface-raised = "#2a303e"
+surface-hover = "#323a4b"
+border = "#373e4e"
+border-strong = "#4a5366"
+text = "#cccac2"
+text-muted = "#a9aab0"
+text-faint = "#707a8c"
+accent = "#ffcc66"
+accent-fg = "#0e1016"
+accent-soft = "#504a40"
+accent-text = "#ffcc66"
+selection = "#5e533f"
+danger = "#fe7b78"
+danger-fg = "#0e1016"
+danger-soft = "#49333e"
+success = "#87d96c"
+success-soft = "#35473f"
+warning = "#ffd173"
+warning-soft = "#494640"
+
+[syntax]
+keyword = "#ffad66"
+control = "#ffad66"
+string = "#d5ff80"
+string-escape = "#95e6cb"
+number = "#dfbfff"
+constant = "#dfbfff"
+comment = { fg = "#6e7c8f", italic = true }
+doc-comment = { fg = "#6e7c8f", italic = true }
+function = "#ffd173"
+method = "#ffd173"
+type = "#73d0ff"
+builtin-type = "#5ccfe6"
+property = "#f28779"
+variable = "#cccac2"
+parameter = "#dfbfff"
+namespace = "#73d0ff"
+macro = "#ffdfb3"
+attribute = "#ffd173"
+tag = "#5ccfe6"
+operator = "#f29e74"
+punctuation = "#9a9a98"
+regex = "#95e6cb"
+heading = { fg = "#ffd173", bold = true }
+link = { fg = "#5ccfe6", underline = true }
+emphasis = "#f28779"
+diff-added = "#87d96c"
+diff-removed = "#f27983"
+diff-changed = "#80bfff"
+invalid = "#ff6666"

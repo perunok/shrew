@@ -1,0 +1,59 @@
+# Ayu Light: Ayu Light (ayu-theme/ayu-colors).
+# UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
+# lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
+name = "Ayu Light"
+scheme = "light"
+
+[ui]
+bg = "#fcfcfc"
+surface = "#f8f9fa"
+surface-raised = "#f0f2f4"
+surface-hover = "#e8ebee"
+border = "#dfe2e5"
+border-strong = "#b8bec5"
+text = "#575f66"
+text-muted = "#686e75"
+text-faint = "#8a9199"
+accent = "#a86705"
+accent-fg = "#ffffff"
+accent-soft = "#f0e7d9"
+accent-text = "#955a01"
+selection = "#e5d6bf"
+danger = "#c32c33"
+danger-fg = "#ffffff"
+danger-soft = "#f6e3e3"
+success = "#547104"
+success-soft = "#e7ebdc"
+warning = "#915f02"
+warning-soft = "#f0e9dc"
+
+[syntax]
+keyword = "#b95005"  # lifted from #fa8d3e
+control = "#b95005"  # lifted from #fa8d3e
+string = "#5c7b00"  # lifted from #86b300
+string-escape = "#2d7d63"  # lifted from #4cbf99
+number = "#8c59bf"  # lifted from #a37acc
+constant = "#8c59bf"  # lifted from #a37acc
+comment = { fg = "#787b80", italic = true }
+doc-comment = { fg = "#787b80", italic = true }
+function = "#9e630b"  # lifted from #f2ae49
+method = "#9e630b"  # lifted from #f2ae49
+type = "#1775b9"  # lifted from #399ee6
+builtin-type = "#267996"  # lifted from #55b4d4
+property = "#de1717"  # lifted from #f07171
+variable = "#5c6166"
+parameter = "#8c59bf"  # lifted from #a37acc
+namespace = "#1775b9"  # lifted from #399ee6
+macro = "#a55f17"  # lifted from #e59645
+attribute = "#9e630b"  # lifted from #f2ae49
+tag = "#267996"  # lifted from #55b4d4
+operator = "#bd4e16"  # lifted from #ed9366
+punctuation = "#5c6166"
+regex = "#2d7d63"  # lifted from #4cbf99
+heading = { fg = "#9e630b", bold = true }  # lifted from #f2ae49
+link = { fg = "#267996", underline = true }  # lifted from #55b4d4
+emphasis = "#de1717"  # lifted from #f07171
+diff-added = "#467e2b"  # lifted from #6cbf43
+diff-removed = "#e3001a"  # lifted from #ff7383
+diff-changed = "#3273b3"  # lifted from #478acc
+invalid = "#dc1f1f"  # lifted from #e65050

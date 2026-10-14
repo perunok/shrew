@@ -1,0 +1,59 @@
+# Dracula: Dracula (draculatheme.com/contribute, spec palette).
+# UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
+# lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
+name = "Dracula"
+scheme = "dark"
+
+[ui]
+bg = "#282a36"
+surface = "#21222c"
+surface-raised = "#303241"
+surface-hover = "#3b3e50"
+border = "#44475a"
+border-strong = "#6272a4"
+text = "#f8f8f2"
+text-muted = "#c3c6d8"
+text-faint = "#8c95c0"
+accent = "#bd93f9"
+accent-fg = "#0f0f14"
+accent-soft = "#463f5d"
+accent-text = "#c59ffe"
+selection = "#564872"
+danger = "#ff7973"
+danger-fg = "#0f0f14"
+danger-soft = "#4d313b"
+success = "#50fa7b"
+success-soft = "#2f4d42"
+warning = "#ffb86c"
+warning-soft = "#4d423f"
+
+[syntax]
+keyword = "#ff79c6"
+control = "#ff79c6"
+string = "#f1fa8c"
+string-escape = "#ff79c6"
+number = "#bd93f9"
+constant = "#bd93f9"
+comment = "#6c7baa"  # lifted from #6272a4
+doc-comment = "#6c7baa"
+function = "#50fa7b"
+method = "#50fa7b"
+type = { fg = "#8be9fd", italic = true }
+builtin-type = "#8be9fd"
+property = "#f8f8f2"
+variable = "#f8f8f2"
+parameter = { fg = "#ffb86c", italic = true }
+namespace = "#8be9fd"
+macro = "#50fa7b"
+attribute = "#50fa7b"
+tag = "#ff79c6"
+operator = "#ff79c6"
+punctuation = "#f8f8f2"
+regex = "#ff6c6c"  # lifted from #ff5555
+heading = { fg = "#bd93f9", bold = true }
+link = { fg = "#8be9fd", underline = true }
+emphasis = "#f1fa8c"
+diff-added = "#50fa7b"
+diff-removed = "#ff6c6c"  # lifted from #ff5555
+diff-changed = "#ffb86c"
+invalid = "#ff6c6c"  # lifted from #ff5555

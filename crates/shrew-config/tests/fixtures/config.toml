@@ -2,7 +2,7 @@
 [editor]
 tab_width = 3          # odd, but mine
 font_size = 16
-theme = "solarized"    # unknown: warning
+theme = 42             # wrong type: warning
 leader = ","
 bogus = 1              # unknown: warning
 

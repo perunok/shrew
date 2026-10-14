@@ -1,0 +1,59 @@
+# Solarized Dark: Ethan Schoonover's Solarized, dark (ethanschoonover.com/solarized).
+# UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
+# lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
+name = "Solarized Dark"
+scheme = "dark"
+
+[ui]
+bg = "#002b36"
+surface = "#001f27"
+surface-raised = "#073642"
+surface-hover = "#0d4351"
+border = "#16505e"
+border-strong = "#2c6b7a"
+text = "#eee8d5"
+text-muted = "#93a1a1"
+text-faint = "#7f8f90"
+accent = "#2aa198"
+accent-fg = "#00212b"
+accent-soft = "#0b4a52"
+accent-text = "#52c1b7"
+selection = "#0e5866"
+danger = "#ff6a5f"
+danger-fg = "#000e12"
+danger-soft = "#4a2320"
+success = "#5fc38a"
+success-soft = "#0d4a3a"
+warning = "#e0a31a"
+warning-soft = "#4a3a0a"
+
+[syntax]
+keyword = "#8ca100"  # lifted from #859900
+control = "#8ca100"  # lifted from #859900
+string = "#2ca79e"  # lifted from #2aa198
+string-escape = "#e77370"  # lifted from #dc322f
+number = "#e071a6"  # lifted from #d33682
+constant = "#eb7443"  # lifted from #cb4b16
+comment = "#637c84"  # lifted from #586e75
+doc-comment = "#637c84"
+function = "#429ddd"  # lifted from #268bd2
+method = "#429ddd"  # lifted from #268bd2
+type = "#bd8f00"  # lifted from #b58900
+builtin-type = "#bd8f00"  # lifted from #b58900
+property = "#429ddd"  # lifted from #268bd2
+variable = "#429ddd"  # lifted from #268bd2
+parameter = "#93a1a1"
+namespace = "#bd8f00"  # lifted from #b58900
+macro = "#eb7443"  # lifted from #cb4b16
+attribute = "#93a1a1"
+tag = "#429ddd"  # lifted from #268bd2
+operator = "#8ca100"  # lifted from #859900
+punctuation = "#93a1a1"
+regex = "#e77370"  # lifted from #dc322f
+heading = { fg = "#eb7443", bold = true }  # lifted from #cb4b16
+link = { fg = "#8d91d1", underline = true }  # lifted from #6c71c4
+emphasis = "#e071a6"  # lifted from #d33682
+diff-added = "#8ca100"  # lifted from #859900
+diff-removed = "#e77370"  # lifted from #dc322f
+diff-changed = "#bd8f00"  # lifted from #b58900
+invalid = "#e77370"  # lifted from #dc322f

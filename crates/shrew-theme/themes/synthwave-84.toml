@@ -1,0 +1,59 @@
+# Synthwave '84: Synthwave '84 by Robb Owen.
+# UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
+# lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
+name = "Synthwave '84"
+scheme = "dark"
+
+[ui]
+bg = "#262335"
+surface = "#1e1a2b"
+surface-raised = "#2a2139"
+surface-hover = "#34294f"
+border = "#3b3052"
+border-strong = "#544a71"
+text = "#f4eefa"
+text-muted = "#bcb6d0"
+text-faint = "#8e88ab"
+accent = "#ff7edb"
+accent-fg = "#0d0c13"
+accent-soft = "#513556"
+accent-text = "#ff7edb"
+selection = "#6b3c67"
+danger = "#fe7373"
+danger-fg = "#0d0c13"
+danger-soft = "#4b2a3b"
+success = "#72f1b8"
+success-soft = "#33464b"
+warning = "#fede5d"
+warning-soft = "#4b433c"
+
+[syntax]
+keyword = "#fede5d"
+control = "#fede5d"
+string = "#ff8b39"
+string-escape = "#f97e72"
+number = "#f97e72"
+constant = "#f97e72"
+comment = { fg = "#848bbd", italic = true }
+doc-comment = { fg = "#848bbd", italic = true }
+function = "#36f9f6"
+method = "#36f9f6"
+type = "#fe5d68"  # lifted from #fe4450
+builtin-type = "#fe5d68"  # lifted from #fe4450
+property = "#ff7edb"
+variable = "#ff7edb"
+parameter = "#f4eefa"
+namespace = "#fe5d68"  # lifted from #fe4450
+macro = "#36f9f6"
+attribute = "#fede5d"
+tag = "#72f1b8"
+operator = "#fede5d"
+punctuation = "#bcb6d0"
+regex = "#f97e72"
+heading = { fg = "#ff7edb", bold = true }
+link = { fg = "#36f9f6", underline = true }
+emphasis = "#fe5d68"  # lifted from #fe4450
+diff-added = "#72f1b8"
+diff-removed = "#fe5d68"  # lifted from #fe4450
+diff-changed = "#fede5d"
+invalid = "#fe5d68"  # lifted from #fe4450

@@ -1,0 +1,60 @@
+# High Contrast: High contrast, dark: WCAG AAA (7:1).
+# UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
+# lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
+name = "High Contrast"
+scheme = "dark"
+high_contrast = true
+
+[ui]
+bg = "#000000"
+surface = "#000000"
+surface-raised = "#0f0f0f"
+surface-hover = "#262626"
+border = "#8a8a8a"
+border-strong = "#ffffff"
+text = "#ffffff"
+text-muted = "#e0e0e0"
+text-faint = "#c2c2c2"
+accent = "#ffd400"
+accent-fg = "#000000"
+accent-soft = "#3a3200"
+accent-text = "#ffd400"
+selection = "#0b4d9c"
+danger = "#fe7f7d"
+danger-fg = "#000000"
+danger-soft = "#3d0000"
+success = "#3dff8b"
+success-soft = "#003d1a"
+warning = "#ffb000"
+warning-soft = "#3d2900"
+
+[syntax]
+keyword = "#ff9cf5"
+control = "#ff9cf5"
+string = "#9cff9c"
+string-escape = "#7ff0ff"
+number = "#ffc266"
+constant = "#ff9cbe"
+comment = { fg = "#b5b5b5", italic = true }
+doc-comment = { fg = "#b5b5b5", italic = true }
+function = "#8fd0ff"
+method = "#8fd0ff"
+type = "#7ff0ff"
+builtin-type = "#7ff0ff"
+property = "#ffffff"
+variable = "#ffffff"
+parameter = "#ffffff"
+namespace = "#7ff0ff"
+macro = "#ff9cbe"
+attribute = "#7ff0ff"
+tag = "#ff9cbe"
+operator = "#ffffff"
+punctuation = "#ffffff"
+regex = "#7ff0ff"
+heading = { fg = "#8fd0ff", bold = true }
+link = { fg = "#8fd0ff", underline = true }
+emphasis = "#ff9cf5"
+diff-added = "#3dff8b"
+diff-removed = "#fe7f7d"
+diff-changed = "#ffb000"
+invalid = "#fe7f7d"

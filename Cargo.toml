@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "crates/shrew-core",
     "crates/shrew-render",
+    "crates/shrew-theme",
     "crates/shrew-syntax",
     "crates/shrew-config",
     "crates/shrew-mcp",

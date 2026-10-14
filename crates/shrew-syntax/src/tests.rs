@@ -38,7 +38,7 @@ fn color_at(hl: &Highlighter, rope: &ropey::Rope, line: usize, needle: &str) -> 
 
 fn style(theme: &Theme, scopes: &str) -> Option<Rgb> {
     let (c, _) = theme.style_for(scopes);
-    (c != theme.palette.foreground).then_some(c)
+    (c != theme.foreground).then_some(c)
 }
 
 #[test]
@@ -47,7 +47,7 @@ fn rust_python_json() {
     let theme = s.theme();
     let kw = style(&theme, "keyword.control");
     let string = style(&theme, "string.quoted.double");
-    let comment = Some(theme.palette.comment);
+    let comment = style(&theme, "comment.line");
     let num = style(&theme, "constant.numeric");
 
     let d = doc("main.rs", "// hi\nfn main() {\n    let s = \"x\";\n    if s.len() > 2 { return; }\n}\n");
@@ -165,7 +165,7 @@ fn assert_matches_fresh(s: &Syntaxes, hl: &Highlighter, d: &Document) {
 fn incremental_edits() {
     let s = service();
     let theme = s.theme();
-    let comment = Some(theme.palette.comment);
+    let comment = style(&theme, "comment.line");
     let mut buf = Buffer::new(1, doc("lib.rs", &rust_source(2_000)));
     let mut hl = s.highlighter(&buf.doc);
     hl.set_viewport(0, 50);
@@ -467,30 +467,4 @@ fn user_syntax_dir() {
     settle(&mut hl);
     assert_eq!(color_at(&hl, &d.rope, 0, "nibble"), style(&s.theme(), "keyword.control"));
     let _ = std::fs::remove_dir_all(&dir);
-}
-
-#[cfg(feature = "tmtheme")]
-#[test]
-fn tmtheme_file() {
-    let path = std::env::temp_dir().join(format!("shrew-{}.tmTheme", std::process::id()));
-    std::fs::write(
-        &path,
-        r#"<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-<key>name</key><string>Tiny</string>
-<key>settings</key><array>
-<dict><key>settings</key><dict><key>background</key><string>#102030</string><key>foreground</key><string>#E0E0E0</string><key>caret</key><string>#FF8800</string></dict></dict>
-<dict><key>scope</key><string>comment</string><key>settings</key><dict><key>foreground</key><string>#778899</string><key>fontStyle</key><string>italic</string></dict></dict>
-</array></dict></plist>"#,
-    )
-    .unwrap();
-    let t = Theme::from_tmtheme(&path).unwrap();
-    let _ = std::fs::remove_file(&path);
-    assert_eq!(t.name, "Tiny");
-    assert!(t.dark);
-    assert_eq!(t.palette.background, Rgb::hex(0x102030));
-    assert_eq!(t.palette.cursor, Rgb::hex(0xff8800));
-    assert_eq!(t.palette.comment, Rgb::hex(0x778899));
-    assert_eq!(t.style_for("source.rust comment.line").0, Rgb::hex(0x778899));
 }

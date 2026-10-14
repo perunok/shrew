@@ -1,0 +1,59 @@
+# Gruvbox Dark: Gruvbox by Pavel Pertsev (morhetz/gruvbox), dark.
+# UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
+# lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
+name = "Gruvbox Dark"
+scheme = "dark"
+
+[ui]
+bg = "#282828"
+surface = "#1d2021"
+surface-raised = "#32302f"
+surface-hover = "#3c3836"
+border = "#504945"
+border-strong = "#665c54"
+text = "#ebdbb2"
+text-muted = "#bdae93"
+text-faint = "#a89984"
+accent = "#fe8019"
+accent-fg = "#0d0e0f"
+accent-soft = "#533a25"
+accent-text = "#fe9148"
+selection = "#6a411e"
+danger = "#ff7965"
+danger-fg = "#0d0e0f"
+danger-soft = "#4c302c"
+success = "#b8bb26"
+success-soft = "#404128"
+warning = "#fabd2f"
+warning-soft = "#4c4129"
+
+[syntax]
+keyword = "#fc6655"  # lifted from #fb4934
+control = "#fc6655"  # lifted from #fb4934
+string = "#b8bb26"
+string-escape = "#fe8019"
+number = "#d3869b"
+constant = "#d3869b"
+comment = "#928374"
+doc-comment = "#928374"
+function = { fg = "#b8bb26", bold = true }
+method = "#b8bb26"
+type = "#fabd2f"
+builtin-type = "#fabd2f"
+property = "#83a598"
+variable = "#ebdbb2"
+parameter = "#83a598"
+namespace = "#8ec07c"
+macro = "#8ec07c"
+attribute = "#fabd2f"
+tag = "#8ec07c"
+operator = "#fe8019"
+punctuation = "#a89984"
+regex = "#fe8019"
+heading = { fg = "#b8bb26", bold = true }
+link = { fg = "#83a598", underline = true }
+emphasis = "#fabd2f"
+diff-added = "#b8bb26"
+diff-removed = "#fc6655"  # lifted from #fb4934
+diff-changed = "#8ec07c"
+invalid = "#fc6655"  # lifted from #fb4934

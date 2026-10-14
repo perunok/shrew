@@ -1,0 +1,59 @@
+# One Dark: Atom's One Dark (and One Dark Pro).
+# UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
+# lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
+name = "One Dark"
+scheme = "dark"
+
+[ui]
+bg = "#282c34"
+surface = "#21252b"
+surface-raised = "#2c313a"
+surface-hover = "#333842"
+border = "#3e4451"
+border-strong = "#4b5263"
+text = "#d7dae0"
+text-muted = "#abb2bf"
+text-faint = "#7f848e"
+accent = "#61afef"
+accent-fg = "#0f1113"
+accent-soft = "#334659"
+accent-text = "#6bb9f9"
+selection = "#37546e"
+danger = "#f8828a"
+danger-fg = "#0f1113"
+danger-soft = "#483740"
+success = "#98c379"
+success-soft = "#3b4640"
+warning = "#e5c07b"
+warning-soft = "#484540"
+
+[syntax]
+keyword = "#c980df"  # lifted from #c678dd
+control = "#c980df"  # lifted from #c678dd
+string = "#98c379"
+string-escape = "#56b6c2"
+number = "#d19a66"
+constant = "#d19a66"
+comment = "#7f848e"
+doc-comment = "#7f848e"
+function = "#61afef"
+method = "#61afef"
+type = "#e5c07b"
+builtin-type = "#56b6c2"
+property = "#e47d85"  # lifted from #e06c75
+variable = "#e47d85"  # lifted from #e06c75
+parameter = "#abb2bf"
+namespace = "#e5c07b"
+macro = "#56b6c2"
+attribute = "#d19a66"
+tag = "#e47d85"  # lifted from #e06c75
+operator = "#56b6c2"
+punctuation = "#abb2bf"
+regex = "#56b6c2"
+heading = { fg = "#e47d85", bold = true }  # lifted from #e06c75
+link = { fg = "#61afef", underline = true }
+emphasis = "#c980df"  # lifted from #c678dd
+diff-added = "#98c379"
+diff-removed = "#e47d85"  # lifted from #e06c75
+diff-changed = "#d19a66"
+invalid = "#e47d85"  # lifted from #e06c75

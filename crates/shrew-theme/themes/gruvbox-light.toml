@@ -1,0 +1,59 @@
+# Gruvbox Light: Gruvbox by Pavel Pertsev (morhetz/gruvbox), light.
+# UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
+# lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
+name = "Gruvbox Light"
+scheme = "light"
+
+[ui]
+bg = "#fbf1c7"
+surface = "#f2e5bc"
+surface-raised = "#ebdbb2"
+surface-hover = "#e3d3a8"
+border = "#d5c4a1"
+border-strong = "#bdae93"
+text = "#3c3836"
+text-muted = "#504945"
+text-faint = "#7c6f64"
+accent = "#076678"
+accent-fg = "#ffffff"
+accent-soft = "#d9debc"
+accent-text = "#076678"
+selection = "#bac7ac"
+danger = "#9d0006"
+danger-fg = "#ffffff"
+danger-soft = "#efd2ae"
+success = "#676204"
+success-soft = "#e9dfae"
+warning = "#885604"
+warning-soft = "#eddead"
+
+[syntax]
+keyword = "#9d0006"
+control = "#9d0006"
+string = "#706b0d"  # lifted from #79740e
+string-escape = "#af3a03"
+number = "#8f3f71"
+constant = "#8f3f71"
+comment = "#928374"
+doc-comment = "#928374"
+function = { fg = "#706b0d", bold = true }  # lifted from #79740e
+method = "#706b0d"  # lifted from #79740e
+type = "#905e10"  # lifted from #b57614
+builtin-type = "#905e10"  # lifted from #b57614
+property = "#076678"
+variable = "#3c3836"
+parameter = "#076678"
+namespace = "#3e7453"  # lifted from #427b58
+macro = "#3e7453"  # lifted from #427b58
+attribute = "#905e10"  # lifted from #b57614
+tag = "#3e7453"  # lifted from #427b58
+operator = "#af3a03"
+punctuation = "#74675d"  # lifted from #7c6f64
+regex = "#af3a03"
+heading = { fg = "#706b0d", bold = true }  # lifted from #79740e
+link = { fg = "#076678", underline = true }
+emphasis = "#905e10"  # lifted from #b57614
+diff-added = "#706b0d"  # lifted from #79740e
+diff-removed = "#9d0006"
+diff-changed = "#3e7453"  # lifted from #427b58
+invalid = "#9d0006"

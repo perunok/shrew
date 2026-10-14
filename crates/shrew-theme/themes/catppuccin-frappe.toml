@@ -1,0 +1,59 @@
+# Catppuccin Frappé: Catppuccin Frappé (catppuccin.com/palette, style guide).
+# UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
+# lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
+name = "Catppuccin Frappé"
+scheme = "dark"
+
+[ui]
+bg = "#303446"
+surface = "#292c3c"
+surface-raised = "#383c50"
+surface-hover = "#414559"
+border = "#51576d"
+border-strong = "#626880"
+text = "#c6d0f5"
+text-muted = "#a5adce"
+text-faint = "#838ba7"
+accent = "#ca9ee6"
+accent-fg = "#12141b"
+accent-soft = "#4f4966"
+accent-text = "#daaef7"
+selection = "#605376"
+danger = "#fe999a"
+danger-fg = "#12141b"
+danger-soft = "#4f4151"
+success = "#a6d189"
+success-soft = "#444f51"
+warning = "#e5c890"
+warning-soft = "#4f4d53"
+
+[syntax]
+keyword = "#ca9ee6"
+control = "#ca9ee6"
+string = "#a6d189"
+string-escape = "#f4b8e4"
+number = "#ef9f76"
+constant = "#ef9f76"
+comment = "#949cbb"
+doc-comment = "#949cbb"
+function = "#8caaee"
+method = "#8caaee"
+type = "#e5c890"
+builtin-type = "#e5c890"
+property = "#babbf1"
+variable = "#c6d0f5"
+parameter = "#ea999c"
+namespace = "#babbf1"
+macro = "#81c8be"
+attribute = "#e5c890"
+tag = "#8caaee"
+operator = "#99d1db"
+punctuation = "#9da5c1"  # lifted from #949cbb
+regex = "#f4b8e4"
+heading = { fg = "#e98b8c", bold = true }  # lifted from #e78284
+link = { fg = "#babbf1", underline = true }
+emphasis = "#ea999c"
+diff-added = "#a6d189"
+diff-removed = "#e98b8c"  # lifted from #e78284
+diff-changed = "#e5c890"
+invalid = "#e98b8c"  # lifted from #e78284

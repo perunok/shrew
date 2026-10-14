@@ -37,6 +37,25 @@ impl ConfigDoc {
         &self.text
     }
 
+    /// Whether `[table] key` holds a value (commented-out lines do not count).
+    pub fn has(&self, table: &str, key: &str) -> bool {
+        let Ok(doc) = self.text.parse::<DocumentMut>() else { return false };
+        let mut t: Option<&Item> = Some(doc.as_item());
+        for p in table.split('.') {
+            t = t.and_then(|t| t.get(p));
+        }
+        t.and_then(|t| t.get(key)).is_some_and(|v| v.is_value())
+    }
+
+    /// Sets a setting where the file keeps it: its old `[editor]` key if the file uses that, else its own table.
+    pub fn set_setting(&mut self, s: Setting, value: impl Into<Value>) -> io::Result<()> {
+        let (table, key, legacy) = s.place();
+        match legacy {
+            Some(old) if self.has("editor", old) && !self.has(table, key) => self.set("editor", old, value),
+            _ => self.set(table, key, value),
+        }
+    }
+
     pub fn set_feature(&mut self, f: Feature, on: bool) -> io::Result<()> {
         self.set("features", features::info(f).key, on)
     }
@@ -153,6 +172,40 @@ pub fn write_default_if_missing(path: &Path) -> io::Result<bool> {
 pub fn persist_feature(path: &Path, f: Feature, on: bool) -> io::Result<()> {
     let mut doc = ConfigDoc::open(path)?;
     doc.set_feature(f, on)?;
+    doc.save()
+}
+
+/// Settings the app writes back when they change at runtime (pickers, `:theme`, Ctrl+=).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Setting {
+    Theme,
+    Accent,
+    FontFamily,
+    FontSize,
+    FontWeight,
+    LineHeight,
+    Ligatures,
+}
+
+impl Setting {
+    /// (table, key, the key's old name in `[editor]`).
+    fn place(self) -> (&'static str, &'static str, Option<&'static str>) {
+        match self {
+            Setting::Theme => ("theme", "name", Some("theme")),
+            Setting::Accent => ("theme", "accent", None),
+            Setting::FontFamily => ("font", "family", Some("font_family")),
+            Setting::FontSize => ("font", "size", Some("font_size")),
+            Setting::FontWeight => ("font", "weight", None),
+            Setting::LineHeight => ("font", "line_height", Some("line_height")),
+            Setting::Ligatures => ("font", "ligatures", None),
+        }
+    }
+}
+
+/// Opens, sets one setting where the file keeps it, saves.
+pub fn persist_setting(path: &Path, s: Setting, value: impl Into<Value>) -> io::Result<()> {
+    let mut doc = ConfigDoc::open(path)?;
+    doc.set_setting(s, value)?;
     doc.save()
 }
 

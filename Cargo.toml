@@ -24,7 +24,8 @@ smallvec = "1.15"
 unicode-width = "0.2"
 regex = "1.11"
 ignore = "0.4"
-wgpu = "30"
+# Backends are picked per OS in crates/shrew-render; shaders are WGSL only (no GLSL/SPIR-V frontends).
+wgpu = { version = "30", default-features = false, features = ["std", "parking_lot", "wgsl"] }
 winit = "0.30"
 cosmic-text = "0.19"
 etagere = "0.3"
@@ -40,10 +41,12 @@ env_logger = { version = "0.11", default-features = false, features = ["auto-col
 image = { version = "0.25", default-features = false, features = ["png"] }
 
 [profile.release]
-lto = "thin"
+lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = true
 
 [profile.dev.package."*"]
 opt-level = 2
+
+

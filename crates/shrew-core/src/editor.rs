@@ -1040,6 +1040,7 @@ impl Editor {
             JumpBack => self.jump(false),
             JumpForward => self.jump(true),
             GotoFileUnderCursor => self.goto_file_under_cursor(),
+            ToggleMinimap => self.toggle_feature(Feature::Minimap),
         }
     }
 

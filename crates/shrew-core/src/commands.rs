@@ -82,6 +82,7 @@ pub enum Command {
     JumpBack,
     JumpForward,
     GotoFileUnderCursor,
+    ToggleMinimap,
 }
 
 use Command::*;
@@ -168,6 +169,7 @@ pub static COMMANDS: &[(Command, &str, &str)] = &[
     (JumpBack, "jump_back", "Go Back"),
     (JumpForward, "jump_forward", "Go Forward"),
     (GotoFileUnderCursor, "goto_file", "Go to File Under Cursor"),
+    (ToggleMinimap, "toggle_minimap", "View: Toggle Minimap"),
 ];
 
 impl Command {

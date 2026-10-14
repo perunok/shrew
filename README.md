@@ -122,6 +122,7 @@ the table below for your build and config.
 | `project_search` | Find in project (Ctrl+Shift+F, `:grep`), respects `.gitignore` | on | `project` |
 | `symbols` | Go to symbol in the file (Ctrl+R, `@` in Ctrl+P) and the project (Ctrl+Shift+R) | on | `syntax` |
 | `recent` | Remember recent files and projects (Open Recent, Ctrl+Alt+P) in the cache dir | on | |
+| `minimap` | Sublime-style minimap at the right of the editor: click or drag to scroll (see `[minimap]`) | on | |
 
 Keys also work without the underscore (`:set nolinenumbers`). The usual vim spellings work too: `:set nu`, `rnu`,
 `hls`, `list`, `et`, `ts=2`, `so=8`.

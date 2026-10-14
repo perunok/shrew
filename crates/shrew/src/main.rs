@@ -7,6 +7,7 @@
 //! - [`state`]: the editor plus config, syntax, background loads, updates and MCP (no window).
 //! - [`app`]: the winit event loop, input and the renderer.
 //! - [`draw`] / [`layout`] / [`anim`]: building a frame from the state, and the geometry hit testing shares.
+//! - [`minimap`]: the Sublime-style overview column at the right of the editor.
 //! - [`about`]: the About panel's text (version, the Shrew Manifesto, credits).
 //! - [`sidebar`] / [`recent`] / `symbols`: project navigation (the file tree, recent files and projects, the symbol
 //!   provider behind go to symbol).
@@ -26,6 +27,7 @@ mod ipc;
 mod keys;
 mod launch;
 mod layout;
+mod minimap;
 mod recent;
 mod remote;
 mod sidebar;

@@ -32,6 +32,7 @@ pub enum Feature {
     ProjectSearch,
     Symbols,
     Recent,
+    Minimap,
 }
 
 pub struct FeatureInfo {
@@ -95,6 +96,7 @@ pub static FEATURES: &[FeatureInfo] = &[
         "Go to symbol in the file (Ctrl+R, @ in Ctrl+P) and the project (Ctrl+Shift+R)",
     ),
     f(Feature::Recent, "recent", true, "Remember recent files and projects (Open Recent, Ctrl+Alt+P) in the cache dir"),
+    f(Feature::Minimap, "minimap", true, "Sublime-style minimap at the right edge of the editor (see [minimap])"),
 ];
 
 pub fn info(feature: Feature) -> &'static FeatureInfo {

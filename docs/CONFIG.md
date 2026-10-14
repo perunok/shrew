@@ -33,7 +33,7 @@ choice survives a restart. Your comments, ordering and formatting are kept.
 
 **Contents:** [`[editor]`](#editor) · [`[theme]`](#theme) · [`[font]`](#font) · [`[features]`](#features) ·
 [`[keys]`](#keys) · [`[import]`](#import) · [`[mcp]`](#mcp) · [`[update]`](#update) · [`[titlebar]`](#titlebar) ·
-[`[sidebar]`](#sidebar) · [Full example](#full-example)
+[`[sidebar]`](#sidebar) · [`[minimap]`](#minimap) · [Full example](#full-example)
 
 ## `[editor]`
 
@@ -102,7 +102,7 @@ README has [the full table with defaults](../README.md#features). The keys are:
 
 `vim`, `syntax`, `bracket_match`, `auto_pairs`, `auto_indent`, `line_numbers`, `relative_numbers`, `current_line`,
 `indent_guides`, `whitespace`, `search_highlight`, `word_highlight`, `smooth_scroll`, `cursor_animation`, `picker`,
-`palette`, `clipboard`, `mcp`, `update_check`, `vimrc`, `sublime_import`.
+`palette`, `clipboard`, `mcp`, `update_check`, `vimrc`, `sublime_import`, `minimap`.
 
 ```toml
 [features]
@@ -304,6 +304,17 @@ left = ["close", "minimize", "maximize", "menu", "project", "tabs"]
 Whether the sidebar shows is the `sidebar` feature (Ctrl+B toggles it and saves that too). Recent files and projects
 are kept outside this file, in `<cache dir>/shrew/recent` (`~/.cache/shrew/recent` on Linux); turn the `recent`
 feature off to stop that.
+## `[minimap]`
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `width` | integer | `100` | Width of the minimap in logical pixels (40 to 400) |
+
+The minimap is the `minimap` feature: `:set nominimap`, the palette (*View: Toggle Minimap*) or `minimap = false`
+under `[features]` turn it off. It sits at the right edge of the editor, left of the scrollbar, and steps aside when
+the window leaves the text fewer than 50 columns. Each line is drawn as thin blocks in its syntax colors, with the
+current line, cursors, selections, search matches and a box over the visible lines on top. Click it to jump, drag it
+to scroll; the wheel scrolls the editor as anywhere else.
 
 ## Full example
 
@@ -358,4 +369,7 @@ port = 7356
 
 [update]
 check = true
+
+[minimap]
+width = 100
 ```

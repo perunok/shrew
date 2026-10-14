@@ -218,6 +218,18 @@ pub fn parse(text: &str, source: &str) -> (Config, Vec<Warning>) {
                     }
                 }
             }
+            "minimap" => {
+                let Some(t) = cx.table(item, key) else { continue };
+                for (k, v) in t.iter() {
+                    match k {
+                        "width" => {
+                            let w = cx.int(v, "minimap.width", 40..=400).map(|n| n as u16);
+                            config.editor.minimap_width = w.or(config.editor.minimap_width);
+                        }
+                        _ => cx.warn(v, format!("unknown key minimap.{k}")),
+                    }
+                }
+            }
             _ => cx.warn(item, format!("unknown section or key {key:?}")),
         }
     }
@@ -411,6 +423,11 @@ pub fn default_config_text() -> String {
 [sidebar]
 # Width of the file tree in logical pixels (Ctrl+B shows it; drag its edge to change this).
 # width = 250
+
+[minimap]
+# Width in logical pixels (40-400). It hides itself when the window is too narrow. Same as the minimap
+# feature for on and off: :set nominimap, or the palette (View: Toggle Minimap).
+# width = 100
 "#;
     s
 }

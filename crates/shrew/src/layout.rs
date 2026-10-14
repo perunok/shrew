@@ -33,6 +33,9 @@ pub struct Layout {
     pub sidebar: Rect,
     /// `tabs` is shrew's own title bar, spanning the whole width above the sidebar (see [`Layout::with_top_bar`]).
     pub top_bar: bool,
+    /// The minimap column at the right edge of the editor, left of the scrollbar (empty when off or too narrow;
+    /// see [`Layout::with_minimap`]).
+    pub minimap: Rect,
 }
 
 impl Layout {
@@ -67,6 +70,7 @@ impl Layout {
             cols: (((w - gutter_w - sb_w) / cw).floor() as usize).max(1),
             sidebar: Rect::new(0.0, tabs_h, 0.0, text_h),
             top_bar: false,
+            minimap: Rect::default(),
         }
     }
 
@@ -87,6 +91,22 @@ impl Layout {
         self.text.x += w;
         self.text.w -= w;
         self.cols = (((self.text.w - self.gutter_w - self.scrollbar.w) / self.cw).floor() as usize).max(1);
+        self
+    }
+
+    /// Takes a minimap column `width` logical pixels wide (0: none) off the right of the editor, left of the
+    /// scrollbar. Skipped when the text would keep fewer than [`crate::minimap::MIN_TEXT_COLS`] columns.
+    pub fn with_minimap(mut self, width: f32) -> Layout {
+        let w = (width * self.scale).round();
+        let right = self.scrollbar.x.min(self.text.right());
+        let x = right - w;
+        let text_w = x - self.text_x();
+        if w <= 0.0 || text_w < crate::minimap::MIN_TEXT_COLS as f32 * self.cw {
+            return self;
+        }
+        self.minimap = Rect::new(x, self.text.y, w, self.text.h);
+        self.text.w = x - self.text.x;
+        self.cols = ((text_w / self.cw).floor() as usize).max(1);
         self
     }
 
@@ -136,7 +156,9 @@ pub fn compute(r: &shrew_render::Renderer, st: &crate::state::State) -> Layout {
         ed.features.on(shrew_core::Feature::LineNumbers),
         ed.buffers.len() > 1,
     );
-    crate::titlebar::layout(lay, ed).with_sidebar(crate::sidebar::width(st, r.size().0 as f32, r.scale()))
+    crate::titlebar::layout(lay, ed)
+        .with_sidebar(crate::sidebar::width(st, r.size().0 as f32, r.scale()))
+        .with_minimap(crate::minimap::width(st))
 }
 
 /// The scroll position actually drawn (fractional while smooth scrolling), in lines and columns.

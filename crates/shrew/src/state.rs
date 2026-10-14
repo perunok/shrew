@@ -55,6 +55,8 @@ pub struct State {
     /// Theme, accent, theme pickers, desktop light/dark (see `look`).
     pub look: Look,
     pub cursor_blink: bool,
+    /// `[minimap] width`, logical pixels.
+    pub minimap_width: f32,
     pub config_path: Option<PathBuf>,
     /// The config file's buffer and the version last applied, to reload it when it is saved.
     config_seen: Option<(u64, u64)>,
@@ -111,6 +113,7 @@ impl State {
             font_changed: false,
             look: Look::new(loaded.path.as_deref()),
             cursor_blink: cfg.cursor_blink(),
+            minimap_width: cfg.minimap_width() as f32,
             colors: Colors::from_theme(&shrew_theme::Theme::default()),
             config_path: loaded.path.clone(),
             config_seen: None,
@@ -607,6 +610,7 @@ impl State {
         }
         self.cursor_blink = cfg.cursor_blink();
         self.titlebar.configure(&loaded.config.titlebar);
+        self.minimap_width = cfg.minimap_width() as f32;
         let look = ThemeCfg::from(cfg);
         if look != self.look.cfg {
             self.apply_theme_config(look);

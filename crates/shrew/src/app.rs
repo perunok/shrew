@@ -63,6 +63,7 @@ enum Drag {
     Scrollbar,
     /// The sidebar's right edge (resizing it).
     Sidebar,
+    Minimap,
 }
 
 #[derive(Default)]
@@ -397,7 +398,10 @@ impl ApplicationHandler<UserEvent> for App {
             WindowEvent::Ime(ime) => self.ime(ime),
             WindowEvent::CursorMoved { position, .. } => self.pointer_moved(position.x as f32, position.y as f32),
             WindowEvent::CursorLeft { .. } => {
-                if crate::titlebar::pointer_left(&mut self.st) {
+                // both run: each clears its own hover state
+                let bar = crate::titlebar::pointer_left(&mut self.st);
+                let map = self.lay.is_some_and(|lay| crate::minimap::hover(&mut self.ui, &lay, None));
+                if bar | map {
                     self.redraw();
                 }
             }
@@ -726,7 +730,11 @@ impl App {
             self.st.after_input();
             return self.input(now);
         }
-        if let Some((track, total)) = hits.scrollbar
+        if crate::minimap::press(&mut self.st, &mut self.ui, &lay, x, y) {
+            self.drag = Drag::Minimap;
+            return self.input(now);
+        }
+        if let Some((track, total)) = self.ui.hits.scrollbar
             && track.contains(x, y)
         {
             self.drag = Drag::Scrollbar;
@@ -791,11 +799,17 @@ impl App {
                 crate::sidebar::drag_to(&mut self.st, x, lay.scale);
                 self.redraw();
             }
+            Drag::Minimap => {
+                if crate::minimap::drag(&mut self.st, &mut self.ui, &lay, y) {
+                    self.redraw();
+                }
+            }
             Drag::None => {}
         }
         let (redraw, bar_icon) =
             crate::titlebar::pointer_moved(&mut self.st, &self.ui.hits, &lay, self.window.as_deref(), x, y);
-        if redraw {
+        let map = crate::minimap::hover(&mut self.ui, &lay, Some((x, y)));
+        if redraw || map {
             self.redraw();
         }
         let on_edge = self.st.ed.picker.is_none() && self.ui.hits.sidebar.edge.is_some_and(|r| r.contains(x, y));

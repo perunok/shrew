@@ -553,6 +553,7 @@ command palette by its title.
 | `jump_back` | Go Back | Ctrl+O (normal), Alt+Left, Alt+- |
 | `jump_forward` | Go Forward | Ctrl+I, Tab (normal), Alt+Right, Alt+Shift+- |
 | `goto_file` | Go to File Under Cursor | `gf` |
+| `toggle_minimap` | View: Toggle Minimap | `:set minimap!` |
 
 ## Mouse
 
@@ -565,6 +566,8 @@ command palette by its title.
 | Shift+click | Extend the selection to the click |
 | Ctrl+click, Alt+click | Add a cursor (or a selection, when dragging) |
 | Wheel | Scroll without moving the cursor |
+| Click on the minimap | Scroll so the line under the pointer is centred |
+| Drag on the minimap | Scroll continuously; the viewport box follows the pointer |
 
 ## Title bar
 

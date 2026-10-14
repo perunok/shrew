@@ -292,3 +292,15 @@ fn titlebar_lists() {
     assert_eq!(c.titlebar.left, Some(vec!["tabs".to_string(), "menu".to_string()]));
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn minimap_section() {
+    let (c, w) = parse("[minimap]\nwidth = 140\n[features]\nminimap = false\n", "c");
+    assert!(w.is_empty(), "{w:?}");
+    assert_eq!(c.editor.minimap_width(), 140);
+    assert_eq!(c.feature(Feature::Minimap), Some(false));
+    assert_eq!(Config::default().editor.minimap_width(), DEFAULT_MINIMAP_WIDTH);
+    let (c, w) = parse("[minimap]\nwidth = 9000\nbogus = 1\n", "c");
+    assert_eq!(w.len(), 2, "{w:?}");
+    assert_eq!(c.editor.minimap_width, None);
+}

@@ -67,6 +67,8 @@ pub struct Shared {
     pub copied: Mutex<Option<String>>,
     /// Milliseconds after `started` of the last output (0: none yet), to tell when a program has gone quiet.
     pub last_output: AtomicU64,
+    /// The same for the last input sent to the program (its answer may still be on the way).
+    pub last_input: AtomicU64,
     pub started: Instant,
     palette: Mutex<Palette>,
     size: Mutex<WindowSize>,
@@ -83,6 +85,7 @@ impl Shared {
             title: Mutex::new(None),
             copied: Mutex::new(None),
             last_output: AtomicU64::new(0),
+            last_input: AtomicU64::new(0),
             started: Instant::now(),
             palette: Mutex::new(palette),
             size: Mutex::new(size.window()),
@@ -109,6 +112,7 @@ impl Shared {
         if bytes.is_empty() {
             return;
         }
+        self.last_input.store(self.started.elapsed().as_millis().max(1) as u64, Ordering::Relaxed);
         if let Some(s) = self.sender.get() {
             let _ = s.send(Msg::Input(Cow::Owned(bytes)));
         }

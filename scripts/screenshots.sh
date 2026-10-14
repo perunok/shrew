@@ -44,6 +44,12 @@ shot $out/light.png ":theme one-light<CR>/fn contrast<CR>Vjj" crates/shrew-theme
 shot $out/contrast.png ":theme contrast<CR>/pub fn mix<CR>zt" crates/shrew-theme/src/color.rs
 shot $out/substitute.png "/Rope<CR>:%s/Rope/Text/g" "$core/motion.rs"
 shot $out/about.png ":about<CR>" "$core/motion.rs"
+# the terminal: a plain bash with a short prompt, so the shot does not depend on your shell setup
+term=":term env PS1='\$ ' bash --norc --noprofile<CR>"
+shot $out/terminal.png "${term}ls --color=always -F crates/shrew/src<CR>git log --oneline --graph --decorate --color -n 4<CR>grep -rn --color=always 'fn carve' crates<CR>" \
+  crates/shrew/src/terminal/mod.rs:182
+shot $out/terminal-vim.png ":theme one-light<CR>:term vim -Nu NONE +'syntax on' +'set nu' crates/shrew/src/layout.rs<CR>:30<CR>" \
+  crates/shrew/src/terminal/mod.rs
 
 # a 50 MB, one-million-line file, at line 500,000 with a search
 tmp=$(mktemp -d)

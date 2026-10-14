@@ -194,6 +194,98 @@ fn a_shell_that_exits_closes_its_tab() {
     assert!(!st.terminals.visible);
 }
 
+#[cfg(unix)]
+#[test]
+fn mouse_links_selection_and_history() {
+    let mut st = state();
+    st.ed.cwd = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    st.terminal_command(Command::NewTerminal, Some("seq 1 40; printf 'error at src/main.rs:3:5 here'; sleep 5".into()));
+    assert!(wait(&mut st, |st| screen_row(st, st.terminals.geom.map_or(0, |g| g.rows - 1)).contains("here")));
+    let g = st.terminals.geom.unwrap();
+    let row = g.rows - 1;
+    let at = |col: usize| (g.x0 + (col as f32 + 0.3) * g.cw, g.y0 + (row as f32 + 0.5) * g.ch);
+    let none = Mods::default();
+    // hovering the path underlines it (it exists, relative to the shell's directory)
+    let (x, y) = at(12);
+    let (icon, redraw) = st.terminal_motion(x, y, none);
+    assert!(redraw);
+    assert_eq!(icon, Some(winit::window::CursorIcon::Pointer));
+    let h = st.terminals.hover.clone().expect("a link under the pointer");
+    assert_eq!(h.cols, 9..24);
+    assert_eq!(h.target, Link::File(st.ed.cwd.join("src/main.rs"), Some(3), Some(5)));
+    // a drag selects and copies "error"
+    let (x0, y0) = at(0);
+    assert!(st.terminal_press(x0, y0, MouseButton::Left, none));
+    let (x1, y1) = at(4);
+    st.terminal_motion(x1 + 0.4 * g.cw, y1, none);
+    st.terminal_release(MouseButton::Left, none);
+    assert_eq!(st.ed.clipboard.get().as_deref(), Some("error"));
+    // the wheel scrolls back through the history, typing comes back down
+    assert!(st.terminal_wheel(3.0, x0, y0, none));
+    wait(&mut st, |_| true);
+    assert_eq!(st.terminals.tabs[0].view.display_offset, 3);
+    // Ctrl+click opens the file at its line and gives the editor the keys
+    let ctrl = Mods { ctrl: true, ..Mods::default() };
+    let (x, y) = at(12);
+    st.terminal_wheel(-3.0, x, y, none);
+    assert!(st.terminal_press(x, y, MouseButton::Left, ctrl));
+    assert_eq!(st.ed.buf().doc.path.as_deref(), Some(st.ed.cwd.join("src/main.rs").as_path()));
+    let b = st.ed.buf();
+    assert_eq!(shrew_core::text::line_of(b.rope(), b.sel.primary().head), 2);
+    assert!(!st.terminals.has_focus());
+    // a click in the editor's area leaves the terminal unfocused; one in the panel focuses it
+    assert!(st.terminal_press(x0, y0, MouseButton::Left, none));
+    assert!(st.terminals.has_focus());
+    assert!(!st.terminal_press(x0, g.panel.y - 50.0, MouseButton::Left, none));
+    assert!(!st.terminals.has_focus());
+}
+
+/// The editor stays responsive while a terminal is flooded: `yes`, then `cat` of a 50 MB file. Each frame here is
+/// what the app does per frame (poll, then build), with an editor keystroke in between. Run it optimized:
+/// `cargo test --release -p shrew flood -- --ignored --nocapture`.
+#[cfg(unix)]
+#[test]
+#[ignore = "a benchmark: run it in release"]
+fn flood_keeps_the_editor_responsive() {
+    let big = std::env::temp_dir().join(format!("shrew-flood-{}.txt", std::process::id()));
+    let line = "the quick brown fox jumps over the lazy dog 0123456789 \x1b[32mgreen\x1b[0m and more text\n";
+    std::fs::write(&big, line.repeat(50_000_000 / line.len())).unwrap();
+    for cmd in ["timeout 3 yes", &format!("cat {}", big.display())] {
+        let mut st = state();
+        st.terminal_command(Command::NewTerminal, Some(cmd.to_string()));
+        st.terminal_command(Command::FocusEditor, None);
+        st.key(KeyPress::ch('i'));
+        let mut scene = shrew_render::Scene::new();
+        let mut ui = crate::draw::Ui::new();
+        let (mut frames, mut worst_key, mut worst_frame) = (0, Duration::ZERO, Duration::ZERO);
+        let mut total = Duration::ZERO;
+        let t0 = Instant::now();
+        while !st.terminals.tabs[0].session.exited() && t0.elapsed() < Duration::from_secs(60) {
+            let t = Instant::now();
+            st.key(KeyPress::ch('x'));
+            worst_key = worst_key.max(t.elapsed());
+            let t = Instant::now();
+            st.poll();
+            let lay = carve(layout(), &st.terminals);
+            crate::draw::build(&mut scene, &mut st, &mut ui, &lay, Instant::now());
+            let f = t.elapsed();
+            worst_frame = worst_frame.max(f);
+            total += f;
+            frames += 1;
+            // a 120 Hz display
+            std::thread::sleep(Duration::from_millis(8));
+        }
+        let all = t0.elapsed();
+        eprintln!(
+            "{cmd}: {all:?}, {frames} frames, frame build mean {:?} worst {worst_frame:?}, editor key worst {worst_key:?}",
+            total / frames.max(1)
+        );
+        assert!(worst_key < Duration::from_millis(16), "{worst_key:?}");
+        assert!(worst_frame < Duration::from_millis(16), "{worst_frame:?}");
+    }
+    let _ = std::fs::remove_file(&big);
+}
+
 #[test]
 fn feature_off_means_no_terminal() {
     let mut st = state();

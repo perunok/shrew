@@ -441,14 +441,6 @@ impl Terminals {
             }
             _ => {}
         }
-        // a finished `:term` command: Enter, Esc or q closes it
-        if tab.session.exited() {
-            let plain = !m.ctrl && !m.alt;
-            if plain && matches!(k.key, Key::Enter | Key::Esc | Key::Char('q')) {
-                return Act::Run(Command::CloseTerminal);
-            }
-            return Act::Done;
-        }
         {
             let mut term = tab.session.term.lock();
             if normal::active(&term) {
@@ -466,6 +458,14 @@ impl Terminals {
         let prefix = m.ctrl && !m.alt && !m.shift && (k.key == Key::Char('\\') || (vim && k.key == Key::Char('w')));
         if prefix {
             self.pending = Some(k);
+            return Act::Done;
+        }
+        // a finished `:term` command: Enter, Esc or q closes it
+        if tab.session.exited() {
+            let plain = !m.ctrl && !m.alt;
+            if plain && matches!(k.key, Key::Enter | Key::Esc | Key::Char('q')) {
+                return Act::Run(Command::CloseTerminal);
+            }
             return Act::Done;
         }
         let modes = tab.typing();
@@ -975,7 +975,7 @@ impl State {
     pub fn terminals_busy(&self) -> bool {
         self.terminals.tabs.iter().any(|t| {
             let s = &t.session.shared;
-            let last = s.last_output.load(Ordering::Relaxed);
+            let last = s.last_output.load(Ordering::Relaxed).max(s.last_input.load(Ordering::Relaxed));
             let age = s.started.elapsed();
             if s.exited.load(Ordering::Acquire) {
                 return false;

@@ -106,7 +106,8 @@ pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: 
         smooth_scroll: ui.animate && st.ed.features.on(Feature::SmoothScroll),
         cursor_animation: ui.animate && st.ed.features.on(Feature::CursorAnimation),
     };
-    let animating = ui.anim.step(&target, now);
+    #[cfg_attr(not(feature = "terminal"), allow(unused_mut))]
+    let mut animating = ui.anim.step(&target, now);
     let scroll = ui.anim.scroll;
     st.sync_syntax(scroll.first_line(), lay.rows + 2);
 
@@ -118,7 +119,6 @@ pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: 
     tabs(scene, st, ui, lay, &c);
     // with a terminal focused the editor draws as unfocused (hollow cursor, inactive selection)
     #[cfg(feature = "terminal")]
-    #[cfg(feature = "terminal")]
     let window_focused = ui.focused;
     #[cfg(feature = "terminal")]
     {
@@ -128,7 +128,7 @@ pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: 
     #[cfg(feature = "terminal")]
     {
         ui.focused = window_focused;
-        crate::terminal::draw(scene, &mut st.terminals, ui, lay, &c);
+        animating |= crate::terminal::draw(scene, &mut st.terminals, ui, lay, &c);
     }
     status(scene, st, ui, lay, &c);
     cmdline(scene, &st.ed, st, lay, &c);

@@ -83,6 +83,7 @@ impl Layout {
     }
 
     /// Takes a bottom panel `h` pixels high out of the text area (all of it at most), under the text and as wide.
+    #[cfg_attr(not(feature = "terminal"), allow(dead_code))]
     pub fn with_panel(mut self, h: f32) -> Layout {
         let h = h.clamp(0.0, self.text.h).round();
         self.text.h -= h;

@@ -221,18 +221,37 @@ pub struct View {
     pub mode: TermMode,
     /// Rebuild every row at the next frame: the UI scrolled, selected, moved the normal-mode cursor.
     pub stale: bool,
+    /// The screen changed and the rows do not show it yet; frames in a row that found the screen locked.
+    behind: bool,
+    skipped: u8,
 }
+
+/// Frames that may go by without the latest output while a program floods the terminal.
+const MAX_SKIPPED: u8 = 8;
 
 impl View {
     /// Brings the cached rows up to date with the screen, if anything changed.
-    fn sync(&mut self, tab_dirty: bool, tab: &super::Tab, p: &Pal) {
+    /// Brings the cached rows up to date with the screen, if anything changed. False when the screen was busy (a
+    /// program flooding it holds it while it parses): the frame shows the rows it has and another one follows.
+    fn sync(&mut self, tab_dirty: bool, tab: &super::Tab, p: &Pal) -> bool {
         let rows = tab.session.size.rows;
         let cols = tab.session.size.cols;
         let shape_changed = self.rows.len() != rows || self.cols != cols || self.pal != Some(*p);
-        if !tab_dirty && !self.stale && !shape_changed {
-            return;
+        self.behind |= tab_dirty;
+        if !self.behind && !self.stale && !shape_changed {
+            return true;
         }
-        let mut term = tab.session.term.lock();
+        // never wait on the reader thread for long: a few frames may skip, then the fair lock takes a turn
+        let mut term = match tab.session.term.try_lock_unfair() {
+            Some(t) => t,
+            None if self.skipped < MAX_SKIPPED => {
+                self.skipped += 1;
+                return false;
+            }
+            None => tab.session.term.lock(),
+        };
+        self.skipped = 0;
+        self.behind = false;
         let offset = term.grid().display_offset();
         let mut full = self.stale || shape_changed || offset != self.display_offset || offset != 0;
         let mut damaged: Vec<usize> = Vec::new();
@@ -282,18 +301,20 @@ impl View {
         self.display_offset = offset;
         self.history = grid.history_size();
         self.mode = content.mode;
+        true
     }
 }
 
 // ----- drawing -----
 
-/// Draws the panel (when it is open) and remembers its geometry for the mouse handlers.
-pub fn draw(scene: &mut Scene, t: &mut Terminals, ui: &Ui, lay: &Layout, c: &Colors) {
+/// Draws the panel (when it is open) and remembers its geometry for the mouse handlers. True when another frame
+/// should follow (output that could not be read without waiting for the reader thread).
+pub fn draw(scene: &mut Scene, t: &mut Terminals, ui: &Ui, lay: &Layout, c: &Colors) -> bool {
     t.lay = Some(*lay);
     t.tab_hits.clear();
     if !t.visible || t.tabs.is_empty() || lay.panel.h < 1.0 {
         t.geom = None;
-        return;
+        return false;
     }
     let g = Geom::new(lay);
     t.geom = Some(g);
@@ -313,13 +334,14 @@ pub fn draw(scene: &mut Scene, t: &mut Terminals, ui: &Ui, lay: &Layout, c: &Col
     let dirty = tab.session.shared.dirty.swap(false, Ordering::AcqRel);
     // the view borrows the tab immutably to read the screen
     let mut view = std::mem::take(&mut tab.view);
-    view.sync(dirty, tab, &pal);
+    let synced = view.sync(dirty, tab, &pal);
     tab.view = view;
 
     scene.rect(g.panel, c.background);
     strip(scene, t, &g, lay, c, focused);
     let tab = &t.tabs[t.active];
     body(scene, tab, &g, lay, c, ui, focused, t.hover.as_ref().filter(|h| h.tab == tab.id));
+    !synced
 }
 
 /// The tab strip: a tab per terminal, then the mode, the scroll position and the buttons on the right.
@@ -400,14 +422,9 @@ fn strip(scene: &mut Scene, t: &mut Terminals, g: &Geom, lay: &Layout, c: &Color
                 scene.rounded_rect(Rect::new(r.x + radius, r.y, r.w - 2.0 * radius, bar), bar / 2.0, c.accent, None);
             }
         }
-        let ink = if active { c.panel_foreground } else { c.panel_muted };
+        let ink = if active && !tab.session.exited() { c.panel_foreground } else { c.panel_muted };
         let lx = r.x + 2.0 * lay.cw;
         scene.text(lx.round(), ty + lay.pad / 2.0, label, TextStyle::new(ink), &[]);
-        if tab.session.exited() {
-            let dot =
-                Rect::new((r.x + 0.75 * lay.cw).round(), (ty + lay.pad / 2.0 + lay.ch / 2.0 - 2.0).round(), 4.0, 4.0);
-            scene.rounded_rect(dot, 2.0, c.panel_muted, None);
-        }
         t.tab_hits.push((r, i));
         x += w + lay.pad / 2.0;
     }
@@ -536,8 +553,8 @@ fn body(
     }
     scene.pop_clip();
 
-    // the cursor, above the text
-    if let Some(cur) = v.cursor {
+    // the cursor, above the text (once the program has ended, only normal mode's)
+    if let Some(cur) = v.cursor.filter(|_| !tab.session.exited() || v.mode.contains(TermMode::VI)) {
         scene.layer(1);
         scene.push_clip(g.body);
         let w = if cur.wide { 2 } else { 1 };

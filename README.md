@@ -31,6 +31,7 @@ Every shot is the real editor, rendered headless from shrew's own source code. R
 | ![Theme picker](docs/screenshots/theme-picker.png)<br>**33 themes** with a live preview as you move through them | ![Light theme](docs/screenshots/light.png)<br>**Light themes** too, here One Light in visual line mode |
 | ![High contrast](docs/screenshots/contrast.png)<br>**High Contrast** (WCAG AAA); every theme passes a contrast audit | ![Substitute](docs/screenshots/substitute.png)<br>**`:%s` substitution**, with the last search highlighted |
 | ![About](docs/screenshots/about.png)<br>**About shrew** and the Shrew Manifesto (`:about`) | ![Huge file](docs/screenshots/huge-file.png)<br>**A 50 MB, million-line file**, searched at line 500,000 |
+| ![Terminal](docs/screenshots/terminal.png)<br>**The built-in terminal** (Ctrl+\`): colors from the theme, Ctrl+click opens `file:line` | ![Vim in the terminal](docs/screenshots/terminal-vim.png)<br>**Full-screen programs** work: vim inside shrew's terminal, One Light |
 
 ## Features
 

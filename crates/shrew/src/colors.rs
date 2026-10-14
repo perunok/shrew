@@ -51,6 +51,7 @@ pub struct Colors {
     pub mode_visual_fg: Color,
     pub scrollbar: Color,
     /// The terminal's 16 ANSI colors (see [`shrew_theme::Ui::ansi`]).
+    #[cfg_attr(not(feature = "terminal"), allow(dead_code))]
     pub ansi: [Color; 16],
 }
 

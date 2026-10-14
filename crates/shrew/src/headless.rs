@@ -45,11 +45,17 @@ pub fn run(cli: &Cli, out: &std::path::Path) -> Result<(), String> {
     // a first layout pass sizes the views, so keys like Ctrl+D scroll by the real page
     let lay = layout(&r, &st);
     draw::build(&mut scene, &mut st, &mut ui, &lay, Instant::now());
+    #[cfg(feature = "terminal")]
+    let mut line_start = true;
     for k in KeyPress::parse_seq(&cli.keys) {
-        // keys for a terminal wait until its program is ready for them, as a person would
+        // a line typed into a terminal waits until the program is ready for it, as a person would
         #[cfg(feature = "terminal")]
-        if st.terminals.has_focus() {
-            settle(&mut st, &mut r, &mut scene, &mut ui, &layout);
+        {
+            let focused = st.terminals.has_focus();
+            if line_start && focused {
+                settle(&mut st, &mut r, &mut scene, &mut ui, &layout);
+            }
+            line_start = k.key == shrew_core::Key::Enter || !focused;
         }
         st.key(k);
         if st.font_changed {

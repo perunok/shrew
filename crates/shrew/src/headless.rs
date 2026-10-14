@@ -10,7 +10,6 @@ use crate::draw::{self, Ui};
 use crate::layout::Layout;
 use crate::state::State;
 use shrew_core::KeyPress;
-use shrew_core::features::Feature;
 use shrew_render::{Renderer, Scene};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -32,7 +31,18 @@ pub fn run(cli: &Cli, out: &std::path::Path) -> Result<(), String> {
     // a first layout pass sizes the views, so keys like Ctrl+D scroll by the real page
     let lay = layout(&r, &st);
     draw::build(&mut scene, &mut st, &mut ui, &lay, Instant::now());
+    #[cfg(feature = "terminal")]
+    let mut line_start = true;
     for k in KeyPress::parse_seq(&cli.keys) {
+        // a line typed into a terminal waits until the program is ready for it, as a person would
+        #[cfg(feature = "terminal")]
+        {
+            let focused = st.terminals.has_focus();
+            if line_start && focused {
+                settle(&mut st, &mut r, &mut scene, &mut ui, &layout);
+            }
+            line_start = k.key == shrew_core::Key::Enter || !focused;
+        }
         st.key(k);
         if st.font_changed {
             st.font_changed = false;
@@ -72,6 +82,8 @@ fn settle(
         let lay = layout(r, st);
         draw::build(scene, st, ui, &lay, Instant::now());
         let picker_busy = st.ed.picker.as_ref().is_some_and(|p| p.loading);
+        #[cfg(feature = "terminal")]
+        let picker_busy = picker_busy || st.terminals_busy();
         if !picker_busy && !syntax_busy(st) {
             break;
         }
@@ -83,7 +95,7 @@ fn settle(
 #[cfg(feature = "syntax")]
 fn syntax_busy(st: &State) -> bool {
     let Some(s) = &st.syntax else { return false };
-    if !st.ed.features.on(Feature::Syntax) {
+    if !st.ed.features.on(shrew_core::Feature::Syntax) {
         return false;
     }
     !s.is_ready() || st.highlighters.values().any(|h| !h.is_settled())

@@ -419,6 +419,7 @@ fn derive(u: &UiSpec, s: &SyntaxSpec, scheme: Scheme, high_contrast: bool) -> (U
         ],
         &[mode_normal, mode_insert],
     );
+    let ansi = ansi(u, bg, text, text_muted, text_faint, &[danger, success, warning, accent], &syntax, dark);
     let ui = Ui {
         bg,
         surface,
@@ -467,6 +468,103 @@ fn derive(u: &UiSpec, s: &SyntaxSpec, scheme: Scheme, high_contrast: bool) -> (U
         popup: u.popup.unwrap_or(surface_raised),
         popup_border: u.popup_border.unwrap_or(border),
         shadow: u.shadow.unwrap_or(Rgb::BLACK),
+        ansi_black: ansi[0],
+        ansi_red: ansi[1],
+        ansi_green: ansi[2],
+        ansi_yellow: ansi[3],
+        ansi_blue: ansi[4],
+        ansi_magenta: ansi[5],
+        ansi_cyan: ansi[6],
+        ansi_white: ansi[7],
+        ansi_bright_black: ansi[8],
+        ansi_bright_red: ansi[9],
+        ansi_bright_green: ansi[10],
+        ansi_bright_yellow: ansi[11],
+        ansi_bright_blue: ansi[12],
+        ansi_bright_magenta: ansi[13],
+        ansi_bright_cyan: ansi[14],
+        ansi_bright_white: ansi[15],
     };
     (ui, syntax)
+}
+
+/// The terminal's 16 colors, for a theme that does not set them: each hue (red, green, ...) is the theme's own color
+/// nearest to it (status colors first, then syntax roles), or a made-up one when the theme has nothing close, made
+/// readable on the background. Black and white are the background's and the text's ends of the grey ramp.
+#[allow(clippy::too_many_arguments)]
+fn ansi(
+    u: &UiSpec,
+    bg: Rgb,
+    text: Rgb,
+    muted: Rgb,
+    faint: Rgb,
+    status: &[Rgb],
+    syntax: &Syntax,
+    dark: bool,
+) -> [Rgb; 16] {
+    // red, green, yellow, blue, magenta, cyan
+    const HUES: [f32; 6] = [0.0, 120.0, 48.0, 215.0, 295.0, 185.0];
+    let targets = HUES.map(|h| Rgb::from_hsl(h, 0.6, 0.5));
+    let own: Vec<Rgb> = status.iter().copied().chain(Role::ALL.iter().map(|&r| syntax[r].fg)).collect();
+    let hue = |i: usize| {
+        let found = own
+            .iter()
+            .copied()
+            .filter(|c| {
+                let (_, s, l) = c.hsl();
+                s >= 0.25 && l > 0.15 && l < 0.9
+            })
+            // a color counts for the hue it is nearest to, so blue and cyan never share one
+            .filter(|c| (0..6).all(|j| c.hue_distance(targets[i]) <= c.hue_distance(targets[j])))
+            .map(|c| (c.hue_distance(targets[i]), c))
+            .filter(|(d, _)| *d <= 28.0)
+            .min_by(|a, b| a.0.total_cmp(&b.0))
+            .map(|(_, c)| c);
+        found.unwrap_or_else(|| Rgb::from_hsl(HUES[i], 0.55, if dark { 0.62 } else { 0.40 })).readable_on(bg, 4.5)
+    };
+    // brighter on dark backgrounds, deeper on light ones: either way a step away from the plain color
+    let bright = |c: Rgb| c.mix(if dark { Rgb::WHITE } else { text }, 0.22).readable_on(bg, 4.5);
+    let [r, g, y, b, m, c] = [0, 1, 2, 3, 4, 5].map(hue);
+    let (black, white, bright_black, bright_white) = if dark {
+        (bg.mix(Rgb::BLACK, 0.35).mix(text, 0.06), muted, faint, text.mix(Rgb::WHITE, 0.4))
+    } else {
+        (text, bg.mix(text, 0.18), faint, bg.mix(text, 0.08))
+    };
+    let derived = [
+        black,
+        r,
+        g,
+        y,
+        b,
+        m,
+        c,
+        white,
+        bright_black,
+        bright(r),
+        bright(g),
+        bright(y),
+        bright(b),
+        bright(m),
+        bright(c),
+        bright_white,
+    ];
+    let set = [
+        u.ansi_black,
+        u.ansi_red,
+        u.ansi_green,
+        u.ansi_yellow,
+        u.ansi_blue,
+        u.ansi_magenta,
+        u.ansi_cyan,
+        u.ansi_white,
+        u.ansi_bright_black,
+        u.ansi_bright_red,
+        u.ansi_bright_green,
+        u.ansi_bright_yellow,
+        u.ansi_bright_blue,
+        u.ansi_bright_magenta,
+        u.ansi_bright_cyan,
+        u.ansi_bright_white,
+    ];
+    std::array::from_fn(|i| set[i].unwrap_or(derived[i]))
 }

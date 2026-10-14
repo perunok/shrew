@@ -121,6 +121,47 @@ ui_tokens! {
     popup_border = "popup-border",
     /// Drop shadow under popups (drawn translucent).
     shadow = "shadow",
+    // The terminal's 16 ANSI colors. Themes rarely set them: they are derived from the syntax and UI hues.
+    ansi_black = "ansi-black",
+    ansi_red = "ansi-red",
+    ansi_green = "ansi-green",
+    ansi_yellow = "ansi-yellow",
+    ansi_blue = "ansi-blue",
+    ansi_magenta = "ansi-magenta",
+    ansi_cyan = "ansi-cyan",
+    ansi_white = "ansi-white",
+    ansi_bright_black = "ansi-bright-black",
+    ansi_bright_red = "ansi-bright-red",
+    ansi_bright_green = "ansi-bright-green",
+    ansi_bright_yellow = "ansi-bright-yellow",
+    ansi_bright_blue = "ansi-bright-blue",
+    ansi_bright_magenta = "ansi-bright-magenta",
+    ansi_bright_cyan = "ansi-bright-cyan",
+    ansi_bright_white = "ansi-bright-white",
+}
+
+impl Ui {
+    /// The 16 ANSI colors in terminal order (black, red, green, yellow, blue, magenta, cyan, white, then bright).
+    pub fn ansi(&self) -> [Rgb; 16] {
+        [
+            self.ansi_black,
+            self.ansi_red,
+            self.ansi_green,
+            self.ansi_yellow,
+            self.ansi_blue,
+            self.ansi_magenta,
+            self.ansi_cyan,
+            self.ansi_white,
+            self.ansi_bright_black,
+            self.ansi_bright_red,
+            self.ansi_bright_green,
+            self.ansi_bright_yellow,
+            self.ansi_bright_blue,
+            self.ansi_bright_magenta,
+            self.ansi_bright_cyan,
+            self.ansi_bright_white,
+        ]
+    }
 }
 
 /// Bold, italic, underline.

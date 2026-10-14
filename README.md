@@ -33,6 +33,7 @@ Every shot is the real editor, rendered headless from shrew's own source code. R
 | ![About](docs/screenshots/about.png)<br>**About shrew** and the Shrew Manifesto (`:about`) | ![Huge file](docs/screenshots/huge-file.png)<br>**A 50 MB, million-line file**, searched at line 500,000 |
 | ![Sidebar](docs/screenshots/sidebar.png)<br>**The sidebar** (Ctrl+B): the project's tree, following the active file | ![Find in project](docs/screenshots/find-in-project.png)<br>**Find in project** (Ctrl+Shift+F), grouped by file as results stream in |
 | ![Symbols](docs/screenshots/symbols.png)<br>**Go to symbol** (`@` in Ctrl+P, Ctrl+R) from the grammar's scopes | |
+| ![Terminal](docs/screenshots/terminal.png)<br>**The built-in terminal** (Ctrl+\`): colors from the theme, Ctrl+click opens `file:line` | ![Vim in the terminal](docs/screenshots/terminal-vim.png)<br>**Full-screen programs** work: vim inside shrew's terminal, One Light |
 
 ## Features
 
@@ -74,6 +75,10 @@ Every shot is the real editor, rendered headless from shrew's own source code. R
 - **AI-ready, opt-in.** A built-in [MCP](https://modelcontextprotocol.io) server lets Claude Code, Claude Desktop
   or Cursor read and edit your open buffers. Every edit is one undo step and nothing is saved without you. Off by
   default.
+- **A terminal inside.** Ctrl+\` opens your shell in a panel under the text, drawn in the theme's colors: tabs,
+  scrollback, vim, htop and less work, a vim-style normal mode to search and copy, and Ctrl+click on
+  `src/main.rs:12:5` in the output opens it. Nothing runs until you open one. See
+  **[docs/KEYBINDINGS.md](docs/KEYBINDINGS.md#terminal)**.
 - **Updates itself.** shrew checks GitHub Releases once a day and shows an update button in the status bar. The
   download is verified against its sha256 before it replaces the binary.
 - **Pure Rust.** It builds with `cargo` alone: no C compiler, no system `-dev` packages. GPU drivers, Wayland and
@@ -123,6 +128,7 @@ the table below for your build and config.
 | `symbols` | Go to symbol in the file (Ctrl+R, `@` in Ctrl+P) and the project (Ctrl+Shift+R) | on | `syntax` |
 | `recent` | Remember recent files and projects (Open Recent, Ctrl+Alt+P) in the cache dir | on | |
 | `minimap` | Sublime-style minimap at the right of the editor: click or drag to scroll (see `[minimap]`) | on | |
+| `terminal` | Built-in terminal panel (Ctrl+\`), started on first use (see `[terminal]`) | on | `terminal` |
 
 Keys also work without the underscore (`:set nolinenumbers`). The usual vim spellings work too: `:set nu`, `rnu`,
 `hls`, `list`, `et`, `ts=2`, `so=8`.
@@ -137,7 +143,7 @@ mcp = true
 ```
 
 **Compile-time.** The `shrew` package's (the `srw` binary's) default cargo features are `syntax`, `picker`,
-`clipboard`, `mcp`, `update`, `embed-font` and `project`. A minimal build:
+`clipboard`, `mcp`, `update`, `embed-font`, `project` and `terminal`. A minimal build:
 
 ```sh
 cargo build --release -p shrew --no-default-features                     # just the editor

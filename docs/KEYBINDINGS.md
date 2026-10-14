@@ -21,7 +21,7 @@ motion, character or register name. "Ctrl" also means ⌘ Cmd on macOS. Vim keys
 **Contents:** [Global chords](#global-chords) · [Insert mode](#insert-mode) · [Normal mode](#normal-mode) ·
 [Visual mode](#visual-mode) · [Prompts](#prompts--and-) · [Pickers](#pickers) · [Sidebar](#sidebar) ·
 [Find in project](#find-in-project) · [About panel](#about-panel) · [Menus](#menus) · [Ex commands](#ex-commands) ·
-[Named commands](#named-commands) · [Mouse](#mouse) · [Title bar](#title-bar)
+[Named commands](#named-commands) · [Mouse](#mouse) · [Title bar](#title-bar) · [Terminal](#terminal)
 
 ## Global chords
 
@@ -116,6 +116,8 @@ The home folder and `/` are never a project: without one, Ctrl+P lists your rece
 | Ctrl+= or Ctrl++ | Bigger font |
 | Ctrl+- | Smaller font |
 | Ctrl+0 | Reset font size |
+| Ctrl+\` | Show and focus the terminal panel (starting a shell the first time); from the terminal, hide it. See [Terminal](#terminal) |
+| Ctrl+Shift+\` | New terminal |
 
 ## Insert mode
 
@@ -451,6 +453,7 @@ or `:duplicate_line`.
 | `:theme import {file}` | Convert a `.sublime-color-scheme` or `.tmTheme` into a custom theme and switch to it |
 | `:accent` / `:accent {id}` | Accent picker / switch to an accent (`theme` for the theme's own) and save it |
 | `:font` / `:font {family}` | Font picker (installed monospace families, live preview) / switch to a family and save it |
+| `:term`, `:terminal` / `:term {command}` | A new terminal with your shell / one running `command` (it stays open when the command ends; Enter closes it) |
 
 ### `:set`
 
@@ -554,6 +557,15 @@ command palette by its title.
 | `jump_forward` | Go Forward | Ctrl+I, Tab (normal), Alt+Right, Alt+Shift+- |
 | `goto_file` | Go to File Under Cursor | `gf` |
 | `toggle_minimap` | View: Toggle Minimap | `:set minimap!` |
+| `toggle_terminal` | Terminal: Toggle Panel | Ctrl+\` |
+| `new_terminal` | Terminal: New Terminal | Ctrl+Shift+\`, `:term` |
+| `close_terminal` | Terminal: Close Terminal | the panel's × |
+| `next_terminal` | Terminal: Next Terminal | Ctrl+PageDown (in a terminal) |
+| `prev_terminal` | Terminal: Previous Terminal | Ctrl+PageUp (in a terminal) |
+| `maximize_terminal` | Terminal: Toggle Maximized Panel | the panel's □ |
+| `focus_terminal` | Terminal: Focus Terminal | |
+| `focus_editor` | Terminal: Focus Editor | Ctrl+W k (in a terminal, vim keys) |
+| `terminal_normal_mode` | Terminal: Normal Mode (scroll, select, search) | Ctrl+\\ Ctrl+N (in a terminal) |
 
 ## Mouse
 
@@ -583,3 +595,50 @@ holds the buffer tabs. Which items it shows, and where, is set in [`[titlebar]`]
 | Click the menu button (three lines) | Open the menus; hovering a menu opens it |
 | Click a tab | Switch to that buffer |
 | Minimize, maximize/restore, close | The window buttons; close asks once when there are unsaved changes |
+
+## Terminal
+
+The built-in terminal (feature `terminal`) is a panel under the text with a tab per terminal. Ctrl+\` opens it with
+your shell, in the project folder. While a terminal has focus **every key goes to the program in it**, except these
+(the code is in `crates/shrew/src/terminal/`):
+
+| Keys | Action |
+| --- | --- |
+| Ctrl+\` | Hide the panel and go back to the editor (Ctrl+\` again brings it back) |
+| Ctrl+Shift+\` | New terminal |
+| Ctrl+PageUp / Ctrl+PageDown | Previous / next terminal |
+| Ctrl+Shift+P | Command palette |
+| Ctrl+Shift+C / Ctrl+Shift+V, Shift+Insert | Copy the selection / paste (bracketed when the program asks for it) |
+| Shift+PageUp / Shift+PageDown, Shift+Home / Shift+End | Scroll the history by a page / to the top or bottom (not in full-screen programs) |
+| Ctrl+\\ Ctrl+N | Terminal normal mode (below) |
+| Ctrl+W k, Ctrl+W Up, Ctrl+W Ctrl+W | Back to the editor (vim keys on; Ctrl+W then any other key sends both, Ctrl+W . sends Ctrl+W) |
+| Ctrl+W N / Ctrl+W : / Ctrl+W c | Normal mode / the `:` prompt / close the terminal (vim keys on) |
+| Enter, Esc, q | Close a `:term` terminal whose command has ended |
+
+`[terminal.keys]` in config.toml adds chords that stay with shrew, or gives these back to the terminal (see
+[CONFIG.md](CONFIG.md#terminal)). Typing scrolls back to the bottom. Clicking the editor gives it the keys back.
+
+**Normal mode** freezes nothing: the program keeps running while you move over its screen and history.
+
+| Keys | Action |
+| --- | --- |
+| `h` `j` `k` `l`, arrows | Move |
+| `w` `b` `e` / `W` `B` `E` | Words / whitespace-separated words |
+| `0` `^` `$`, `H` `M` `L`, `gg` `G`, `%`, `{` `}` | Line start, first non-blank, line end; screen top, middle, bottom; top and bottom of the history; bracket; paragraph |
+| Ctrl+U / Ctrl+D, Ctrl+B / Ctrl+F, PageUp / PageDown, Ctrl+Y / Ctrl+E | Scroll half a page, a page, a line |
+| `v` / `V` / Ctrl+V | Select characters / lines / a block |
+| `y` | Copy the selection (the line when nothing is selected) |
+| `/` `?` then Enter, `n` / `N` | Search the screen and history forward / backward (regex; lowercase ignores case), next / previous |
+| Esc | Clear the selection or search; again, leave normal mode |
+| `i`, `a`, `q`, Enter | Back to the program |
+
+**Mouse:** drag to select (double-click: a word, triple-click: a line, Alt+drag: a block); the selection is copied
+when you let go (`copy_on_select`). Middle click pastes. The wheel scrolls the history, or goes to the program when
+it asked for the mouse (vim, htop) or runs full-screen (less, man). Shift+drag and Shift+wheel always select and
+scroll. File paths in the output (`src/main.rs:12:5`, `  --> a.rs:3:1`, `File "x.py", line 7`) and URLs are underlined
+under the pointer; **Ctrl+click** opens a file in the editor at that line, a URL in the browser. Drag the panel's top
+edge to resize it (the height is saved); the buttons on the right open a terminal, maximize the panel and close the
+terminal.
+
+`srw file` in a shrew terminal opens the file in that window, and `srw -w` waits for it, so `EDITOR="srw -w"` works
+for `git commit` run there.

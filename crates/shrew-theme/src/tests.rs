@@ -175,3 +175,21 @@ fn loading_a_theme_is_cheap() {
     let limit = if cfg!(debug_assertions) { Duration::from_millis(5) } else { Duration::from_millis(1) };
     assert!(each < limit, "{each:?}");
 }
+
+/// The terminal's colors: red, green, yellow, blue, magenta and cyan (plain and bright) are readable on the
+/// background, and each is the hue its name says rather than one of the other five.
+#[test]
+fn ansi_colors_are_readable_and_on_hue() {
+    for b in BUILTIN {
+        let t = Theme::builtin(b.id).unwrap();
+        let a = t.ui.ansi();
+        let hues = [0.0, 120.0, 55.0, 215.0, 295.0, 185.0];
+        for (i, &c) in a[1..7].iter().chain(&a[9..15]).enumerate() {
+            let what = format!("{}: ansi {} {c}", b.id, if i < 6 { i + 1 } else { i + 3 });
+            assert!(c.contrast(t.ui.bg) >= 4.4, "{what} is not readable");
+            let at = |h: f32| c.hue_distance(Rgb::from_hsl(h, 0.6, 0.5));
+            let own = at(hues[i % 6]);
+            assert!(hues.iter().all(|&h| own <= at(h) + 12.0), "{what} looks like another hue");
+        }
+    }
+}

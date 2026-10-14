@@ -142,6 +142,9 @@ pub enum Event {
     Ligatures(Option<bool>),
     /// A command only the app can carry out (the window, the title bar's menus).
     App(Command),
+    /// A terminal command (Ctrl+`, the palette, `:term [cmd]` as `NewTerminal` with its command line): the app owns
+    /// the terminals.
+    Terminal(Command, Option<String>),
 }
 
 #[derive(Clone, Debug)]
@@ -840,6 +843,8 @@ impl Editor {
             ('o', true) => GotoSymbol,
             ('r', true) => GotoSymbolInProject,
             ('t', true) => ReopenClosed,
+            ('`', false) => ToggleTerminal,
+            ('`', true) => NewTerminal,
             _ => return None,
         })
     }
@@ -1041,7 +1046,20 @@ impl Editor {
             JumpForward => self.jump(true),
             GotoFileUnderCursor => self.goto_file_under_cursor(),
             ToggleMinimap => self.toggle_feature(Feature::Minimap),
+            ToggleTerminal | NewTerminal | CloseTerminal | NextTerminal | PrevTerminal | MaximizeTerminal
+            | FocusTerminal | FocusEditor | TerminalNormalMode => self.terminal(cmd, None),
         }
+    }
+
+    /// Hands a terminal command to the app, unless the terminal feature is off.
+    pub fn terminal(&mut self, cmd: Command, command_line: Option<String>) {
+        if !self.features.available(Feature::Terminal) {
+            return self.error("the terminal is not compiled into this build");
+        }
+        if !self.features.on(Feature::Terminal) {
+            return self.error("the terminal is off (:set terminal)");
+        }
+        self.events.push(Event::Terminal(cmd, command_line));
     }
 
     pub fn toggle_feature(&mut self, f: Feature) {
@@ -2031,6 +2049,7 @@ impl Editor {
             "font" => self.events.push(Event::Choose(Choice::Font, arg.to_string())),
             "grep" | "rg" | "vimgrep" | "Rg" => self.open_grep(arg),
             "Ex" | "Explore" | "Lex" | "NERDTree" => self.focus_sidebar(true),
+            "term" | "terminal" => self.terminal(Command::NewTerminal, arg_opt.map(String::from)),
             "syntax" => match arg {
                 "on" | "enable" => self.set_option("syntax"),
                 "off" => self.set_option("nosyntax"),

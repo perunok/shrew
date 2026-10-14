@@ -200,6 +200,7 @@ pub struct Config {
     pub titlebar: TitleBarConfig,
     /// `[sidebar] width`, logical pixels.
     pub sidebar_width: Option<f32>,
+    pub terminal: TerminalConfig,
 }
 
 /// `[titlebar] left / right / hidden`: item names as written (the app knows which exist and sanitises them).
@@ -208,6 +209,46 @@ pub struct TitleBarConfig {
     pub left: Option<Vec<String>>,
     pub right: Option<Vec<String>>,
     pub hidden: Option<Vec<String>>,
+}
+
+/// `[terminal]`: the built-in terminal panel.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct TerminalConfig {
+    /// The program to run instead of `$SHELL`.
+    pub shell: Option<String>,
+    /// Panel height in rows (saved when the panel's top edge is dragged).
+    pub height: Option<usize>,
+    /// Lines kept for scrolling back, per terminal.
+    pub scrollback: Option<usize>,
+    /// Copy a mouse selection to the clipboard as soon as it is made.
+    pub copy_on_select: Option<bool>,
+    /// `[terminal.keys]`: chords that stay with shrew while a terminal has focus, as (key, command name). An
+    /// empty name hands a default chord back to the terminal.
+    pub keys: Vec<(String, String)>,
+}
+
+pub const DEFAULT_TERMINAL_HEIGHT: usize = 12;
+pub const DEFAULT_SCROLLBACK: usize = 10_000;
+
+impl TerminalConfig {
+    pub fn height(&self) -> usize {
+        self.height.unwrap_or(DEFAULT_TERMINAL_HEIGHT)
+    }
+    pub fn scrollback(&self) -> usize {
+        self.scrollback.unwrap_or(DEFAULT_SCROLLBACK)
+    }
+    pub fn copy_on_select(&self) -> bool {
+        self.copy_on_select.unwrap_or(true)
+    }
+    fn merge(&mut self, o: &TerminalConfig) {
+        if o.shell.is_some() {
+            self.shell = o.shell.clone();
+        }
+        self.height = o.height.or(self.height);
+        self.scrollback = o.scrollback.or(self.scrollback);
+        self.copy_on_select = o.copy_on_select.or(self.copy_on_select);
+        self.keys.extend(o.keys.iter().cloned());
+    }
 }
 
 impl Config {
@@ -256,6 +297,7 @@ impl Config {
         if over.sidebar_width.is_some() {
             self.sidebar_width = over.sidebar_width;
         }
+        self.terminal.merge(&over.terminal);
     }
 }
 

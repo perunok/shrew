@@ -47,6 +47,12 @@ shot $out/about.png ":about<CR>" "$core/motion.rs"
 shot $out/sidebar.png "<C-S-e>" "$core/tree.rs"
 shot $out/find-in-project.png "<C-S-f>sync_tree" "$core/tree.rs"
 shot $out/symbols.png "<C-p>@" "$core/tree.rs"
+# the terminal: a plain bash with a short prompt, so the shot does not depend on your shell setup
+term=":term env PS1='\$ ' bash --norc --noprofile<CR>"
+shot $out/terminal.png "${term}ls --color=always -F crates/shrew/src<CR>git log --oneline --graph --decorate --color -n 4<CR>grep -rn --color=always 'fn carve' crates<CR>" \
+  crates/shrew/src/terminal/mod.rs:182
+shot $out/terminal-vim.png ":theme one-light<CR>:term vim -Nu NONE +'syntax on' +'set nu' crates/shrew/src/layout.rs<CR>:30<CR>" \
+  crates/shrew/src/terminal/mod.rs
 
 # a 50 MB, one-million-line file, at line 500,000 with a search
 tmp=$(mktemp -d)

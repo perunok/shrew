@@ -11,6 +11,7 @@
 //! - [`about`]: the About panel's text (version, the Shrew Manifesto, credits).
 //! - [`sidebar`] / [`recent`] / `symbols`: project navigation (the file tree, recent files and projects, the symbol
 //!   provider behind go to symbol).
+//! - `terminal`: the built-in terminal panel (cargo feature `terminal`).
 //! - [`headless`]: `--screenshot`, a frame rendered without a window.
 //! - [`titlebar`]: the custom title bar (tabs, menus, window buttons) and its window behaviour.
 
@@ -34,6 +35,8 @@ mod sidebar;
 mod state;
 #[cfg(feature = "syntax")]
 mod symbols;
+#[cfg(feature = "terminal")]
+mod terminal;
 mod titlebar;
 
 use cli::{Action, Cli};

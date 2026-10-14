@@ -304,3 +304,24 @@ fn minimap_section() {
     assert_eq!(w.len(), 2, "{w:?}");
     assert_eq!(c.editor.minimap_width, None);
 }
+
+#[test]
+fn terminal_section() {
+    let text = "[terminal]\nshell = \"/bin/zsh\"\nheight = 20\ncopy_on_select = false\n\n[terminal.keys]\n\
+                \"<C-j>\" = \"focus_editor\"\n\"<C-PageUp>\" = \"\"\n\"<C-k>\" = \"no_such_command\"\n\"jj\" = \"palette\"\n";
+    let (c, w) = parse(text, "c");
+    assert_eq!(w.len(), 2, "{w:?}");
+    let t = &c.terminal;
+    assert_eq!(t.shell.as_deref(), Some("/bin/zsh"));
+    assert_eq!((t.height(), t.scrollback(), t.copy_on_select()), (20, DEFAULT_SCROLLBACK, false));
+    assert_eq!(t.keys, vec![("<C-j>".into(), "focus_editor".into()), ("<C-PageUp>".into(), String::new())]);
+    // the height the panel saves lands in the commented default
+    let dir = temp_dir("terminal");
+    let path = dir.join("config.toml");
+    std::fs::write(&path, default_config_text()).unwrap();
+    persist_value(&path, "terminal", "height", 9).unwrap();
+    let (c, w) = parse(&std::fs::read_to_string(&path).unwrap(), "c");
+    assert!(w.is_empty(), "{w:?}");
+    assert_eq!(c.terminal.height(), 9);
+    let _ = std::fs::remove_dir_all(&dir);
+}

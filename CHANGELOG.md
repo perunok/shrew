@@ -61,6 +61,11 @@ Nothing has been released yet: the first release, 0.1.0, will be everything belo
 - A Sublime-style minimap (the `minimap` feature, on by default; `[minimap] width`): each line as thin blocks in
   its syntax colors, with the visible lines boxed, the cursors, selections and search matches marked. Click to jump,
   drag to scroll. Built from the lines on show only and cached, so an unchanged frame rebuilds nothing.
+- A built-in terminal (feature `terminal`, Ctrl+\`): your shell in a resizable bottom panel with tabs, drawn in the
+  theme's 16 ANSI colors (new `ansi-*` theme tokens, derived when a theme does not set them), 256 and true color,
+  10,000 lines of scrollback, full-screen programs, mouse reporting, bracketed paste, a vim-style normal mode to
+  search and copy, Ctrl+click on `file:line:col` to open it, and `:term {command}`. `srw file` inside opens in that
+  window. Emulation by alacritty_terminal (pure Rust); nothing runs until the first terminal opens.
 
 ### Changed
 

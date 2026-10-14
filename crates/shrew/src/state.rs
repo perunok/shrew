@@ -88,6 +88,9 @@ pub struct State {
     recent_file: Option<PathBuf>,
     /// The recent lists' generation last written.
     recent_saved: u64,
+    /// The terminal panel (empty, no threads, until one is opened).
+    #[cfg(feature = "terminal")]
+    pub terminals: crate::terminal::Terminals,
 }
 
 impl State {
@@ -138,6 +141,8 @@ impl State {
             sidebar_width: loaded.config.sidebar_width.unwrap_or(crate::sidebar::DEFAULT_WIDTH),
             recent_file: None,
             recent_saved: 0,
+            #[cfg(feature = "terminal")]
+            terminals: crate::terminal::Terminals::new(loaded.config.terminal.clone()),
         };
         st.titlebar.configure(&loaded.config.titlebar);
         #[cfg(feature = "syntax")]
@@ -193,7 +198,12 @@ impl State {
 
     /// A key from the keyboard (or `--keys`).
     pub fn key(&mut self, k: KeyPress) {
-        // an open menu, or a key that opens one (F10, Alt+F)
+        // an open menu takes every key; then a focused terminal (Alt+F, F10 belong to the program in it); then the
+        // keys that open a menu (F10, Alt+F)
+        #[cfg(feature = "terminal")]
+        if self.titlebar.menu.is_none() && self.terminal_key(k) {
+            return;
+        }
         if crate::titlebar::key(self, k) {
             return;
         }
@@ -203,6 +213,10 @@ impl State {
 
     /// Text typed through an input method.
     pub fn text(&mut self, s: &str) {
+        #[cfg(feature = "terminal")]
+        if self.terminal_text(s) {
+            return;
+        }
         if self.ed.mapping_pending() {
             self.ed.flush_pending_mappings();
         }
@@ -271,6 +285,10 @@ impl State {
             Event::BufferOpened(id) => self.buffer_opened(id),
             Event::Load(path) => self.open_at(&path, None, None),
             Event::App(cmd) => crate::titlebar::app_command(self, cmd),
+            #[cfg(feature = "terminal")]
+            Event::Terminal(cmd, line) => self.terminal_command(cmd, line),
+            #[cfg(not(feature = "terminal"))]
+            Event::Terminal(..) => self.ed.error("the terminal is not compiled into this build"),
         }
     }
 
@@ -283,6 +301,8 @@ impl State {
             Feature::UpdateCheck if on => self.auto_update_check(),
             Feature::Sidebar if !on => self.ed.sidebar_focus = false,
             Feature::Sidebar => self.ed.sync_tree(),
+            #[cfg(feature = "terminal")]
+            Feature::Terminal if !on => self.terminals.close_all(),
             _ => {}
         }
     }
@@ -399,6 +419,10 @@ impl State {
             changed |= hl.poll().is_some();
         }
         changed |= self.poll_loads();
+        #[cfg(feature = "terminal")]
+        {
+            changed |= self.poll_terminals();
+        }
         changed
     }
 
@@ -620,6 +644,8 @@ impl State {
                 self.feature_changed(info.feature);
             }
         }
+        #[cfg(feature = "terminal")]
+        self.terminals.set_config(loaded.config.terminal.clone());
         self.ed.info("config reloaded");
         self.show_warnings(&warnings);
     }
@@ -735,6 +761,9 @@ fn mark_unavailable(ed: &mut Editor) {
     }
     if !cfg!(feature = "syntax") {
         f.set_unavailable(Feature::Symbols);
+    }
+    if !cfg!(feature = "terminal") {
+        f.set_unavailable(Feature::Terminal);
     }
 }
 

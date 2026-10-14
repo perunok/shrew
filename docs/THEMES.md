@@ -187,6 +187,7 @@ links). Keys may be written `surface-raised` or `surface_raised`.
 | `scrollbar` | the scrollbar thumb | `bg`, `text` |
 | `popup`, `popup-border` | pickers and the command palette | `surface-raised`, `border` |
 | `shadow` | the shadow under popups (drawn translucent) | black |
+| `ansi-black`, `ansi-red`, `ansi-green`, `ansi-yellow`, `ansi-blue`, `ansi-magenta`, `ansi-cyan`, `ansi-white`, and `ansi-bright-*` for each | the terminal's 16 colors | the theme's own color nearest each hue (status colors, then syntax roles), readable on `bg`; greys from `bg` and `text` |
 
 Derived tints are kept readable: a derived selection, search highlight or soft background is made paler until text
 on it still reaches 4.5:1.

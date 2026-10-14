@@ -33,7 +33,7 @@ choice survives a restart. Your comments, ordering and formatting are kept.
 
 **Contents:** [`[editor]`](#editor) · [`[theme]`](#theme) · [`[font]`](#font) · [`[features]`](#features) ·
 [`[keys]`](#keys) · [`[import]`](#import) · [`[mcp]`](#mcp) · [`[update]`](#update) · [`[titlebar]`](#titlebar) ·
-[`[sidebar]`](#sidebar) · [`[minimap]`](#minimap) · [Full example](#full-example)
+[`[sidebar]`](#sidebar) · [`[minimap]`](#minimap) · [`[terminal]`](#terminal) · [Full example](#full-example)
 
 ## `[editor]`
 
@@ -304,6 +304,7 @@ left = ["close", "minimize", "maximize", "menu", "project", "tabs"]
 Whether the sidebar shows is the `sidebar` feature (Ctrl+B toggles it and saves that too). Recent files and projects
 are kept outside this file, in `<cache dir>/shrew/recent` (`~/.cache/shrew/recent` on Linux); turn the `recent`
 feature off to stop that.
+
 ## `[minimap]`
 
 | Key | Type | Default | Description |
@@ -315,6 +316,35 @@ under `[features]` turn it off. It sits at the right edge of the editor, left of
 the window leaves the text fewer than 50 columns. Each line is drawn as thin blocks in its syntax colors, with the
 current line, cursors, selections, search matches and a box over the visible lines on top. Click it to jump, drag it
 to scroll; the wheel scrolls the editor as anywhere else.
+
+## `[terminal]`
+
+The built-in terminal (Ctrl+\`; the `terminal` feature, cargo feature `terminal`). Keys are in
+[KEYBINDINGS.md](KEYBINDINGS.md#terminal).
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `shell` | string | `$SHELL` | The program a new terminal runs (PowerShell on Windows; a login shell on macOS). `:term cmd` runs `cmd` with it (`$SHELL -c cmd`) |
+| `height` | integer 2–500 | `12` | Panel height in rows. Dragging the panel's top edge saves it here |
+| `scrollback` | integer | `10000` | Lines of history kept per terminal |
+| `copy_on_select` | bool | `true` | Copy a mouse selection to the clipboard when the button goes up |
+
+`[terminal.keys]` lists chords that stay with shrew while a terminal has focus, each running a
+[named command](KEYBINDINGS.md#named-commands); every other key goes to the program. The built-in ones are Ctrl+\`
+(`toggle_terminal`), Ctrl+Shift+\` (`new_terminal`), Ctrl+PageUp / Ctrl+PageDown (`prev_terminal` /
+`next_terminal`) and Ctrl+Shift+P (`palette`). An empty command gives a chord back to the terminal:
+
+```toml
+[terminal.keys]
+"<C-S-e>" = "focus_editor"
+"<C-S-f>" = "files"
+"<C-PageUp>" = ""          # let the program have it
+```
+
+Terminals start in the editor's folder (`:cd` changes it) with `TERM=xterm-256color`, `COLORTERM=truecolor`,
+`TERM_PROGRAM=shrew` and `SHREW_INSTANCE` (the window's single-instance socket, so `srw file` there opens the file in
+that window). The 16 ANSI colors come from the theme: set `ansi-red`, `ansi-bright-blue` and so on in a theme's
+`[ui]` table, or let shrew derive them from its syntax colors ([THEMES.md](THEMES.md#ui-tokens)).
 
 ## Full example
 

@@ -26,6 +26,8 @@ pub struct Layout {
     pub scrollbar: Rect,
     pub status: Rect,
     pub cmdline: Rect,
+    /// The bottom panel (the terminal), between the text and the status bar; zero height when closed.
+    pub panel: Rect,
     /// Whole text rows and columns that fit.
     pub rows: usize,
     pub cols: usize,
@@ -59,6 +61,7 @@ impl Layout {
             scrollbar: Rect::new(w - sb_w, tabs_h, sb_w, text_h),
             status: Rect::new(0.0, tabs_h + text_h, w, status_h),
             cmdline: Rect::new(0.0, tabs_h + text_h + status_h, w, cmd_h),
+            panel: Rect::new(0.0, tabs_h + text_h, w, 0.0),
             rows: ((text_h / ch).floor() as usize).max(1),
             cols: (((w - gutter_w - sb_w) / cw).floor() as usize).max(1),
         }
@@ -77,6 +80,16 @@ impl Layout {
     /// Top of a text row inside a bar of height `bar_h` starting at `y` (vertically centered, whole pixels).
     pub fn centered(&self, y: f32, bar_h: f32) -> f32 {
         (y + (bar_h - self.ch) / 2.0).round()
+    }
+
+    /// Takes a bottom panel `h` pixels high out of the text area (all of it at most), under the text and as wide.
+    pub fn with_panel(mut self, h: f32) -> Layout {
+        let h = h.clamp(0.0, self.text.h).round();
+        self.text.h -= h;
+        self.scrollbar.h = (self.scrollbar.h - h).max(0.0);
+        self.panel = Rect::new(self.text.x, self.text.bottom(), self.text.w, h);
+        self.rows = ((self.text.h / self.ch).floor() as usize).max(1);
+        self
     }
 }
 

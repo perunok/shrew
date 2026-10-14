@@ -134,6 +134,9 @@ pub enum Event {
     ThemeImport(String),
     /// `:set ligatures` (`Some(true)`), `:set noligatures`, or a toggle (`None`).
     Ligatures(Option<bool>),
+    /// A terminal command (Ctrl+`, the palette, `:term [cmd]` as `NewTerminal` with its command line): the app owns
+    /// the terminals.
+    Terminal(Command, Option<String>),
 }
 
 #[derive(Clone, Debug)]
@@ -773,6 +776,8 @@ impl Editor {
             ('j', false) if !self.vim() => JoinLines,
             ('b', true) => SwitchBuffer,
             ('u', true) => CheckForUpdates,
+            ('`', false) => ToggleTerminal,
+            ('`', true) => NewTerminal,
             _ => return None,
         })
     }
@@ -946,7 +951,20 @@ impl Editor {
                 self.prompt = None;
                 self.about = Some(0);
             }
+            ToggleTerminal | NewTerminal | CloseTerminal | NextTerminal | PrevTerminal | MaximizeTerminal
+            | FocusTerminal | FocusEditor | TerminalNormalMode => self.terminal(cmd, None),
         }
+    }
+
+    /// Hands a terminal command to the app, unless the terminal feature is off.
+    pub fn terminal(&mut self, cmd: Command, command_line: Option<String>) {
+        if !self.features.available(Feature::Terminal) {
+            return self.error("the terminal is not compiled into this build");
+        }
+        if !self.features.on(Feature::Terminal) {
+            return self.error("the terminal is off (:set terminal)");
+        }
+        self.events.push(Event::Terminal(cmd, command_line));
     }
 
     pub fn toggle_feature(&mut self, f: Feature) {
@@ -1920,6 +1938,7 @@ impl Editor {
             "accent" => self.events.push(Event::Choose(Choice::Accent, arg.to_string())),
             "font" if arg.is_empty() => self.events.push(Event::OpenChoice(Choice::Font)),
             "font" => self.events.push(Event::Choose(Choice::Font, arg.to_string())),
+            "term" | "terminal" => self.terminal(Command::NewTerminal, arg_opt.map(String::from)),
             "syntax" => match arg {
                 "on" | "enable" => self.set_option("syntax"),
                 "off" => self.set_option("nosyntax"),

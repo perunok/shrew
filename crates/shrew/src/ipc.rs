@@ -200,6 +200,14 @@ pub struct Guard {
     contents: String,
 }
 
+impl Guard {
+    /// The endpoint (`SHREW_INSTANCE` in the built-in terminal's shells).
+    #[cfg_attr(not(feature = "terminal"), allow(dead_code))]
+    pub fn addr(&self) -> &Path {
+        &self.addr
+    }
+}
+
 impl Drop for Guard {
     fn drop(&mut self) {
         #[cfg(unix)]

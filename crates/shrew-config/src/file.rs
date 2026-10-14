@@ -187,10 +187,39 @@ pub fn parse(text: &str, source: &str) -> (Config, Vec<Warning>) {
                     }
                 }
             }
+            "terminal" => {
+                let Some(t) = cx.table(item, key) else { continue };
+                terminal(&mut cx, t, &mut config.terminal);
+            }
             _ => cx.warn(item, format!("unknown section or key {key:?}")),
         }
     }
     (config, cx.warnings)
+}
+
+fn terminal(cx: &mut Ctx, t: &dyn TableLike, c: &mut crate::TerminalConfig) {
+    for (k, v) in t.iter() {
+        match k {
+            "shell" => c.shell = family(cx, v, "terminal.shell"),
+            "height" => c.height = cx.int(v, "terminal.height", 2..=500).map(|n| n as usize),
+            "scrollback" => c.scrollback = cx.int(v, "terminal.scrollback", 0..=1_000_000).map(|n| n as usize),
+            "copy_on_select" => c.copy_on_select = cx.bool(v, "terminal.copy_on_select"),
+            "keys" => {
+                let Some(keys) = cx.table(v, "terminal.keys") else { continue };
+                for (lhs, rhs) in keys.iter() {
+                    let Some(name) = cx.str(rhs, lhs) else { continue };
+                    if shrew_core::KeyPress::parse(lhs).is_none() {
+                        cx.warn(rhs, format!("terminal.keys: {lhs:?} is not one key in vim notation (<C-x>)"));
+                    } else if !name.is_empty() && shrew_core::Command::from_name(name).is_none() {
+                        cx.warn(rhs, format!("terminal.keys: unknown command {name:?}"));
+                    } else {
+                        c.keys.push((lhs.to_string(), name.to_string()));
+                    }
+                }
+            }
+            _ => cx.warn(v, format!("unknown key terminal.{k}")),
+        }
+    }
 }
 
 fn editor(cx: &mut Ctx, t: &dyn TableLike) -> EditorConfig {
@@ -367,6 +396,24 @@ pub fn default_config_text() -> String {
 [update]
 # Same as the update_check feature.
 # check = true
+
+# The built-in terminal (Ctrl+` shows it, Ctrl+Shift+` opens another; feature: terminal).
+[terminal]
+# The program to run; the default is $SHELL (PowerShell on Windows).
+# shell = "/bin/bash"
+# Panel height in rows. Dragging the panel's top edge saves it here.
+# height = 12
+# Lines kept for scrolling back, per terminal.
+# scrollback = 10000
+# Copy text to the clipboard as soon as it is selected with the mouse (Ctrl+Shift+C always copies).
+# copy_on_select = true
+
+# While a terminal has focus every key goes to the program in it, except these chords, which run a
+# command (names as in [keys]; "" gives a default chord back to the terminal). Built in: Ctrl+`,
+# Ctrl+Shift+`, Ctrl+PageUp/PageDown (previous/next terminal), Ctrl+Shift+P (palette).
+[terminal.keys]
+# "<C-S-e>" = "focus_editor"
+# "<C-PageUp>" = ""
 "#;
     s
 }

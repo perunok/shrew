@@ -50,6 +50,8 @@ pub struct Colors {
     pub mode_visual: Color,
     pub mode_visual_fg: Color,
     pub scrollbar: Color,
+    /// The terminal's 16 ANSI colors (see [`shrew_theme::Ui::ansi`]).
+    pub ansi: [Color; 16],
 }
 
 impl Colors {
@@ -98,6 +100,7 @@ impl Colors {
             mode_visual: k(u.mode_visual),
             mode_visual_fg: k(u.mode_visual_fg),
             scrollbar: k(u.scrollbar),
+            ansi: u.ansi().map(k),
         }
     }
 }

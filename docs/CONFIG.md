@@ -258,6 +258,35 @@ These environment variables are for testing and mirrors:
 | `SHREW_UPDATE_REPO` | GitHub `owner/name` to take releases from (default `perunok/shrew`) |
 | `SHREW_UPDATE_FEED_URL` | Any URL serving GitHub's "latest release" JSON |
 
+## `[terminal]`
+
+The built-in terminal (Ctrl+\`; the `terminal` feature, cargo feature `terminal`). Keys are in
+[KEYBINDINGS.md](KEYBINDINGS.md#terminal).
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `shell` | string | `$SHELL` | The program a new terminal runs (PowerShell on Windows; a login shell on macOS). `:term cmd` runs `cmd` with it (`$SHELL -c cmd`) |
+| `height` | integer 2–500 | `12` | Panel height in rows. Dragging the panel's top edge saves it here |
+| `scrollback` | integer | `10000` | Lines of history kept per terminal |
+| `copy_on_select` | bool | `true` | Copy a mouse selection to the clipboard when the button goes up |
+
+`[terminal.keys]` lists chords that stay with shrew while a terminal has focus, each running a
+[named command](KEYBINDINGS.md#named-commands); every other key goes to the program. The built-in ones are Ctrl+\`
+(`toggle_terminal`), Ctrl+Shift+\` (`new_terminal`), Ctrl+PageUp / Ctrl+PageDown (`prev_terminal` /
+`next_terminal`) and Ctrl+Shift+P (`palette`). An empty command gives a chord back to the terminal:
+
+```toml
+[terminal.keys]
+"<C-S-e>" = "focus_editor"
+"<C-S-f>" = "files"
+"<C-PageUp>" = ""          # let the program have it
+```
+
+Terminals start in the editor's folder (`:cd` changes it) with `TERM=xterm-256color`, `COLORTERM=truecolor`,
+`TERM_PROGRAM=shrew` and `SHREW_INSTANCE` (the window's single-instance socket, so `srw file` there opens the file in
+that window). The 16 ANSI colors come from the theme: set `ansi-red`, `ansi-bright-blue` and so on in a theme's
+`[ui]` table, or let shrew derive them from its syntax colors ([THEMES.md](THEMES.md#ui-tokens)).
+
 ## Full example
 
 ```toml

@@ -64,6 +64,10 @@ Every shot is the real editor, rendered headless from shrew's own source code. R
 - **AI-ready, opt-in.** A built-in [MCP](https://modelcontextprotocol.io) server lets Claude Code, Claude Desktop
   or Cursor read and edit your open buffers. Every edit is one undo step and nothing is saved without you. Off by
   default.
+- **A terminal inside.** Ctrl+\` opens your shell in a panel under the text, drawn in the theme's colors: tabs,
+  scrollback, vim, htop and less work, a vim-style normal mode to search and copy, and Ctrl+click on
+  `src/main.rs:12:5` in the output opens it. Nothing runs until you open one. See
+  **[docs/KEYBINDINGS.md](docs/KEYBINDINGS.md#terminal)**.
 - **Updates itself.** shrew checks GitHub Releases once a day and shows an update button in the status bar. The
   download is verified against its sha256 before it replaces the binary.
 - **Pure Rust.** It builds with `cargo` alone: no C compiler, no system `-dev` packages. GPU drivers, Wayland and
@@ -107,6 +111,7 @@ the table below for your build and config.
 | `update_check` | Check GitHub for new releases at startup (at most once a day) | on | `update` |
 | `vimrc` | Read options and mappings from `~/.vimrc` or `init.vim` at startup (see `[import]`) | on | |
 | `sublime_import` | Read Sublime Text's user settings and key bindings at startup (see `[import]`) | on | |
+| `terminal` | Built-in terminal panel (Ctrl+\`), started on first use (see `[terminal]`) | on | `terminal` |
 
 Keys also work without the underscore (`:set nolinenumbers`). The usual vim spellings work too: `:set nu`, `rnu`,
 `hls`, `list`, `et`, `ts=2`, `so=8`.
@@ -121,7 +126,7 @@ mcp = true
 ```
 
 **Compile-time.** The `shrew` package's (the `srw` binary's) default cargo features are `syntax`, `picker`,
-`clipboard`, `mcp`, `update` and `embed-font`. A minimal build:
+`clipboard`, `mcp`, `update`, `embed-font` and `terminal`. A minimal build:
 
 ```sh
 cargo build --release -p shrew --no-default-features                     # just the editor

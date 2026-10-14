@@ -25,8 +25,13 @@ pub fn run(cli: Cli) -> Result<(), String> {
     if cli.foreground {
         return gui(cli, req, None);
     }
+    // in shrew's own terminal: the window that terminal is in
+    let inside = std::env::var_os("SHREW_INSTANCE").filter(|a| !a.is_empty()).map(PathBuf::from);
     if !cli.new_window
-        && let Some(client) = ipc::default_address().as_deref().and_then(ipc::connect)
+        && let Some(client) = inside
+            .as_deref()
+            .and_then(ipc::connect)
+            .or_else(|| ipc::default_address().as_deref().and_then(ipc::connect))
     {
         match client.request(&req) {
             Ok(()) => return Ok(()),

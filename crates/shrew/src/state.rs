@@ -77,6 +77,9 @@ pub struct State {
     /// How MCP jobs reach the UI thread (set by the windowed app; none headless).
     #[cfg(feature = "mcp")]
     pub mcp_host: Option<Arc<dyn shrew_mcp::Host>>,
+    /// The terminal panel (empty, no threads, until one is opened).
+    #[cfg(feature = "terminal")]
+    pub terminals: crate::terminal::Terminals,
 }
 
 impl State {
@@ -122,6 +125,8 @@ impl State {
             mcp: None,
             #[cfg(feature = "mcp")]
             mcp_host: None,
+            #[cfg(feature = "terminal")]
+            terminals: crate::terminal::Terminals::new(loaded.config.terminal.clone()),
         };
         st.apply_theme_config(ThemeCfg::from(cfg));
         st.show_warnings(&warnings);
@@ -172,12 +177,20 @@ impl State {
 
     /// A key from the keyboard (or `--keys`).
     pub fn key(&mut self, k: KeyPress) {
+        #[cfg(feature = "terminal")]
+        if self.terminal_key(k) {
+            return;
+        }
         self.ed.handle_key(k);
         self.after_input();
     }
 
     /// Text typed through an input method.
     pub fn text(&mut self, s: &str) {
+        #[cfg(feature = "terminal")]
+        if self.terminal_text(s) {
+            return;
+        }
         if self.ed.mapping_pending() {
             self.ed.flush_pending_mappings();
         }
@@ -243,6 +256,10 @@ impl State {
             }
             Event::BufferOpened(id) => self.buffer_opened(id),
             Event::Load(path) => self.open_at(&path, None, None),
+            #[cfg(feature = "terminal")]
+            Event::Terminal(cmd, line) => self.terminal_command(cmd, line),
+            #[cfg(not(feature = "terminal"))]
+            Event::Terminal(..) => self.ed.error("the terminal is not compiled into this build"),
         }
     }
 
@@ -253,6 +270,8 @@ impl State {
             Feature::Syntax => self.set_syntax(on),
             Feature::Mcp => self.set_mcp(on),
             Feature::UpdateCheck if on => self.auto_update_check(),
+            #[cfg(feature = "terminal")]
+            Feature::Terminal if !on => self.terminals.close_all(),
             _ => {}
         }
     }
@@ -369,6 +388,10 @@ impl State {
             changed |= hl.poll().is_some();
         }
         changed |= self.poll_loads();
+        #[cfg(feature = "terminal")]
+        {
+            changed |= self.poll_terminals();
+        }
         changed
     }
 
@@ -553,6 +576,8 @@ impl State {
                 self.feature_changed(info.feature);
             }
         }
+        #[cfg(feature = "terminal")]
+        self.terminals.set_config(loaded.config.terminal.clone());
         self.ed.info("config reloaded");
         self.show_warnings(&warnings);
     }
@@ -661,6 +686,9 @@ fn mark_unavailable(ed: &mut Editor) {
     }
     if !cfg!(feature = "update") {
         f.set_unavailable(Feature::UpdateCheck);
+    }
+    if !cfg!(feature = "terminal") {
+        f.set_unavailable(Feature::Terminal);
     }
 }
 

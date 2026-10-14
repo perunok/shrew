@@ -116,7 +116,20 @@ pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: 
     ui.cursor_rect = None;
 
     tabs(scene, st, ui, lay, &c);
+    // with a terminal focused the editor draws as unfocused (hollow cursor, inactive selection)
+    #[cfg(feature = "terminal")]
+    #[cfg(feature = "terminal")]
+    let window_focused = ui.focused;
+    #[cfg(feature = "terminal")]
+    {
+        ui.focused = window_focused && !st.terminals.has_focus();
+    }
     editor(scene, st, ui, lay, &c, scroll);
+    #[cfg(feature = "terminal")]
+    {
+        ui.focused = window_focused;
+        crate::terminal::draw(scene, &mut st.terminals, ui, lay, &c);
+    }
     status(scene, st, ui, lay, &c);
     cmdline(scene, &st.ed, st, lay, &c);
     if st.ed.picker.is_some() {

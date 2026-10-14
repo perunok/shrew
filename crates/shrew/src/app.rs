@@ -163,6 +163,11 @@ pub fn run(
         }))
     });
     log::debug!("state ready at {:?}", started.elapsed());
+    // `srw file` in a terminal opens it here
+    #[cfg(feature = "terminal")]
+    {
+        st.terminals.instance = ipc_guard.as_ref().map(|g| g.addr().to_path_buf());
+    }
     let now = Instant::now();
     let mut app = App {
         st,
@@ -353,6 +358,8 @@ impl ApplicationHandler<UserEvent> for App {
                 if !f {
                     self.mods = ModifiersState::empty();
                 }
+                #[cfg(feature = "terminal")]
+                self.st.terminal_window_focus(f);
                 self.blink_epoch = Instant::now();
                 self.redraw();
             }
@@ -476,14 +483,17 @@ impl App {
     fn layout(&self) -> Option<Layout> {
         let r = self.renderer.as_ref()?;
         let ed = &self.st.ed;
-        Some(Layout::new(
+        let lay = Layout::new(
             &r.metrics(),
             r.size(),
             r.scale(),
             ed.buf().doc.rope.len_lines(),
             ed.features.on(Feature::LineNumbers),
             ed.buffers.len() > 1,
-        ))
+        );
+        #[cfg(feature = "terminal")]
+        let lay = crate::terminal::carve(lay, &self.st.terminals);
+        Some(lay)
     }
 
     fn frame(&mut self) {
@@ -581,6 +591,8 @@ impl App {
     fn update_ime(&mut self) {
         let ed = &self.st.ed;
         let allowed = ed.mode == Mode::Insert || !ed.vim() || ed.prompt.is_some() || ed.picker.is_some();
+        #[cfg(feature = "terminal")]
+        let allowed = allowed || self.st.terminals.has_focus();
         if allowed != self.ime_allowed
             && let Some(w) = &self.window
         {
@@ -644,6 +656,10 @@ impl App {
         if self.st.ed.mapping_pending() {
             self.st.ed.flush_pending_mappings();
         }
+        #[cfg(feature = "terminal")]
+        if self.terminal_button(state, button, x, y, now) {
+            return;
+        }
         match (state, button) {
             (ElementState::Pressed, MouseButton::Left) => self.left_press(x, y, now),
             (ElementState::Released, MouseButton::Left) => {
@@ -657,6 +673,29 @@ impl App {
             }
             _ => {}
         }
+    }
+
+    /// The terminal panel takes presses over it; a click elsewhere gives the editor the focus back and goes on to
+    /// it. True when the panel took the event.
+    #[cfg(feature = "terminal")]
+    fn terminal_button(&mut self, state: ElementState, button: MouseButton, x: f32, y: f32, now: Instant) -> bool {
+        let button = match button {
+            MouseButton::Left => shrew_core::MouseButton::Left,
+            MouseButton::Middle => shrew_core::MouseButton::Middle,
+            MouseButton::Right => shrew_core::MouseButton::Right,
+            _ => return false,
+        };
+        let mods = self.mods();
+        if state == ElementState::Released {
+            self.st.terminal_release(button, mods);
+            return false;
+        }
+        let modal = self.st.ed.picker.is_some() || self.st.ed.about.is_some();
+        if modal || !self.st.terminal_press(x, y, button, mods) {
+            return false;
+        }
+        self.input(now);
+        true
     }
 
     fn left_press(&mut self, x: f32, y: f32, now: Instant) {
@@ -763,6 +802,17 @@ impl App {
         } else {
             CursorIcon::Default
         };
+        #[cfg(feature = "terminal")]
+        let icon = match self.drag {
+            Drag::None if self.st.ed.picker.is_none() && self.st.ed.about.is_none() => {
+                let (over, redraw) = self.st.terminal_motion(x, y, self.mods());
+                if redraw {
+                    self.redraw();
+                }
+                over.unwrap_or(icon)
+            }
+            _ => icon,
+        };
         if icon != self.icon
             && let Some(w) = &self.window
         {
@@ -827,6 +877,17 @@ impl App {
                 self.redraw();
             }
             return;
+        }
+        #[cfg(feature = "terminal")]
+        {
+            let lines = match delta {
+                MouseScrollDelta::LineDelta(_, y) => y * WHEEL_LINES,
+                MouseScrollDelta::PixelDelta(d) => d.y as f32 / lay.ch,
+            };
+            let (x, y) = self.pointer;
+            if self.st.terminal_wheel(lines, x, y, self.mods()) {
+                return self.redraw();
+            }
         }
         // Ctrl+wheel zooms, like Ctrl+= / Ctrl+-
         if self.mods().ctrl {

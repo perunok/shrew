@@ -30,19 +30,27 @@ pub fn run(cli: &Cli, out: &std::path::Path) -> Result<(), String> {
     let mut scene = Scene::new();
     let layout = |r: &Renderer, st: &State| {
         let ed = &st.ed;
-        Layout::new(
+        let lay = Layout::new(
             &r.metrics(),
             r.size(),
             r.scale(),
             ed.buf().doc.rope.len_lines(),
             ed.features.on(Feature::LineNumbers),
             ed.buffers.len() > 1,
-        )
+        );
+        #[cfg(feature = "terminal")]
+        let lay = crate::terminal::carve(lay, &st.terminals);
+        lay
     };
     // a first layout pass sizes the views, so keys like Ctrl+D scroll by the real page
     let lay = layout(&r, &st);
     draw::build(&mut scene, &mut st, &mut ui, &lay, Instant::now());
     for k in KeyPress::parse_seq(&cli.keys) {
+        // keys for a terminal wait until its program is ready for them, as a person would
+        #[cfg(feature = "terminal")]
+        if st.terminals.has_focus() {
+            settle(&mut st, &mut r, &mut scene, &mut ui, &layout);
+        }
         st.key(k);
         if st.font_changed {
             st.font_changed = false;
@@ -82,6 +90,8 @@ fn settle(
         let lay = layout(r, st);
         draw::build(scene, st, ui, &lay, Instant::now());
         let picker_busy = st.ed.picker.as_ref().is_some_and(|p| p.loading);
+        #[cfg(feature = "terminal")]
+        let picker_busy = picker_busy || st.terminals_busy();
         if !picker_busy && !syntax_busy(st) {
             break;
         }

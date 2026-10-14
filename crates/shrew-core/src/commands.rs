@@ -63,6 +63,16 @@ pub enum Command {
     OpenConfig,
     McpSetup,
     About,
+    // terminal panel (the app's `terminal` module)
+    ToggleTerminal,
+    NewTerminal,
+    CloseTerminal,
+    NextTerminal,
+    PrevTerminal,
+    MaximizeTerminal,
+    FocusTerminal,
+    FocusEditor,
+    TerminalNormalMode,
 }
 
 use Command::*;
@@ -130,6 +140,15 @@ pub static COMMANDS: &[(Command, &str, &str)] = &[
     (OpenConfig, "config", "Shrew: Open Config File"),
     (McpSetup, "mcp", "Shrew: AI Assistants (MCP) Setup"),
     (About, "about", "About shrew"),
+    (ToggleTerminal, "toggle_terminal", "Terminal: Toggle Panel"),
+    (NewTerminal, "new_terminal", "Terminal: New Terminal"),
+    (CloseTerminal, "close_terminal", "Terminal: Close Terminal"),
+    (NextTerminal, "next_terminal", "Terminal: Next Terminal"),
+    (PrevTerminal, "prev_terminal", "Terminal: Previous Terminal"),
+    (MaximizeTerminal, "maximize_terminal", "Terminal: Toggle Maximized Panel"),
+    (FocusTerminal, "focus_terminal", "Terminal: Focus Terminal"),
+    (FocusEditor, "focus_editor", "Terminal: Focus Editor"),
+    (TerminalNormalMode, "terminal_normal_mode", "Terminal: Normal Mode (scroll, select, search)"),
 ];
 
 impl Command {

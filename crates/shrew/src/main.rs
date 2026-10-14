@@ -8,6 +8,7 @@
 //! - [`app`]: the winit event loop, input and the renderer.
 //! - [`draw`] / [`layout`] / [`anim`]: building a frame from the state, and the geometry hit testing shares.
 //! - [`about`]: the About panel's text (version, the Shrew Manifesto, credits).
+//! - `terminal`: the built-in terminal panel (cargo feature `terminal`).
 //! - [`headless`]: `--screenshot`, a frame rendered without a window.
 
 mod about;
@@ -25,6 +26,8 @@ mod launch;
 mod layout;
 mod remote;
 mod state;
+#[cfg(feature = "terminal")]
+mod terminal;
 
 use cli::{Action, Cli};
 

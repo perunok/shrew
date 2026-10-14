@@ -63,7 +63,7 @@ pub enum Command {
     OpenConfig,
     McpSetup,
     About,
-    // ----- phase 3: titlebar -----
+    // ----- title bar -----
     ShowMenu,
     ToggleSystemTitleBar,
     CustomizeTitleBar,
@@ -82,8 +82,9 @@ pub enum Command {
     JumpBack,
     JumpForward,
     GotoFileUnderCursor,
+    // ----- minimap -----
     ToggleMinimap,
-    // terminal panel (the app's `terminal` module)
+    // ----- terminal panel (the app's `terminal` module) -----
     ToggleTerminal,
     NewTerminal,
     CloseTerminal,
@@ -93,6 +94,7 @@ pub enum Command {
     FocusTerminal,
     FocusEditor,
     TerminalNormalMode,
+    // ----- settings panel -----
     Settings,
 }
 
@@ -161,7 +163,7 @@ pub static COMMANDS: &[(Command, &str, &str)] = &[
     (OpenConfig, "config", "Shrew: Open Config File"),
     (McpSetup, "mcp", "Shrew: AI Assistants (MCP) Setup"),
     (About, "about", "About shrew"),
-    // ----- phase 3: titlebar -----
+    // ----- title bar -----
     (ShowMenu, "menu", "View: Open Menu"),
     (ToggleSystemTitleBar, "system_titlebar", "View: Toggle System Title Bar"),
     (CustomizeTitleBar, "customize_titlebar", "View: Customize Title Bar…"),

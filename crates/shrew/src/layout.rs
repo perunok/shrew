@@ -139,7 +139,7 @@ impl Layout {
         self
     }
 
-    // ----- phase 3: titlebar -----
+    // ----- title bar -----
 
     /// The custom title bar: the top row (`tabs`) becomes `h` high and holds the tabs; the editor moves down.
     pub fn with_top_bar(mut self, h: f32) -> Layout {

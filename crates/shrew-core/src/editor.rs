@@ -1065,7 +1065,7 @@ impl Editor {
                 self.prompt = None;
                 self.about = Some(0);
             }
-            // ----- phase 3: titlebar -----
+            // ----- title bar -----
             ToggleSystemTitleBar => self.toggle_feature(Feature::CustomTitlebar),
             ShowMenu | CustomizeTitleBar | MinimizeWindow | ToggleMaximize => self.events.push(Event::App(cmd)),
             // ----- project navigation -----

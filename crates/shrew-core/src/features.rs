@@ -25,13 +25,14 @@ pub enum Feature {
     UpdateCheck,
     Vimrc,
     SublimeImport,
-    // ----- phase 3: titlebar -----
+    // ----- title bar -----
     CustomTitlebar,
     // ----- project navigation -----
     Sidebar,
     ProjectSearch,
     Symbols,
     Recent,
+    // ----- minimap, terminal, settings -----
     Minimap,
     Terminal,
     Settings,
@@ -81,7 +82,7 @@ pub static FEATURES: &[FeatureInfo] = &[
         true,
         "Read Sublime Text's user settings and key bindings at startup (see [import])",
     ),
-    // ----- phase 3: titlebar -----
+    // ----- title bar -----
     f(
         Feature::CustomTitlebar,
         "custom_titlebar",
@@ -98,6 +99,7 @@ pub static FEATURES: &[FeatureInfo] = &[
         "Go to symbol in the file (Ctrl+R, @ in Ctrl+P) and the project (Ctrl+Shift+R)",
     ),
     f(Feature::Recent, "recent", true, "Remember recent files and projects (Open Recent, Ctrl+Alt+P) in the cache dir"),
+    // ----- minimap, terminal, settings -----
     f(Feature::Minimap, "minimap", true, "Sublime-style minimap at the right edge of the editor (see [minimap])"),
     f(Feature::Terminal, "terminal", true, "Built-in terminal panel (Ctrl+`), started on first use"),
     f(Feature::Settings, "settings", true, "Settings panel (Ctrl+,, :settings) and the gear in the status bar"),

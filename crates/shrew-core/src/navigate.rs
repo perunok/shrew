@@ -619,6 +619,7 @@ mod tests {
         }
         let p = ed.picker.as_ref().unwrap();
         assert_eq!(p.items.len(), 4, "two headers, two matches");
+        assert_eq!((p.items[0].label.as_str(), p.items[2].label.as_str()), ("a.rs", "b.rs"), "files in path order");
         assert!(!matches!(p.current().unwrap().data, PickerData::Header(_)));
         // Enter goes to the match
         let target = match &p.current().unwrap().data {

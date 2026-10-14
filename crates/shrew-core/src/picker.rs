@@ -164,6 +164,23 @@ impl Picker {
         self.query.starts_with(':').then(|| format!("Enter: go to line {line}"))
     }
 
+    fn selectable_item(&self, i: u32) -> bool {
+        !matches!(self.items[i as usize].data, PickerData::Header(_))
+    }
+
+    /// Puts find in project's file groups (a header and its rows) in path order.
+    fn sort_groups(&mut self) {
+        let mut groups: Vec<Vec<PickerItem>> = Vec::new();
+        for item in self.items.drain(..) {
+            match (&item.data, groups.last_mut()) {
+                (PickerData::Header(_), _) | (_, None) => groups.push(vec![item]),
+                (_, Some(g)) => g.push(item),
+            }
+        }
+        groups.sort_by(|a, b| a[0].label.cmp(&b[0].label));
+        self.items = groups.into_iter().flatten().collect();
+    }
+
     fn selectable(&self, at: usize) -> bool {
         self.matches.get(at).is_some_and(|&i| !matches!(self.items[i as usize].data, PickerData::Header(_)))
     }
@@ -237,7 +254,13 @@ impl Picker {
             }
         }
         if changed && self.kind == PickerKind::Grep {
-            // results stay in arrival order; the selection stays where it is
+            // results come in arrival order; once all are in, and nothing was picked yet, files go in path order
+            let untouched =
+                self.matches.iter().position(|&i| self.selectable_item(i)).is_none_or(|f| f == self.selected);
+            if !self.loading && untouched {
+                self.sort_groups();
+                self.selected = 0;
+            }
             self.matches = (0..self.items.len() as u32).collect();
             if !self.selectable(self.selected) {
                 self.move_by(1);

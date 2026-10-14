@@ -1058,7 +1058,11 @@ mod tests {
         assert!((m.cell_height as u32..40).all(|y| (0..200).all(|x| px(&img, 200, x, y) == Color::BLACK)));
         let st = r.stats();
         assert_eq!(st.glyphs, 8);
-        assert_eq!(st.glyph_misses, 0, "ASCII was prerendered");
+        // ASCII is prerendered only until the GPU is ready (a fast GPU can win the race), so the first frame may
+        // draw a few glyphs itself; the same frame again must not
+        assert!(st.glyph_misses <= 8);
+        r.render(&s, || {}).unwrap();
+        assert_eq!(r.stats().glyph_misses, 0, "glyphs are cached after the first frame");
 
         // Same text, other colors: shaping and placements are reused.
         s.clear();

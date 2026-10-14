@@ -264,8 +264,10 @@ mod tests {
             files.sort();
             (files, stats.matches.load(Ordering::Relaxed))
         };
-        assert_eq!(run("needle", ""), (vec!["b.txt".to_string(), "src/a.rs".to_string()], 2), "binary skipped");
-        assert_eq!(run("needle", "*.rs"), (vec!["src/a.rs".to_string()], 1));
+        // headers show paths with the platform's separator (`src\a.rs` on Windows)
+        let a = std::path::Path::new("src").join("a.rs").display().to_string();
+        assert_eq!(run("needle", ""), (vec!["b.txt".to_string(), a.clone()], 2), "binary skipped");
+        assert_eq!(run("needle", "*.rs"), (vec![a], 1));
         assert_eq!(run("Needle", ""), (vec!["b.txt".to_string()], 1));
         std::fs::remove_dir_all(&d).ok();
     }

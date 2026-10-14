@@ -296,6 +296,13 @@ impl Terminals {
         self.focused && self.visible && !self.tabs.is_empty()
     }
 
+    /// Where the active terminal's cursor was drawn (the input method puts its candidates there).
+    pub fn cursor_rect(&self) -> Option<Rect> {
+        let (g, tab) = (self.geom?, self.tabs.get(self.active)?);
+        let c = tab.view.cursor?;
+        Some(g.cell_rect(c.col, c.row, if c.wide { 2 } else { 1 }))
+    }
+
     fn tab(&mut self) -> Option<&mut Tab> {
         self.tabs.get_mut(self.active)
     }

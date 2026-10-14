@@ -129,6 +129,9 @@ pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: 
     {
         ui.focused = window_focused;
         animating |= crate::terminal::draw(scene, &mut st.terminals, ui, lay, &c);
+        if st.terminals.has_focus() {
+            ui.cursor_rect = st.terminals.cursor_rect();
+        }
     }
     status(scene, st, ui, lay, &c);
     cmdline(scene, &st.ed, st, lay, &c);

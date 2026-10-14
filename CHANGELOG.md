@@ -47,6 +47,11 @@ Nothing has been released yet: the first release, 0.1.0, will be everything belo
   regenerates every screenshot in the docs with it.
 - `scripts/check-pure-rust.sh` fails the build when a dependency compiles or links C.
 - README in a new shape: screenshots gallery, features, performance numbers, the Shrew Manifesto.
+- A built-in terminal (feature `terminal`, Ctrl+\`): your shell in a resizable bottom panel with tabs, drawn in the
+  theme's 16 ANSI colors (new `ansi-*` theme tokens, derived when a theme does not set them), 256 and true color,
+  10,000 lines of scrollback, full-screen programs, mouse reporting, bracketed paste, a vim-style normal mode to
+  search and copy, Ctrl+click on `file:line:col` to open it, and `:term {command}`. `srw file` inside opens in that
+  window. Emulation by alacritty_terminal (pure Rust); nothing runs until the first terminal opens.
 
 ### Changed
 

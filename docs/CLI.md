@@ -80,6 +80,8 @@ The editor answers `"ok"` as soon as the request is on its way to the UI thread 
 - When no shrew is running, `srw` starts one (this same binary with an internal `--instance` flag) and sends it the
   same request over the new process's stdin/stdout pipes, so stdin text and `--wait` work for a fresh editor too.
 - `srw -n` starts an editor that does not take over the endpoint while another one has it.
+- In shrew's built-in terminal, `SHREW_INSTANCE` holds the endpoint of the shrew that terminal belongs to; `srw`
+  tries it first, so `srw file` there opens in that window.
 - The listener is one thread blocked in `accept`; an idle shrew still uses no CPU.
 
 ## Bringing the window to the front

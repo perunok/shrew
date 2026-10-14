@@ -35,6 +35,7 @@ Every shot is the real editor, rendered headless from shrew's own source code. R
 | ![Symbols](docs/screenshots/symbols.png)<br>**Go to symbol** (`@` in Ctrl+P, Ctrl+R) from the grammar's scopes | ![Terminal](docs/screenshots/terminal.png)<br>**The built-in terminal** (Ctrl+\`): colors from the theme, Ctrl+click opens `file:line` |
 | ![Vim in the terminal](docs/screenshots/terminal-vim.png)<br>**Full-screen programs** work: vim inside shrew's terminal, One Light | ![Settings](docs/screenshots/settings.png)<br>**Settings** (Ctrl+,): every setting by section, saved to `config.toml` |
 | ![Settings in a light theme](docs/screenshots/settings-light.png)<br>**Keys or mouse**: switches, sliders, `/` to search, `r` to reset | ![Everything at once](docs/screenshots/workspace.png)<br>**Everything at once**: title bar, sidebar, minimap and terminal |
+| ![Title bar menu](docs/screenshots/menu.png)<br>**The title bar** holds the tabs, the menus (F10, Alt+V) and the window buttons | ![Minimap](docs/screenshots/minimap.png)<br>**The minimap**: the file in its syntax colors, click or drag to scroll, Tokyo Night |
 
 ## Features
 
@@ -60,6 +61,9 @@ Every shot is the real editor, rendered headless from shrew's own source code. R
 - **A title bar of its own.** The tabs, the menus (F10, Alt+F) and the window buttons share the top row, arranged
   as you like (`[titlebar]`). Drag it to move the window, double-click to maximize, or switch back to the system
   title bar with one toggle.
+- **Minimap.** A Sublime-style overview at the right of the text: every line as thin blocks in its syntax colors,
+  the visible lines boxed, cursors, selections and search matches marked. Click to jump, drag to scroll. It is
+  built from the lines on show and cached, so an unchanged frame costs nothing.
 - **Project navigation.** shrew finds the project a file belongs to (`.git`, a Cargo workspace, `package.json`, …,
   never your home folder). A file tree sidebar (Ctrl+B), find in project (Ctrl+Shift+F, pure-Rust parallel grep),
   go to symbol in the file (Ctrl+R / `@` in Ctrl+P) and in the project (Ctrl+Shift+R) from the grammars' scopes,
@@ -224,6 +228,11 @@ Ctrl+Z, Ctrl+C/X/V, Ctrl+F, Ctrl+D.
 | Save / quit | Ctrl+S / Ctrl+Q (or `:w`, `:q`, `:wq`) |
 | Add a cursor at the next match | Ctrl+D (insert) / Ctrl+N (normal) |
 | See and toggle features | `:features` |
+| Show the file tree, find in project | Ctrl+B (Ctrl+Shift+E to give it the keys), Ctrl+Shift+F |
+| Go to symbol, in the project | Ctrl+R (`@` in Ctrl+P), Ctrl+Shift+R |
+| Open a terminal | Ctrl+\` |
+| Settings | Ctrl+, (or the gear) |
+| The menus | F10, Alt+F |
 | Edit your config | palette: *Shrew: Open Config File* (`:config`) |
 | Version, manifesto, credits | palette: *About shrew* (`:about`) |
 
@@ -250,6 +259,14 @@ These are the most useful ones. The full reference, written from the code, is in
 | Ctrl+G | Go to line |
 | Ctrl+Enter, Ctrl+Shift+Enter | Insert line below, above |
 | Ctrl+= / Ctrl+- / Ctrl+0 | Font bigger / smaller / reset |
+| Ctrl+B, Ctrl+Shift+E | Show / hide the sidebar (Ctrl+B is page up in vim normal mode), focus it |
+| Ctrl+Shift+F | Find in project |
+| Ctrl+R (vim off) or Ctrl+Shift+O, Ctrl+Shift+R | Go to symbol in the file, in the project |
+| Ctrl+Alt+P, Ctrl+Shift+T | Open a recent project, reopen the last closed file |
+| Alt+Left / Alt+Right | Back / forward along the jump list |
+| Ctrl+\`, Ctrl+Shift+\` | Show / hide the terminal, new terminal |
+| Ctrl+, | Settings |
+| F10, Alt+F / E / V / G / H | Open the menus |
 
 **Insert mode, or anywhere with vim off:** Ctrl+C/X/V copy, cut and paste (the whole line when nothing is
 selected). Ctrl+A selects all, Ctrl+F finds, F3 / Shift+F3 go to the next / previous match, Ctrl+D adds the next
@@ -269,7 +286,9 @@ Ctrl+N adds a cursor at the next occurrence of the word, as in vim-visual-multi.
 
 **Mouse:** click to place the cursor, double-click to select a word, triple-click to select a line, and drag to
 select (a drag in vim enters visual mode). Shift+click extends the selection, Ctrl+click or Alt+click adds a cursor,
-and the wheel scrolls.
+and the wheel scrolls. Click or drag the minimap to scroll, click the sidebar to open files, drag its edge or the
+terminal's top edge to resize them, and Ctrl+click a `file:line` or URL in the terminal to open it. The title bar
+moves the window (double-click maximizes), and links in the About panel open in the browser.
 
 ## Configuration
 
@@ -322,6 +341,13 @@ port = 7356
 
 [update]
 check = true
+
+[sidebar]
+width = 250               # drag its edge and this follows
+
+[terminal]
+shell = "/bin/zsh"        # default: $SHELL
+height = 12
 ```
 
 **Bring your vim and Sublime setup.** At startup shrew reads the first vimrc it finds (`~/.vimrc`, `~/.vim/vimrc`,
@@ -395,17 +421,19 @@ closed (only while MCP is on). To cut off access at any time, run `:set nomcp`.
 
 ## Performance
 
-Latency comes first. These are measured on a Linux desktop with a release build (`srw --stats`, the headless
-`--screenshot --stats` frame benchmark, and the tests below):
+Latency comes first. These are measured on a Linux laptop (Intel Iris Xe, Wayland) with a release build of every
+default feature (`srw -f --stats`, the headless `--screenshot --stats` frame benchmark at 1920x1080, and the tests
+below):
 
 | What | Measured |
 | --- | --- |
-| Start to first frame | about 55-70 ms, most of it Vulkan initialisation |
-| CPU while idle | 0: no render loop, no timers, nothing polls |
-| Redrawing an unchanged frame at 1080p | about 0.1 ms |
-| A frame where every visible line is shaped anew (scrolling a page at 1080p) | about 0.9 ms |
+| Start to first frame | about 50-65 ms (median 60 ms over 15 starts), most of it Vulkan initialisation, which runs while the window is created |
+| CPU while idle | 0: no render loop, no timers, nothing polls (0 CPU ticks over 10 s with a file open) |
+| Redrawing an unchanged frame at 1080p | about 0.2 ms of CPU (0.1 ms with the minimap off) |
+| A frame where every visible line is shaped anew (scrolling a page at 1080p) | about 1.1 ms |
 | A 50 MB, 1,000,000-line buffer | every interactive operation far below one 16 ms frame (`crates/shrew-core/tests/perf.rs`) |
 | Vim compatibility | 839 differential cases agree with Vim 9.1 (`crates/shrew-core/tests/vim_diff.rs`) |
+| Binary size | 17.1 MiB on Linux x86_64 with every feature; about 12 MiB without the optional ones (see below) |
 
 How:
 
@@ -418,8 +446,14 @@ How:
 - **Background syntax.** Grammars load lazily on a worker thread. Highlighting is incremental, and lines that are
   not highlighted yet are drawn plain instead of blocking the frame.
 - **Cheap edits.** A rope makes edits O(log n) even in very large files. Undo stores change sets, not snapshots.
-- **Fast start.** The font is embedded, so the first frame never waits for a font scan. Optional features are not
-  initialised when off. The release profile uses thin LTO, one codegen unit, `panic = "abort"` and stripped symbols.
+- **Fast start.** The GPU is opened on a background thread while the config is read and the window is created,
+  glyphs are rasterised for exactly as long as that takes, and the font is embedded, so the first frame never waits
+  for a font scan. Optional features are not initialised when off. The release profile uses fat LTO, one codegen
+  unit, `panic = "abort"` and stripped symbols.
+- **Size.** Most of the binary is the GPU stack (wgpu and its shader translator), windowing and text shaping, which
+  every build needs; the optional features add the rest (self-update's pure-Rust TLS about 1.5 MB, the embedded
+  font 0.8 MB, highlighting 0.75 MB, MCP 0.7 MB, the clipboard 0.5 MB, the terminal 0.4 MB). Leave out what you do
+  not use with cargo features (see [Switchable features](#switchable-features)).
 
 ## Development
 
@@ -435,7 +469,7 @@ cargo build --release -p shrew
 | `cargo run --release -p shrew -- [files]` | Run the editor (the binary is `srw`) |
 | `cargo test --workspace` | Unit and integration tests; `vim_diff` runs against `vim` (or `nvim`) when one is on `PATH` |
 | `cargo test --release -p shrew-core --test perf -- --ignored --nocapture` | Latency checks on a 50 MB buffer |
-| `cargo clippy --workspace --all-targets` | Lints |
+| `cargo clippy --workspace --all-targets -- -D warnings` | Lints (CI fails on any warning) |
 | `cargo fmt --all` | Format (`rustfmt.toml`: 120 columns) |
 | `scripts/check-pure-rust.sh` | Fails if any dependency compiles or links C |
 | `scripts/screenshots.sh [name]` | Regenerate the README and THEMES.md screenshots in `docs/` |

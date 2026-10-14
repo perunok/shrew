@@ -58,14 +58,20 @@ shot $out/settings-light.png ":theme one-light<CR>:settings editor<CR>ljjj" "$co
 # everything at once: title bar, sidebar, minimap and a terminal under the text
 shot $out/workspace.png ":set sidebar<CR>${term}ls crates<CR><C-w>k/fn compute<CR>zt" \
   crates/shrew/src/layout.rs crates/shrew/src/app.rs
+# the title bar's View menu (Alt+V) over the sidebar
+shot $out/menu.png "<C-S-e><Esc><A-v>" crates/shrew/src/layout.rs crates/shrew/src/app.rs
+# the minimap: each line in its syntax colors, the visible lines boxed, the search's matches marked
+shot $out/minimap.png ":theme tokyo-night<CR>/self.mode<CR>" "$core/editor.rs:700"
 
 # a 50 MB, one-million-line file, at line 500,000 with a search
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 case huge-file.png in *"$only"*)
-  awk 'BEGIN { for (i = 0; i < 1000000; i++) printf "    let value_%07d = compute(value, %d);  // ok\n", i, i % 97 }' >"$tmp/huge.rs"
+  # in a folder with a stable name: the title bar shows it as the project
+  mkdir -p "$tmp/big"
+  awk 'BEGIN { for (i = 0; i < 1000000; i++) printf "    let value_%07d = compute(value, %d);  // ok\n", i, i % 97 }' >"$tmp/big/huge.rs"
   echo "  $out/huge-file.png"
-  (cd "$tmp" && "$bin" --screenshot "$root/$out/huge-file.png" --size "$size" --keys "/value_0500010<CR>" huge.rs:500000)
+  (cd "$tmp/big" && "$bin" --screenshot "$root/$out/huge-file.png" --size "$size" --keys "/value_0500010<CR>" huge.rs:500000)
   ;;
 esac
 

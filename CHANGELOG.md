@@ -70,6 +70,8 @@ Nothing has been released yet: the first release, 0.1.0, will be everything belo
   10,000 lines of scrollback, full-screen programs, mouse reporting, bracketed paste, a vim-style normal mode to
   search and copy, Ctrl+click on `file:line:col` to open it, and `:term {command}`. `srw file` inside opens in that
   window. Emulation by alacritty_terminal (pure Rust); nothing runs until the first terminal opens.
+- The About panel's links (and the repository address at its foot) open in the browser on a click, with a pointer
+  cursor over them.
 
 ### Changed
 
@@ -81,5 +83,13 @@ Nothing has been released yet: the first release, 0.1.0, will be everything belo
   sidebar command is now `toggle_sidebar`, like `toggle_minimap` and `toggle_terminal`.
 - Picker rows: every detail (description, path, command name) starts at one column after the labels; long labels
   and details are cut with an ellipsis.
+- Faster start: the GPU is opened on a background thread while the config is read and the window is created, and
+  glyphs are pre-rasterised only for as long as that takes. The first frame comes about 60 ms after start instead of
+  80 (creating the custom title bar's undecorated window takes some 18 ms on Wayland, which had made it slower).
+- Release builds use fat LTO: the binary is 1.1 MB smaller (17.1 MiB instead of 18.2 on Linux x86_64) and no
+  slower, for a longer build. wgpu is built with only the backends each OS uses (Vulkan and GL on Linux, Metal on
+  macOS, DX12, Vulkan and GL on Windows) and WGSL shaders.
+- The workspace is clippy-clean, and CI now fails on any clippy warning, with every cargo feature and with none.
+  Builds without default features pass their tests too.
 
 [Unreleased]: https://github.com/perunok/shrew/commits/master

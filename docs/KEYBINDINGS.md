@@ -400,6 +400,7 @@ matches.
 | Up / Down, Ctrl+P / Ctrl+N, PageUp / PageDown | Move through the matches (file headers are skipped) |
 | Enter | Go to the match (Ctrl+O comes back) |
 | Esc | Close |
+
 ## Settings panel
 
 Ctrl+, (Cmd+, on macOS), palette *Preferences: Settings*, `:settings [section]` or the gear at the right end of the
@@ -424,7 +425,7 @@ wheel. The `settings` feature switches the panel and the gear off (`:set nosetti
 ## About panel
 
 *About shrew* in the palette, or `:about`, shows the version, the Shrew Manifesto, the license, credits and links. It is
-read-only.
+read-only; a click on a link (or on the repository address at the bottom) opens it in the browser.
 
 | Keys | Action |
 | --- | --- |
@@ -618,6 +619,7 @@ command palette by its title.
 | Wheel | Scroll without moving the cursor |
 | Click on the minimap | Scroll so the line under the pointer is centred |
 | Drag on the minimap | Scroll continuously; the viewport box follows the pointer |
+| Click a link in the About panel | Open it in the browser |
 
 ## Title bar
 

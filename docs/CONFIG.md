@@ -378,6 +378,7 @@ relative_numbers = true
 whitespace = false
 cursor_animation = false
 mcp = false
+sidebar = true
 
 [keys.normal]
 "<leader>w" = ":w"
@@ -403,6 +404,20 @@ port = 7356
 [update]
 check = true
 
+[titlebar]
+right = ["files", "terminal", "settings", "minimize", "maximize", "close"]
+hidden = ["about"]
+
+[sidebar]
+width = 280
+
 [minimap]
 width = 100
+
+[terminal]
+height = 14
+copy_on_select = true
+
+[terminal.keys]
+"<C-S-e>" = "focus_editor"
 ```

@@ -63,6 +63,19 @@ pub enum Command {
     OpenConfig,
     McpSetup,
     About,
+    // ----- project navigation -----
+    ToggleSidebar,
+    FocusSidebar,
+    RefreshSidebar,
+    FindInProject,
+    GotoSymbol,
+    GotoSymbolInProject,
+    OpenRecent,
+    OpenRecentProject,
+    ReopenClosed,
+    JumpBack,
+    JumpForward,
+    GotoFileUnderCursor,
 }
 
 use Command::*;
@@ -130,6 +143,19 @@ pub static COMMANDS: &[(Command, &str, &str)] = &[
     (OpenConfig, "config", "Shrew: Open Config File"),
     (McpSetup, "mcp", "Shrew: AI Assistants (MCP) Setup"),
     (About, "about", "About shrew"),
+    // ----- project navigation -----
+    (ToggleSidebar, "sidebar", "View: Toggle Sidebar"),
+    (FocusSidebar, "focus_sidebar", "View: Focus Sidebar"),
+    (RefreshSidebar, "refresh_sidebar", "View: Refresh Sidebar"),
+    (FindInProject, "find_in_project", "Find in Project…"),
+    (GotoSymbol, "symbols", "Go to Symbol…"),
+    (GotoSymbolInProject, "project_symbols", "Go to Symbol in Project…"),
+    (OpenRecent, "recent", "File: Open Recent…"),
+    (OpenRecentProject, "recent_projects", "Project: Open Recent…"),
+    (ReopenClosed, "reopen_closed", "File: Reopen Closed File"),
+    (JumpBack, "jump_back", "Go Back"),
+    (JumpForward, "jump_forward", "Go Forward"),
+    (GotoFileUnderCursor, "goto_file", "Go to File Under Cursor"),
 ];
 
 impl Command {

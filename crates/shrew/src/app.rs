@@ -62,6 +62,8 @@ enum Drag {
     None,
     Text,
     Scrollbar,
+    /// The sidebar's right edge (resizing it).
+    Sidebar,
 }
 
 #[derive(Default)]
@@ -350,6 +352,12 @@ impl ApplicationHandler<UserEvent> for App {
             }
             WindowEvent::Focused(f) => {
                 self.ui.focused = f;
+                // files may have changed while away: the sidebar reads its folders again
+                if f && self.st.ed.sidebar_on()
+                    && let Some(t) = &mut self.st.ed.tree
+                {
+                    t.refresh();
+                }
                 if !f {
                     self.mods = ModifiersState::empty();
                 }
@@ -476,14 +484,17 @@ impl App {
     fn layout(&self) -> Option<Layout> {
         let r = self.renderer.as_ref()?;
         let ed = &self.st.ed;
-        Some(Layout::new(
-            &r.metrics(),
-            r.size(),
-            r.scale(),
-            ed.buf().doc.rope.len_lines(),
-            ed.features.on(Feature::LineNumbers),
-            ed.buffers.len() > 1,
-        ))
+        Some(
+            Layout::new(
+                &r.metrics(),
+                r.size(),
+                r.scale(),
+                ed.buf().doc.rope.len_lines(),
+                ed.features.on(Feature::LineNumbers),
+                ed.buffers.len() > 1,
+            )
+            .with_sidebar(crate::sidebar::width(&self.st, r.size().0 as f32, r.scale())),
+        )
     }
 
     fn frame(&mut self) {
@@ -580,7 +591,8 @@ impl App {
     /// Input methods are on where text is typed (insert mode, Sublime mode, prompts, pickers).
     fn update_ime(&mut self) {
         let ed = &self.st.ed;
-        let allowed = ed.mode == Mode::Insert || !ed.vim() || ed.prompt.is_some() || ed.picker.is_some();
+        let typing = (ed.mode == Mode::Insert || !ed.vim()) && !ed.sidebar_focus;
+        let allowed = typing || ed.prompt.is_some() || ed.picker.is_some();
         if allowed != self.ime_allowed
             && let Some(w) = &self.window
         {
@@ -651,6 +663,9 @@ impl App {
                     self.st.ed.mouse_up();
                     self.st.after_input();
                 }
+                if self.drag == Drag::Sidebar {
+                    self.st.persist_sidebar_width();
+                }
                 self.drag = Drag::None;
                 self.autoscroll = None;
                 self.input(now);
@@ -685,6 +700,13 @@ impl App {
         }
         if hits.update.is_some_and(|r| r.contains(x, y)) {
             self.st.activate_update();
+            return self.input(now);
+        }
+        if hits.sidebar.edge.is_some_and(|r| r.contains(x, y)) {
+            self.drag = Drag::Sidebar;
+            return self.input(now);
+        }
+        if crate::sidebar::press(&mut self.st, &self.ui.hits.sidebar, x, y) {
             return self.input(now);
         }
         if let Some(&(_, i)) = hits.tabs.iter().find(|(r, _)| r.contains(x, y)) {
@@ -727,6 +749,7 @@ impl App {
             (self.pos_at(x, y, caret), n)
         };
         let Some(pos) = pos else { return };
+        self.st.ed.sidebar_focus = false;
         self.st.ed.mouse_down(pos, n, self.mods());
         self.st.after_input();
         self.drag = Drag::Text;
@@ -752,9 +775,16 @@ impl App {
                     self.redraw();
                 }
             }
+            Drag::Sidebar => {
+                crate::sidebar::drag_to(&mut self.st, x, lay.scale);
+                self.redraw();
+            }
             Drag::None => {}
         }
-        let icon = if self.st.ed.picker.is_none()
+        let on_edge = self.st.ed.picker.is_none() && self.ui.hits.sidebar.edge.is_some_and(|r| r.contains(x, y));
+        let icon = if on_edge || self.drag == Drag::Sidebar {
+            CursorIcon::ColResize
+        } else if self.st.ed.picker.is_none()
             && self.st.ed.about.is_none()
             && lay.text_rect().contains(x, y)
             && !self.ui.hits.scrollbar.is_some_and(|(t, _)| t.contains(x, y))
@@ -826,6 +856,15 @@ impl App {
                 *top = top.saturating_add_signed(dy.round() as isize);
                 self.redraw();
             }
+            return;
+        }
+        let (px, py) = self.pointer;
+        let lines = match delta {
+            MouseScrollDelta::LineDelta(_, y) => -y * WHEEL_LINES,
+            MouseScrollDelta::PixelDelta(d) => -(d.y as f32) / lay.ch,
+        };
+        if crate::sidebar::wheel(&mut self.st, &self.ui.hits.sidebar, px, py, lines) {
+            self.redraw();
             return;
         }
         // Ctrl+wheel zooms, like Ctrl+= / Ctrl+-

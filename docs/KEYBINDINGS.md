@@ -19,7 +19,8 @@ motion, character or register name. "Ctrl" also means ⌘ Cmd on macOS. Vim keys
 4. Last comes the mode: vim normal or visual, or insert. With the `vim` feature off, shrew is always in insert mode.
 
 **Contents:** [Global chords](#global-chords) · [Insert mode](#insert-mode) · [Normal mode](#normal-mode) ·
-[Visual mode](#visual-mode) · [Prompts](#prompts--and-) · [Pickers](#pickers) · [About panel](#about-panel) ·
+[Visual mode](#visual-mode) · [Prompts](#prompts--and-) · [Pickers](#pickers) · [Sidebar](#sidebar) ·
+[Find in project](#find-in-project) · [About panel](#about-panel) ·
 [Ex commands](#ex-commands) ·
 [Named commands](#named-commands) · [Mouse](#mouse)
 
@@ -90,6 +91,25 @@ turned off, and "normal" means vim normal mode.
 | F3 / Shift+F3 | Next / previous match | always |
 | Ctrl+G | Go to line: opens the `:` prompt, type a number | always |
 
+### Project navigation
+
+The project is the folder `srw <folder>` opened, or else the nearest folder above the file with `.git` (`.hg`, `.jj`,
+`.svn`, a `.shrew` marker), a Cargo workspace root, or `package.json` / `go.mod` / `pyproject.toml` / `Cargo.toml`.
+The home folder and `/` are never a project: without one, Ctrl+P lists your recent files.
+
+| Keys | Action | When |
+| --- | --- | --- |
+| Ctrl+P | Go to file in the project. `:42` goes to line 42, `name:42` opens at line 42, `@` lists the file's symbols | always |
+| Ctrl+B | Show / hide the [sidebar](#sidebar) | insert (in normal mode, a page up) |
+| Ctrl+Shift+E | Focus the sidebar (shows it); again: back to the text | always |
+| Ctrl+Shift+F | [Find in project](#find-in-project) (the selection, or the last search) | always |
+| Ctrl+R | Go to symbol in the file | vim off (in vim it is redo / insert a register) |
+| Ctrl+Shift+O | Go to symbol in the file | always |
+| Ctrl+Shift+R | Go to symbol in the project (indexed in the background) | always |
+| Ctrl+Alt+P | Open a recent project | always |
+| Ctrl+Shift+T | Reopen the last closed file | always |
+| Alt+Left / Alt+Right, Alt+- / Alt+Shift+- | Go back / forward along the [jump list](#other-commands) | always |
+
 ### View
 
 | Keys | Action |
@@ -154,6 +174,7 @@ Motions move the cursor in normal mode, extend the selection in visual mode, and
 | `n` `N` | Next / previous search match |
 | `*` `#` | Search the word under the cursor forward / backward |
 | `` `{a-z} `` / `'{a-z}` | To mark: exact position / its line |
+| ``` `` ``` / `''` | Back to where the last jump started (and again to return) |
 
 ### Operators
 
@@ -233,6 +254,8 @@ which takes the brackets, quotes or trailing space too. A count picks an outer p
 | Ctrl+E / Ctrl+Y | Scroll one line down / up |
 | `ZZ` / `ZQ` | Save and close / close without saving |
 | `gt` / `gT` | Next / previous buffer |
+| Ctrl+O / Ctrl+I, Tab | Older / newer place in the jump list. Jumps are `G`, `gg`, `%`, `n`, `N`, `*`, `#`, `/`, `?`, `{`, `}`, `H`, `M`, `L`, marks, `:42`, and opening or switching files |
+| `gf` | Open the file named under the cursor (`src/main.rs:42:5` goes to line 42, column 5); tried next to the file, in the project and in `:pwd` |
 | Esc, Ctrl+C, Ctrl+[ | Cancel a half-typed command; with several cursors, back to one; hide search highlights |
 
 ### Registers
@@ -313,6 +336,54 @@ These are the file finder (Ctrl+P), command palette (Ctrl+Shift+P), buffer list 
 | Ctrl+Backspace, Ctrl+U, Ctrl+W | Clear the filter |
 | Esc, Ctrl+C, Ctrl+[ | Close |
 
+In the go-to-file picker (Ctrl+P), a query starting with `:` is a line number (`:42` Enter), `name:42` opens the
+match at line 42, and `@` switches to the file's symbols (delete the `@` to get the files back).
+
+## Sidebar
+
+The project's file tree: Ctrl+B shows it, Ctrl+Shift+E (or `:Ex`) gives it the keys, and `srw <folder>` opens with it.
+Folders are read when they are first opened, `.gitignore`d entries are dimmed, and the active file is always
+revealed and highlighted. Nothing watches the disk: the tree is read again when the window gets the focus back, on
+`R`, and after its own file operations.
+
+| Keys | Action |
+| --- | --- |
+| `j` / `k`, Down / Up, Ctrl+N / Ctrl+P | Next / previous entry |
+| `g`, Home / `G`, End | First / last entry |
+| PageDown / PageUp, Ctrl+D / Ctrl+U | A page / half a page down / up |
+| `l`, Right | Open a folder (on an open folder: its first entry); on a file, open it and stay in the sidebar |
+| `h`, Left | Close the folder, or go to the parent folder |
+| Enter, `o` | Open the file and go to it; open / close a folder |
+| Space | Show the file but stay in the sidebar |
+| `a` / `A` | New file / new folder in the selected folder (`dir/name` makes the folders too) |
+| `r`, F2 | Rename (the name is there to edit) |
+| `d`, Delete | Move to the trash after a `y` (Linux; elsewhere it deletes, also after a `y`) |
+| `R`, F5 | Read the folders again |
+| `/` | Filter the open folders (fuzzy); Enter keeps the filter, Esc clears it |
+| `:` | The command line |
+| `q` | Hide the sidebar |
+| Esc, Tab, Ctrl+C | Back to the text |
+| Ctrl+… | Global chords (Ctrl+P, Ctrl+Shift+F, Ctrl+B, …) work as in the text |
+
+With the mouse: a click opens a file (and goes to it) or opens / closes a folder, the wheel scrolls, and dragging the
+right edge resizes the sidebar (the width is saved as `[sidebar] width`).
+
+## Find in project
+
+Ctrl+Shift+F, `:grep {pattern}` or `:rg {pattern}`: searches every file of the project that `.gitignore` lets
+through, on all cores, and shows the matches grouped by file as they come. The search is literal and smart-case (an
+upper-case letter makes it case-sensitive) unless you switch that; it starts again on every key and stops at 5000
+matches.
+
+| Keys | Action |
+| --- | --- |
+| typing | The pattern |
+| Alt+R / Alt+C / Alt+W | Regex / always case-sensitive / whole words (the chips on the right light up) |
+| Tab | Edit the file globs (`*.rs, !tests/`, `src`); Tab or Enter goes back to the pattern |
+| Up / Down, Ctrl+P / Ctrl+N, PageUp / PageDown | Move through the matches (file headers are skipped) |
+| Enter | Go to the match (Ctrl+O comes back) |
+| Esc | Close |
+
 ## About panel
 
 *About shrew* in the palette, or `:about`, shows the version, the Shrew Manifesto, the license, credits and links. It is
@@ -353,7 +424,9 @@ or `:duplicate_line`.
 | `:set {option} …`, `:se` | Set options and features (see below) |
 | `:features` | The Features list |
 | `:syntax on` / `:syntax off` / `:syntax` | Syntax highlighting on / off / toggle |
-| `:cd [dir]` / `:pwd` | Change / show the working directory (for `:e` and Ctrl+P) |
+| `:cd [dir]` / `:pwd` | Make `dir` the project and working directory / show it (for `:e`, Ctrl+P and the sidebar) |
+| `:grep {pattern}`, `:rg`, `:vimgrep` | [Find in project](#find-in-project) |
+| `:Ex`, `:Explore`, `:Lex`, `:NERDTree` | Focus the [sidebar](#sidebar) |
 | `:update` | Install the available update and restart |
 | `:version` | Show shrew's version |
 | `:about` | The About panel: version, manifesto, license, credits |
@@ -446,6 +519,18 @@ command palette by its title.
 | `config` | Shrew: Open Config File | |
 | `mcp` | Shrew: AI Assistants (MCP) Setup | |
 | `about` | About shrew | `:about` |
+| `sidebar` | View: Toggle Sidebar | Ctrl+B (insert) |
+| `focus_sidebar` | View: Focus Sidebar | Ctrl+Shift+E |
+| `refresh_sidebar` | View: Refresh Sidebar | `R` in the sidebar |
+| `find_in_project` | Find in Project… | Ctrl+Shift+F |
+| `symbols` | Go to Symbol… | Ctrl+Shift+O, Ctrl+R (vim off), `@` in Ctrl+P |
+| `project_symbols` | Go to Symbol in Project… | Ctrl+Shift+R |
+| `recent` | File: Open Recent… | |
+| `recent_projects` | Project: Open Recent… | Ctrl+Alt+P |
+| `reopen_closed` | File: Reopen Closed File | Ctrl+Shift+T |
+| `jump_back` | Go Back | Ctrl+O (normal), Alt+Left, Alt+- |
+| `jump_forward` | Go Forward | Ctrl+I, Tab (normal), Alt+Right, Alt+Shift+- |
+| `goto_file` | Go to File Under Cursor | `gf` |
 
 ## Mouse
 

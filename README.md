@@ -50,6 +50,11 @@ Every shot is the real editor, rendered headless from shrew's own source code. R
   `config.toml`, and shrew's own changes to it (`:set`, theme and font pickers) keep your comments.
 - **Pickers.** A fuzzy file finder (Ctrl+P) that walks the project in the background and respects `.gitignore`, a
   command palette (Ctrl+Shift+P), a buffer list (Ctrl+Shift+B) and the Features list.
+- **Project navigation.** shrew finds the project a file belongs to (`.git`, a Cargo workspace, `package.json`, …,
+  never your home folder). A file tree sidebar (Ctrl+B), find in project (Ctrl+Shift+F, pure-Rust parallel grep),
+  go to symbol in the file (Ctrl+R / `@` in Ctrl+P) and in the project (Ctrl+Shift+R) from the grammars' scopes,
+  recent files and projects (Ctrl+Alt+P), reopen closed files (Ctrl+Shift+T), vim's jump list (Ctrl+O / Ctrl+I) and
+  `gf`. See [KEYBINDINGS.md](docs/KEYBINDINGS.md#project-navigation).
 - **Themes.** 33 built in (Dracula, Nord, Gruvbox, Catppuccin, Tokyo Night, Solarized, One Dark, two high-contrast
   ones and more), 18 accents over any of them, following the desktop's light/dark setting, your own TOML themes,
   and imported Sublime or TextMate color schemes. Theme, accent and font pickers preview live. See
@@ -107,6 +112,10 @@ the table below for your build and config.
 | `update_check` | Check GitHub for new releases at startup (at most once a day) | on | `update` |
 | `vimrc` | Read options and mappings from `~/.vimrc` or `init.vim` at startup (see `[import]`) | on | |
 | `sublime_import` | Read Sublime Text's user settings and key bindings at startup (see `[import]`) | on | |
+| `sidebar` | File tree of the project on the left (Ctrl+B, Ctrl+Shift+E) | off | `project` |
+| `project_search` | Find in project (Ctrl+Shift+F, `:grep`), respects `.gitignore` | on | `project` |
+| `symbols` | Go to symbol in the file (Ctrl+R, `@` in Ctrl+P) and the project (Ctrl+Shift+R) | on | `syntax` |
+| `recent` | Remember recent files and projects (Open Recent, Ctrl+Alt+P) in the cache dir | on | |
 
 Keys also work without the underscore (`:set nolinenumbers`). The usual vim spellings work too: `:set nu`, `rnu`,
 `hls`, `list`, `et`, `ts=2`, `so=8`.
@@ -121,7 +130,7 @@ mcp = true
 ```
 
 **Compile-time.** The `shrew` package's (the `srw` binary's) default cargo features are `syntax`, `picker`,
-`clipboard`, `mcp`, `update` and `embed-font`. A minimal build:
+`clipboard`, `mcp`, `update`, `embed-font` and `project`. A minimal build:
 
 ```sh
 cargo build --release -p shrew --no-default-features                     # just the editor

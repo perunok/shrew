@@ -3,7 +3,7 @@
 
 use crate::ipc::Request;
 use crate::state::State;
-use shrew_core::{Command, Document};
+use shrew_core::Document;
 use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 
@@ -25,8 +25,8 @@ impl State {
     /// buffers are closed.
     pub fn open_request(&mut self, req: Request, done: Option<Sender<()>>) {
         if let Some(dir) = &req.dir {
-            self.ed.cwd = self.ed.absolute(dir);
-            self.ed.run(Command::OpenFile);
+            // the folder becomes the project, shown in the sidebar (or the file picker without one)
+            self.ed.open_project(dir);
         }
         let mut targets = Vec::new();
         let mut first = None;
@@ -37,6 +37,9 @@ impl State {
                 first = self.ed.buffers.iter().position(|b| b.doc.path.as_deref() == Some(path.as_path()));
             }
             targets.push(Target::Path(path));
+        }
+        if !req.files.is_empty() || req.stdin_text.is_some() {
+            self.ed.sidebar_focus = false; // the files asked for get the keys
         }
         if let Some(text) = req.stdin_text {
             self.ed.install_document(Document::from_str(&text));
@@ -129,7 +132,11 @@ mod tests {
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         st.open_request(Request { dir: Some(dir.clone()), ..Request::default() }, None);
         assert_eq!(st.ed.cwd, dir);
-        if cfg!(feature = "picker") {
+        assert_eq!(st.ed.project_root(), Some(dir.clone()));
+        if cfg!(feature = "project") {
+            assert!(st.ed.sidebar_on() && st.ed.sidebar_focus, "the sidebar shows it");
+            assert_eq!(st.ed.tree.as_ref().map(|t| t.root.clone()), Some(dir));
+        } else if cfg!(feature = "picker") {
             assert!(st.ed.picker.is_some(), "the file picker opens there");
         }
     }

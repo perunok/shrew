@@ -187,6 +187,17 @@ pub fn parse(text: &str, source: &str) -> (Config, Vec<Warning>) {
                     }
                 }
             }
+            "sidebar" => {
+                let Some(t) = cx.table(item, key) else { continue };
+                for (k, v) in t.iter() {
+                    match k {
+                        "width" => {
+                            config.sidebar_width = cx.num(v, "sidebar.width", 80.0, 2000.0).or(config.sidebar_width)
+                        }
+                        _ => cx.warn(v, format!("unknown key sidebar.{k}")),
+                    }
+                }
+            }
             _ => cx.warn(item, format!("unknown section or key {key:?}")),
         }
     }
@@ -367,6 +378,10 @@ pub fn default_config_text() -> String {
 [update]
 # Same as the update_check feature.
 # check = true
+
+[sidebar]
+# Width of the file tree in logical pixels (Ctrl+B shows it; drag its edge to change this).
+# width = 250
 "#;
     s
 }

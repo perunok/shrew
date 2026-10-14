@@ -93,7 +93,11 @@ impl Register {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PromptKind {
     Command,
-    Search { forward: bool },
+    Search {
+        forward: bool,
+    },
+    /// A question from the sidebar (new file name, rename, delete).
+    Ask(crate::tree::Ask),
 }
 
 pub struct Prompt {
@@ -108,6 +112,8 @@ pub struct Prompt {
     pub(crate) count: Option<usize>,
     /// Operator waiting for the search target (`d/foo<CR>`), with its register.
     pub(crate) op: Option<(crate::vim::Op, Option<char>)>,
+    /// Shown before the text instead of `:` or `/` (sidebar questions).
+    pub label: String,
 }
 
 /// Things only the app can do.
@@ -202,6 +208,27 @@ pub struct Editor {
     mouse: MouseState,
     /// User mappings (`:nnoremap`, config `[keys]`, imported vimrc/Sublime bindings) and the keys held for them.
     pub keymap: crate::keymap::Keymap,
+    // ----- project navigation (see `navigate` and `tree`) -----
+    /// The project folder chosen explicitly (`srw <folder>`, `:cd`, Open Recent Project); see
+    /// [`Editor::project_root`].
+    pub project: Option<PathBuf>,
+    /// The sidebar's file tree, made when the sidebar first shows.
+    pub tree: Option<crate::tree::Tree>,
+    /// Keys go to the sidebar.
+    pub sidebar_focus: bool,
+    /// Recent files and projects (the app loads and saves them).
+    pub recent: crate::project::Recent,
+    pub(crate) jumps: crate::jumps::JumpList,
+    /// Moving along the jump list (switching buffers then records no new jump).
+    pub(crate) jumping: bool,
+    /// Files closed this session (path, line) for Ctrl+Shift+T.
+    pub(crate) closed: Vec<(PathBuf, usize)>,
+    /// Finds symbols for go to symbol; the app installs one when syntax is compiled in.
+    pub symbols: Option<crate::navigate::SymbolProvider>,
+    /// The last find-in-project pattern and options.
+    pub(crate) grep_last: (String, crate::grep::GrepOptions),
+    /// The last project root found (folder asked about, root).
+    pub(crate) root_cache: std::sync::Mutex<Option<(PathBuf, Option<PathBuf>)>>,
 }
 
 impl Default for Editor {
@@ -251,6 +278,16 @@ impl Editor {
             search_history: Vec::new(),
             mouse: MouseState::default(),
             keymap: crate::keymap::Keymap::default(),
+            project: None,
+            tree: None,
+            sidebar_focus: false,
+            recent: Default::default(),
+            jumps: Default::default(),
+            jumping: false,
+            closed: Vec::new(),
+            symbols: None,
+            grep_last: Default::default(),
+            root_cache: Default::default(),
         };
         e.add_buffer(Document::default());
         e
@@ -296,6 +333,10 @@ impl Editor {
 
     /// Puts a loaded document in a buffer: replaces an untouched scratch buffer, else adds one.
     pub fn install_document(&mut self, doc: Document) {
+        if let Some(p) = doc.path.clone() {
+            self.remember_file(&p);
+        }
+        self.push_jump();
         let reuse = self.buffers.len() == 1
             && self.buffers[0].doc.path.is_none()
             && !self.buffers[0].doc.dirty
@@ -327,6 +368,7 @@ impl Editor {
 
     pub fn switch_to(&mut self, i: usize) {
         if i < self.buffers.len() && i != self.active {
+            self.push_jump();
             self.commit();
             let view = self.buf().view;
             self.active = i;
@@ -343,6 +385,7 @@ impl Editor {
             self.error("unsaved changes (add ! to discard, or save first)");
             return;
         }
+        self.remember_closed();
         if self.buffers.len() == 1 {
             let id = self.buf().id;
             self.buffers[0] = Buffer::new(id, Document::default());
@@ -605,6 +648,9 @@ impl Editor {
     // ----- input -----
 
     pub fn handle_key(&mut self, k: KeyPress) {
+        if self.sidebar_focus && self.picker.is_none() && self.prompt.is_none() && self.about.is_none() {
+            return self.tree_key(k);
+        }
         if let Some((_, keys)) = &mut self.macro_rec {
             keys.push(k);
         }
@@ -665,7 +711,7 @@ impl Editor {
         if self.about.is_some() {
             return;
         }
-        if self.prompt.is_some() || self.picker.is_some() {
+        if self.prompt.is_some() || self.picker.is_some() || self.sidebar_focus {
             for c in s.chars() {
                 self.handle_key(KeyPress::ch(c));
             }
@@ -712,7 +758,7 @@ impl Editor {
     }
 
     /// Key bindings that work in every mode (Sublime-style chords), checked before the vim layer.
-    fn binding(&self, k: KeyPress) -> Option<Command> {
+    pub(crate) fn binding(&self, k: KeyPress) -> Option<Command> {
         use Command::*;
         let m = k.mods;
         let insert = self.mode == Mode::Insert || !self.vim();
@@ -731,8 +777,18 @@ impl Editor {
             Key::Tab if m.ctrl => return Some(if m.shift { PrevBuffer } else { NextBuffer }),
             Key::PageDown if m.ctrl => return Some(NextBuffer),
             Key::PageUp if m.ctrl => return Some(PrevBuffer),
+            // back / forward along the jump list, as in browsers
+            Key::Left if m.alt && !m.ctrl && !m.shift => return Some(JumpBack),
+            Key::Right if m.alt && !m.ctrl && !m.shift => return Some(JumpForward),
             _ => return None,
         };
+        // Sublime's Alt+- / Alt+Shift+-
+        if m.alt && !m.ctrl && c == '-' {
+            return Some(if m.shift { JumpForward } else { JumpBack });
+        }
+        if m.ctrl && m.alt && c == 'p' {
+            return Some(OpenRecentProject);
+        }
         if !m.ctrl || m.alt {
             return None;
         }
@@ -773,6 +829,14 @@ impl Editor {
             ('j', false) if !self.vim() => JoinLines,
             ('b', true) => SwitchBuffer,
             ('u', true) => CheckForUpdates,
+            // project navigation (in vim normal mode Ctrl+B and Ctrl+R stay vim's)
+            ('b', false) if insert => ToggleSidebar,
+            ('e', true) => FocusSidebar,
+            ('f', true) => FindInProject,
+            ('r', false) if !self.vim() => GotoSymbol,
+            ('o', true) => GotoSymbol,
+            ('r', true) => GotoSymbolInProject,
+            ('t', true) => ReopenClosed,
             _ => return None,
         })
     }
@@ -946,6 +1010,29 @@ impl Editor {
                 self.prompt = None;
                 self.about = Some(0);
             }
+            ToggleSidebar => {
+                self.sidebar_focus = false;
+                self.toggle_feature(Feature::Sidebar);
+                self.sync_tree();
+            }
+            FocusSidebar => {
+                let on = !self.sidebar_focus;
+                self.focus_sidebar(on);
+            }
+            RefreshSidebar => {
+                if let Some(t) = &mut self.tree {
+                    t.refresh();
+                }
+            }
+            FindInProject => self.open_grep(""),
+            GotoSymbol => self.open_symbols(false),
+            GotoSymbolInProject => self.open_symbols(true),
+            OpenRecent => self.open_recent_files(),
+            OpenRecentProject => self.open_recent_projects(),
+            ReopenClosed => self.reopen_closed(),
+            JumpBack => self.jump(false),
+            JumpForward => self.jump(true),
+            GotoFileUnderCursor => self.goto_file_under_cursor(),
         }
     }
 
@@ -1633,6 +1720,7 @@ impl Editor {
             history_pos: None,
             count: None,
             op: None,
+            label: String::new(),
         });
     }
 
@@ -1646,6 +1734,14 @@ impl Editor {
 
     fn prompt_key_inner(&mut self, k: KeyPress) {
         let Some(p) = self.prompt.as_mut() else { return };
+        // the sidebar's delete question takes one key
+        if p.kind == PromptKind::Ask(crate::tree::Ask::Delete) {
+            self.prompt = None;
+            if matches!(k.key, Key::Char('y' | 'Y')) {
+                self.tree_answer(crate::tree::Ask::Delete, "");
+            }
+            return;
+        }
         if p.op.is_some() {
             // `d/foo<CR>` repeats with `.` as a whole
             if let Some(rec) = &mut self.dot_recording {
@@ -1686,7 +1782,11 @@ impl Editor {
                             _ => self.run_ex(&p.text),
                         }
                     }
+                    PromptKind::Ask(ask) => self.tree_answer(ask, &p.text),
                     PromptKind::Search { forward } => {
+                        if p.op.is_none() {
+                            self.push_jump();
+                        }
                         let pat = if p.text.is_empty() {
                             self.search_history.last().cloned().unwrap_or_default()
                         } else {
@@ -1825,6 +1925,7 @@ impl Editor {
         if rest.trim().is_empty() {
             // a bare address jumps to it
             if let Some((_, b)) = range {
+                self.push_jump();
                 self.goto_line(b + 1);
             }
             return;
@@ -1898,7 +1999,7 @@ impl Editor {
             "cd" => {
                 let p = self.absolute(Path::new(if arg.is_empty() { "~/" } else { arg }));
                 if p.is_dir() {
-                    self.cwd = p;
+                    self.set_project(&p);
                     let d = self.cwd.display().to_string();
                     self.info(d);
                 } else {
@@ -1920,6 +2021,8 @@ impl Editor {
             "accent" => self.events.push(Event::Choose(Choice::Accent, arg.to_string())),
             "font" if arg.is_empty() => self.events.push(Event::OpenChoice(Choice::Font)),
             "font" => self.events.push(Event::Choose(Choice::Font, arg.to_string())),
+            "grep" | "rg" | "vimgrep" | "Rg" => self.open_grep(arg),
+            "Ex" | "Explore" | "Lex" | "NERDTree" => self.focus_sidebar(true),
             "syntax" => match arg {
                 "on" | "enable" => self.set_option("syntax"),
                 "off" => self.set_option("nosyntax"),
@@ -2482,7 +2585,12 @@ impl Editor {
         }
         #[cfg(feature = "picker")]
         {
-            let p = Picker::files(&self.cwd, self.waker.clone());
+            // no project (home folder, /): the recent files instead of everything you own
+            let Some(root) = self.project_root() else {
+                self.open_recent_files();
+                return self.info("no project folder: recent files (open a folder with srw <folder> or Ctrl+Alt+P)");
+            };
+            let p = Picker::files(&root, self.waker.clone());
             self.picker = Some(p);
         }
         #[cfg(not(feature = "picker"))]
@@ -2490,12 +2598,26 @@ impl Editor {
     }
 
     fn picker_key(&mut self, k: KeyPress) {
+        if self.picker.as_ref().is_some_and(|p| p.kind == PickerKind::Grep) && self.grep_key(k) {
+            return;
+        }
         let Some(p) = self.picker.as_mut() else { return };
         let m = k.mods;
+        let query = p.query.clone();
         match k.key {
             Key::Esc => self.picker = None,
             Key::Char('c' | '[') if m.ctrl => self.picker = None,
+            // Ctrl+P's `:42`
+            Key::Enter if p.kind == PickerKind::Files && p.query.starts_with(':') => {
+                let line = p.line_suffix();
+                self.picker = None;
+                if let Some(n) = line {
+                    self.push_jump();
+                    self.goto_line(n);
+                }
+            }
             Key::Enter => {
+                let line = p.line_suffix();
                 let Some(data) = p.current().map(|i| i.data.clone()) else { return };
                 let kind = p.kind;
                 if kind != PickerKind::Features {
@@ -2507,6 +2629,8 @@ impl Editor {
                     PickerData::Path(path) => {
                         if let Err(e) = self.open(&path) {
                             self.error(format!("{}: {e}", path.display()));
+                        } else if let Some(n) = line.filter(|_| self.buf().doc.path.as_ref() == Some(&path)) {
+                            self.goto_line(n);
                         }
                     }
                     PickerData::Feature(f) => {
@@ -2517,6 +2641,9 @@ impl Editor {
                         if let PickerKind::Choice(c) = kind {
                             self.events.push(Event::Choose(c, v));
                         }
+                    }
+                    other => {
+                        self.pick_location(&other);
                     }
                 }
                 self.after_key();
@@ -2548,6 +2675,9 @@ impl Editor {
                     p.refilter();
                 }
             }
+        }
+        if self.picker.as_ref().is_some_and(|p| p.query != query) {
+            self.picker_query_changed();
         }
     }
 
@@ -2654,7 +2784,7 @@ fn complete_command(text: &str, cwd: &Path) -> Option<String> {
     Some(format!("{cmd} {dir_part}{common}"))
 }
 
-fn normalize(p: &Path) -> PathBuf {
+pub(crate) fn normalize(p: &Path) -> PathBuf {
     let mut out = PathBuf::new();
     for c in p.components() {
         match c {

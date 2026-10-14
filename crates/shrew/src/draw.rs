@@ -9,7 +9,8 @@ use crate::colors::{Colors, mix};
 use crate::layout::{Layout, Scroll};
 use crate::state::{State, Tone};
 use shrew_core::features::Feature;
-use shrew_core::picker::{PickerKind, fuzzy_match};
+use shrew_core::grep::{GrepField, GrepState};
+use shrew_core::picker::{PickerData, PickerKind, fuzzy_match};
 use shrew_core::ropey::Rope;
 use shrew_core::{CursorShape, Editor, Mode, Prompt, PromptKind, keymap, motion, search, text};
 use shrew_render::{Color, Rect, Scene, TextStyle, char_columns, columns};
@@ -27,6 +28,7 @@ pub struct Hits {
     pub about: Option<Rect>,
     /// The scrollbar track and the line count it maps to.
     pub scrollbar: Option<(Rect, usize)>,
+    pub sidebar: crate::sidebar::Hits,
 }
 
 /// UI state that lives between frames and is not the editor's.
@@ -116,6 +118,7 @@ pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: 
     ui.cursor_rect = None;
 
     tabs(scene, st, ui, lay, &c);
+    crate::sidebar::draw(scene, st, &mut ui.hits.sidebar, lay, &c);
     editor(scene, st, ui, lay, &c, scroll);
     status(scene, st, ui, lay, &c);
     cmdline(scene, &st.ed, st, lay, &c);
@@ -595,7 +598,7 @@ fn cursors(
     let rope = &b.doc.rope;
     let tw = ed.settings.tab_width.max(1);
     let shape = ed.cursor_shape();
-    let hollow = !ui.focused || ed.prompt.is_some() || ed.picker.is_some() || ed.about.is_some();
+    let hollow = !ui.focused || ed.prompt.is_some() || ed.picker.is_some() || ed.about.is_some() || ed.sidebar_focus;
     if ui.blink_off && !hollow {
         return;
     }
@@ -703,7 +706,7 @@ fn tabs(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors) {
     scene.rect(lay.tabs, c.panel_background);
     scene.push_clip(lay.tabs);
     let r = (6.0 * lay.scale).round();
-    let mut x = lay.pad;
+    let mut x = lay.tabs.x + lay.pad;
     // keep the active tab in view
     let widths: Vec<f32> = ed
         .buffers
@@ -711,7 +714,7 @@ fn tabs(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors) {
         .map(|b| (columns(&b.doc.display_name()) as f32 + 4.0 + if b.doc.dirty { 2.0 } else { 0.0 }) * lay.cw)
         .collect();
     let before: f32 = widths[..ed.active].iter().sum();
-    let shift = (before + widths[ed.active] + 2.0 * lay.pad - lay.width).max(0.0);
+    let shift = (before + widths[ed.active] + 2.0 * lay.pad - lay.tabs.w).max(0.0);
     x -= shift;
     let ty = lay.centered(lay.tabs.y + lay.pad / 2.0, lay.tabs.h);
     for (i, b) in ed.buffers.iter().enumerate() {
@@ -870,12 +873,14 @@ fn cmdline(scene: &mut Scene, ed: &Editor, st: &State, lay: &Layout, c: &Colors)
 
 fn prompt(scene: &mut Scene, p: &Prompt, x: f32, y: f32, lay: &Layout, c: &Colors) {
     let prefix = match p.kind {
+        _ if !p.label.is_empty() => p.label.as_str(),
         PromptKind::Command => ":",
         PromptKind::Search { forward: true } => "/",
         PromptKind::Search { forward: false } => "?",
+        PromptKind::Ask(_) => "?",
     };
     scene.text(x, y, prefix, TextStyle::new(c.accent).bold(), &[]);
-    let tx = x + lay.cw;
+    let tx = x + columns(prefix) as f32 * lay.cw;
     // keep the caret in view on a long line
     let before: String = p.text.chars().take(p.cursor).collect();
     let caret_col = columns(&before) as f32;
@@ -896,9 +901,13 @@ fn picker(scene: &mut Scene, ed: &Editor, ui: &mut Ui, lay: &Layout, c: &Colors)
     let w = (lay.width * 0.6).clamp(60.0 * cw, 100.0 * cw).min(lay.width - 2.0 * cw).round();
     let row_h = (lay.ch + pad).round();
     let query_h = lay.ch + 3.0 * pad;
-    let max_rows = (((lay.text.h * 0.75 - query_h) / row_h).floor() as usize).clamp(1, 14);
+    let grep = p.grep.as_ref();
+    // find in project has a second line for the file globs, and room for more results
+    let globs_h = if grep.is_some() { row_h } else { 0.0 };
+    let most = if grep.is_some() { 22 } else { 14 };
+    let max_rows = (((lay.text.h * 0.75 - query_h - globs_h) / row_h).floor() as usize).clamp(1, most);
     let shown = p.matches.len().clamp(1, max_rows);
-    let h = (query_h + 1.0 + pad + shown as f32 * row_h + pad).round();
+    let h = (query_h + globs_h + 1.0 + pad + shown as f32 * row_h + pad).round();
     let x = ((lay.width - w) / 2.0).round();
     let y = (lay.text.y + 3.0 * pad).round();
     let panel = Rect::new(x, y, w, h);
@@ -914,18 +923,29 @@ fn picker(scene: &mut Scene, ed: &Editor, ui: &mut Ui, lay: &Layout, c: &Colors)
     let tx = qx + 2.0 * cw;
     scene.text(tx, qy, &p.query, TextStyle::new(c.panel_foreground), &[]);
     let bar = (2.0 * lay.scale).round().max(1.0);
-    scene.rect(Rect::new((tx + columns(&p.query) as f32 * cw).round(), qy, bar, lay.ch), c.cursor);
+    if grep.is_none_or(|g| g.field == GrepField::Pattern) {
+        scene.rect(Rect::new((tx + columns(&p.query) as f32 * cw).round(), qy, bar, lay.ch), c.cursor);
+    }
     let kind = match p.kind {
         PickerKind::Files => "files",
         PickerKind::Commands => "commands",
         PickerKind::Buffers => "buffers",
         PickerKind::Features => "features",
         PickerKind::Choice(choice) => choice.noun(),
+        PickerKind::Grep => "matches",
+        PickerKind::Symbols { .. } => "symbols",
+        PickerKind::Projects => "projects",
     };
-    let count = format!("{}{}/{} {kind}", if p.loading { "… " } else { "" }, p.matches.len(), p.items.len());
+    let count = match grep {
+        Some(g) => grep_count(p, g),
+        None => format!("{}{}/{} {kind}", if p.loading { "… " } else { "" }, p.matches.len(), p.items.len()),
+    };
     let cx = inner.right() - pad - columns(&count) as f32 * cw;
     scene.text(cx.round(), qy, &count, TextStyle::new(c.panel_muted), &[]);
-    let sep_y = (y + query_h).round();
+    if let Some(g) = grep {
+        grep_header(scene, g, inner, qx, y + query_h, lay, c);
+    }
+    let sep_y = (y + query_h + globs_h).round();
     scene.rect(Rect::new(x, sep_y, w, lay.scale.round().max(1.0)), c.panel_border);
 
     // results
@@ -937,8 +957,14 @@ fn picker(scene: &mut Scene, ed: &Editor, ui: &mut Ui, lay: &Layout, c: &Colors)
     ui.picker_top = ui.picker_top.min(p.matches.len().saturating_sub(max_rows));
     let ry0 = sep_y + 1.0 + pad;
     if p.matches.is_empty() {
-        let msg = if p.loading { "searching…" } else { "no matches" };
-        scene.text(inner.x + pad, lay.centered(ry0, row_h), msg, TextStyle::new(c.panel_muted), &[]);
+        let hint = p.hint();
+        let (msg, col) = match grep {
+            Some(g) if g.error.is_some() => (g.error.as_deref().unwrap_or(""), c.error),
+            Some(_) if p.query.is_empty() => ("type to search the project's files", c.panel_muted),
+            _ if hint.is_some() => (hint.as_deref().unwrap_or(""), c.panel_muted),
+            _ => (if p.loading { "searching…" } else { "no matches" }, c.panel_muted),
+        };
+        scene.text(inner.x + pad, lay.centered(ry0, row_h), msg, TextStyle::new(col), &[]);
     }
     let q = p.query.trim();
     let hl = TextStyle::new(c.fuzzy_match).bold();
@@ -954,9 +980,13 @@ fn picker(scene: &mut Scene, ed: &Editor, ui: &mut Ui, lay: &Layout, c: &Colors)
         }
         ui.hits.picker_rows.push((rect, row));
         let ty = lay.centered(ry, row_h);
+        if grep.is_some() {
+            grep_row(scene, item, (inner.x + pad, ty, room), row == p.selected, lay, c);
+            continue;
+        }
         spans.clear();
         if !q.is_empty()
-            && let Some((_, pos)) = fuzzy_match(q, &item.label)
+            && let Some((_, pos)) = fuzzy_match(p.pattern().trim(), &item.label)
         {
             let mut it = item.label.char_indices().enumerate();
             for &ci in &pos {
@@ -977,12 +1007,103 @@ fn picker(scene: &mut Scene, ed: &Editor, ui: &mut Ui, lay: &Layout, c: &Colors)
         if let Some(dcol) = detail_x
             && !item.detail.is_empty()
         {
-            let detail = elide_end(&item.detail, room - dcol);
+            // a project symbol's detail ends in its path and line: that end matters most
+            let detail = match p.kind {
+                PickerKind::Symbols { project: true } => elide_start(&item.detail, room - dcol).into(),
+                _ => elide_end(&item.detail, room - dcol),
+            };
             scene.text(label_x + dcol as f32 * cw, ty, &detail, TextStyle::new(c.panel_muted), &[]);
         }
     }
     scene.pop_clip();
     scene.layer(0);
+}
+
+/// Find in project's count: "12 matches in 3 files", "+" when capped, "…" while searching.
+fn grep_count(p: &shrew_core::picker::Picker, g: &GrepState) -> String {
+    use std::sync::atomic::Ordering::Relaxed;
+    let (m, f) = (g.stats.matches.load(Relaxed), g.stats.files.load(Relaxed));
+    let more = if g.stats.capped.load(Relaxed) { "+" } else { "" };
+    let s = |n: usize| if n == 1 { "" } else { "s" };
+    format!(
+        "{}{m}{more} match{} in {f} file{}",
+        if p.loading { "… " } else { "" },
+        if m == 1 { "" } else { "es" },
+        s(f)
+    )
+}
+
+/// Find in project's second header line: the file globs, and the option chips (regex, case, whole word).
+fn grep_header(scene: &mut Scene, g: &GrepState, inner: Rect, qx: f32, y: f32, lay: &Layout, c: &Colors) {
+    let (cw, pad) = (lay.cw, lay.pad);
+    let row_h = (lay.ch + pad).round();
+    let gy = lay.centered(y - pad, row_h);
+    scene.text(qx, gy, "in", TextStyle::new(c.panel_muted), &[]);
+    let gx = qx + 3.0 * cw;
+    if g.opts.globs.is_empty() && g.field != GrepField::Globs {
+        scene.text(gx, gy, "all files   (Tab: *.rs, !tests/)", TextStyle::new(c.panel_muted), &[]);
+    } else {
+        scene.text(gx, gy, &g.opts.globs, TextStyle::new(c.panel_foreground), &[]);
+    }
+    if g.field == GrepField::Globs {
+        let bar = (2.0 * lay.scale).round().max(1.0);
+        scene.rect(Rect::new((gx + columns(&g.opts.globs) as f32 * cw).round(), gy, bar, lay.ch), c.cursor);
+    }
+    // chips, right-aligned: on ones in the accent
+    let mut x = inner.right() - pad;
+    for (label, on) in [("ab", g.opts.word), ("Aa", g.opts.case), (".*", g.opts.regex)] {
+        let w = (columns(label) as f32 + 1.0) * cw;
+        x -= w;
+        let chip = Rect::new(x.round(), gy, w.round(), lay.ch);
+        if on {
+            scene.rounded_rect(chip, (3.0 * lay.scale).round(), c.accent, None);
+        }
+        let fg = if on { c.accent_fg } else { c.panel_muted };
+        scene.text((x + cw / 2.0).round(), gy, label, TextStyle::new(fg).bold(), &[]);
+        x -= cw;
+    }
+    let keys = "Alt+R Alt+C Alt+W";
+    let kx = x - columns(keys) as f32 * cw;
+    if kx > gx + (columns(&g.opts.globs) as f32 + 4.0) * cw {
+        scene.text(kx.round(), gy, keys, TextStyle::new(mix(c.panel_muted, c.popup, 0.6)), &[]);
+    }
+}
+
+/// One row of find in project: a file header, or a line number and the matching line with the match lit.
+fn grep_row(
+    scene: &mut Scene,
+    item: &shrew_core::picker::PickerItem,
+    at: (f32, f32, usize),
+    selected: bool,
+    lay: &Layout,
+    c: &Colors,
+) {
+    let (x, y, room) = at;
+    let cw = lay.cw;
+    match &item.data {
+        PickerData::Header(_) => {
+            let label = elide_start(&item.label, room.saturating_sub(item.detail.len() + 3));
+            scene.text(x, y, &label, TextStyle::new(c.panel_foreground).bold(), &[]);
+            let dx = x + (columns(&label) + 2) as f32 * cw;
+            scene.text(dx.round(), y, &item.detail, TextStyle::new(c.panel_muted), &[]);
+        }
+        PickerData::Location { line, hl, .. } => {
+            let num = format!("{:>5}", line + 1);
+            scene.text(x, y, &num, TextStyle::new(c.panel_muted), &[]);
+            let fg = if selected { c.panel_foreground } else { mix(c.panel_foreground, c.panel_muted, 0.85) };
+            let text = elide_end(&item.label, room.saturating_sub(7));
+            let kept =
+                if matches!(text, std::borrow::Cow::Owned(_)) { text.len() - '…'.len_utf8() } else { text.len() };
+            let spans: Vec<(Range<usize>, TextStyle)> = hl
+                .map(|(a, z)| (a as usize).min(kept)..(z as usize).min(kept))
+                .filter(|r| r.start < r.end && text.is_char_boundary(r.start) && text.is_char_boundary(r.end))
+                .map(|r| (r, TextStyle::new(c.fuzzy_match).bold()))
+                .into_iter()
+                .collect();
+            scene.text((x + 7.0 * cw).round(), y, &text, TextStyle::new(fg), &spans);
+        }
+        _ => scene.text(x, y, &item.label, TextStyle::new(c.panel_foreground), &[]),
+    }
 }
 
 /// A floating panel with a soft shadow, as the picker and the About panel use.

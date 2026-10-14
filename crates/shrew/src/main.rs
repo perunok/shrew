@@ -8,6 +8,8 @@
 //! - [`app`]: the winit event loop, input and the renderer.
 //! - [`draw`] / [`layout`] / [`anim`]: building a frame from the state, and the geometry hit testing shares.
 //! - [`about`]: the About panel's text (version, the Shrew Manifesto, credits).
+//! - [`sidebar`] / [`recent`] / `symbols`: project navigation (the file tree, recent files and projects, the symbol
+//!   provider behind go to symbol).
 //! - [`headless`]: `--screenshot`, a frame rendered without a window.
 
 mod about;
@@ -23,8 +25,12 @@ mod ipc;
 mod keys;
 mod launch;
 mod layout;
+mod recent;
 mod remote;
+mod sidebar;
 mod state;
+#[cfg(feature = "syntax")]
+mod symbols;
 
 use cli::{Action, Cli};
 

@@ -77,6 +77,13 @@ pub struct State {
     /// How MCP jobs reach the UI thread (set by the windowed app; none headless).
     #[cfg(feature = "mcp")]
     pub mcp_host: Option<Arc<dyn shrew_mcp::Host>>,
+    // ----- project navigation -----
+    /// The sidebar's width in logical pixels (`[sidebar] width`, dragged with the mouse).
+    pub sidebar_width: f32,
+    /// Where recent files and projects are kept, once they were read (after the first frame).
+    recent_file: Option<PathBuf>,
+    /// The recent lists' generation last written.
+    recent_saved: u64,
 }
 
 impl State {
@@ -122,7 +129,14 @@ impl State {
             mcp: None,
             #[cfg(feature = "mcp")]
             mcp_host: None,
+            sidebar_width: loaded.config.sidebar_width.unwrap_or(crate::sidebar::DEFAULT_WIDTH),
+            recent_file: None,
+            recent_saved: 0,
         };
+        #[cfg(feature = "syntax")]
+        {
+            st.ed.symbols = Some(crate::symbols::provider(st.wake.clone()));
+        }
         st.apply_theme_config(ThemeCfg::from(cfg));
         st.show_warnings(&warnings);
         st.ed.events.clear(); // the initial scratch buffer: highlighters are created on demand below
@@ -192,6 +206,8 @@ impl State {
         self.check_waits();
         self.check_theme_saved();
         self.sync_preview();
+        self.ed.sync_tree();
+        self.save_recent();
         if self.close_warned && self.ed.buffers.iter().all(|b| !b.doc.dirty) {
             self.close_warned = false;
         }
@@ -253,6 +269,8 @@ impl State {
             Feature::Syntax => self.set_syntax(on),
             Feature::Mcp => self.set_mcp(on),
             Feature::UpdateCheck if on => self.auto_update_check(),
+            Feature::Sidebar if !on => self.ed.sidebar_focus = false,
+            Feature::Sidebar => self.ed.sync_tree(),
             _ => {}
         }
     }
@@ -409,6 +427,41 @@ impl State {
         }
         if self.ed.features.on(Feature::Mcp) {
             self.set_mcp(true);
+        }
+        self.load_recent();
+    }
+
+    // ----- recent files and projects -----
+
+    /// Reads the recent lists (behind what this session already opened). Never headless.
+    fn load_recent(&mut self) {
+        if self.headless || !self.ed.features.on(Feature::Recent) || self.recent_file.is_some() {
+            return;
+        }
+        let Some(path) = crate::recent::path() else { return };
+        let older = crate::recent::load(&path);
+        self.ed.recent.merge_older(older);
+        self.recent_file = Some(path);
+        self.recent_saved = 0;
+        self.save_recent();
+    }
+
+    fn save_recent(&mut self) {
+        let Some(path) = &self.recent_file else { return };
+        if self.ed.recent.generation == self.recent_saved || !self.ed.features.on(Feature::Recent) {
+            return;
+        }
+        self.recent_saved = self.ed.recent.generation;
+        if let Err(e) = crate::recent::save(path, &self.ed.recent) {
+            log::warn!("{}: {e}", path.display());
+        }
+    }
+
+    /// Saves the sidebar's width (after dragging its edge).
+    pub fn persist_sidebar_width(&mut self) {
+        let Some(path) = &self.config_path else { return };
+        if let Err(e) = shrew_config::persist_value(path, "sidebar", "width", self.sidebar_width.round() as i64) {
+            self.ed.error(format!("could not save the sidebar width to {}: {e}", path.display()));
         }
     }
 
@@ -661,6 +714,13 @@ fn mark_unavailable(ed: &mut Editor) {
     }
     if !cfg!(feature = "update") {
         f.set_unavailable(Feature::UpdateCheck);
+    }
+    if !cfg!(feature = "project") {
+        f.set_unavailable(Feature::Sidebar);
+        f.set_unavailable(Feature::ProjectSearch);
+    }
+    if !cfg!(feature = "syntax") {
+        f.set_unavailable(Feature::Symbols);
     }
 }
 

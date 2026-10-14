@@ -186,6 +186,8 @@ pub struct Config {
     pub bindings: Vec<(MapMode, Mapping)>,
     pub import: ImportConfig,
     pub mcp_port: Option<u16>,
+    /// `[sidebar] width`, logical pixels.
+    pub sidebar_width: Option<f32>,
 }
 
 impl Config {
@@ -224,6 +226,9 @@ impl Config {
         }
         if over.mcp_port.is_some() {
             self.mcp_port = over.mcp_port;
+        }
+        if over.sidebar_width.is_some() {
+            self.sidebar_width = over.sidebar_width;
         }
     }
 }

@@ -19,7 +19,7 @@ srw [options] [file[:LINE[:COL]] | +LINE | DIR | -]...
 | `srw src/main.rs:42` | Open with the cursor on line 42 |
 | `srw src/main.rs:42:7` | Line 42, char column 7 |
 | `srw +42 src/main.rs` | Line 42 of the first file (vim style; a file's own `:LINE` wins) |
-| `srw some/dir` | Make `some/dir` the project folder and open the file picker (Ctrl+P) in it |
+| `srw some/dir` | Make `some/dir` the project folder and show it in the sidebar (which takes the keys) |
 | `srw new.txt` | A path that does not exist opens as a new, empty buffer; `:w` creates the file |
 | `echo hi \| srw -` | Read stdin into a new scratch buffer |
 | `srw -w file` | Wait: return only once `file` is closed in the editor (see [EDITOR](#use-shrew-as-editor)) |

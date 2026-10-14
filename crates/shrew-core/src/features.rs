@@ -25,6 +25,11 @@ pub enum Feature {
     UpdateCheck,
     Vimrc,
     SublimeImport,
+    // ----- project navigation -----
+    Sidebar,
+    ProjectSearch,
+    Symbols,
+    Recent,
 }
 
 pub struct FeatureInfo {
@@ -71,6 +76,16 @@ pub static FEATURES: &[FeatureInfo] = &[
         true,
         "Read Sublime Text's user settings and key bindings at startup (see [import])",
     ),
+    // ----- project navigation -----
+    f(Feature::Sidebar, "sidebar", false, "File tree of the project on the left (Ctrl+B, Ctrl+Shift+E)"),
+    f(Feature::ProjectSearch, "project_search", true, "Find in project (Ctrl+Shift+F, :grep), respects .gitignore"),
+    f(
+        Feature::Symbols,
+        "symbols",
+        true,
+        "Go to symbol in the file (Ctrl+R, @ in Ctrl+P) and the project (Ctrl+Shift+R)",
+    ),
+    f(Feature::Recent, "recent", true, "Remember recent files and projects (Open Recent, Ctrl+Alt+P) in the cache dir"),
 ];
 
 pub fn info(feature: Feature) -> &'static FeatureInfo {
@@ -82,21 +97,21 @@ pub fn by_key(key: &str) -> Option<&'static FeatureInfo> {
 }
 
 #[inline]
-fn bit(f: Feature) -> u32 {
+fn bit(f: Feature) -> u64 {
     1 << (f as u32)
 }
 
 /// Which features are on, and which are compiled into this build at all.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Features {
-    on: u32,
-    available: u32,
+    on: u64,
+    available: u64,
 }
 
 impl Default for Features {
     fn default() -> Self {
         let on = FEATURES.iter().filter(|i| i.default).fold(0, |a, i| a | bit(i.feature));
-        Features { on, available: u32::MAX }
+        Features { on, available: u64::MAX }
     }
 }
 

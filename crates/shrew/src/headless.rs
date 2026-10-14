@@ -38,6 +38,7 @@ pub fn run(cli: &Cli, out: &std::path::Path) -> Result<(), String> {
             ed.features.on(Feature::LineNumbers),
             ed.buffers.len() > 1,
         )
+        .with_sidebar(crate::sidebar::width(st, r.size().0 as f32, r.scale()))
     };
     // a first layout pass sizes the views, so keys like Ctrl+D scroll by the real page
     let lay = layout(&r, &st);

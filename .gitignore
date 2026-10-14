@@ -6,3 +6,6 @@ target/
 !docs/*.png
 !docs/screenshots/*.png
 !assets/*.png
+
+# agent worktrees
+.claude/worktrees/

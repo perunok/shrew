@@ -961,6 +961,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "embed-font")] // JetBrains Mono's metrics
     fn text_is_drawn_on_the_grid_with_span_colors() {
         let Some(mut r) = renderer(200, 40) else { return };
         let m = r.metrics();

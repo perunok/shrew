@@ -270,6 +270,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "embed-font")] // JetBrains Mono's metrics
     fn glyphs_sit_on_the_grid() {
         let mut f = fonts();
         let cw = f.metrics.cell_width;
@@ -285,6 +286,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "embed-font")] // JetBrains Mono's metrics
     fn combining_marks_share_a_cell() {
         let mut f = fonts();
         let cw = f.metrics.cell_width;

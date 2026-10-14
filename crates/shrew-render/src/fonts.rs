@@ -361,11 +361,13 @@ fn compute_metrics(system: &mut FontSystem, config: &FontConfig, scale: f32) -> 
 mod tests {
     use super::*;
 
+    #[cfg(feature = "embed-font")]
     fn cfg() -> FontConfig {
         FontConfig { system_fonts: false, ..FontConfig::default() }
     }
 
     #[test]
+    #[cfg(feature = "embed-font")] // JetBrains Mono
     fn embedded_metrics() {
         let f = Fonts::new(cfg(), 1.0);
         let m = f.metrics;
@@ -379,6 +381,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "embed-font")] // JetBrains Mono
     fn scale_and_size_change_metrics() {
         let mut f = Fonts::new(cfg(), 1.0);
         let m1 = f.metrics;
@@ -396,7 +399,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "embed-font")]
+    #[cfg(feature = "embed-font")] // JetBrains Mono
     fn embedded_ids_are_stable() {
         let ids = |db: Database| db.faces().map(|f| f.id).collect::<Vec<_>>();
         let a = ids(base_db());
@@ -408,6 +411,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "embed-font")] // JetBrains Mono
     fn prerendered_ascii() {
         let mut f = Fonts::new(cfg(), 1.0);
         let imgs = f.prerender_ascii();

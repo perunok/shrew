@@ -118,10 +118,10 @@ mod tests {
             names.sort();
             names
         };
-        let want = vec![
-            ("Beta".to_string(), "struct  src/a.rs:2".to_string()),
-            ("alpha".to_string(), "function  src/a.rs:1".to_string()),
-        ];
+        // paths show with the platform's separator (`src\a.rs` on Windows)
+        let a = std::path::Path::new("src").join("a.rs").display().to_string();
+        let want =
+            vec![("Beta".to_string(), format!("struct  {a}:2")), ("alpha".to_string(), format!("function  {a}:1"))];
         assert_eq!(run(&p), want);
         assert_eq!(run(&p), want, "the second run comes from the index");
         let rx = p(

@@ -28,11 +28,11 @@ number, and the rest of the file still applies. Only a file that is not valid TO
 Warnings show in the status line at startup.
 
 **shrew writes to the file too, carefully.** When you toggle a feature at runtime (`:set nosyntax`, the Features
-list), shrew updates that one value in `config.toml`, so the choice survives a restart. Your comments, ordering and
-formatting are kept.
+list), pick a theme, accent or font, or change the font size, shrew updates that one value in `config.toml`, so the
+choice survives a restart. Your comments, ordering and formatting are kept.
 
-**Contents:** [`[editor]`](#editor) · [`[features]`](#features) · [`[keys]`](#keys) · [`[import]`](#import) ·
-[`[mcp]`](#mcp) · [`[update]`](#update) · [Full example](#full-example)
+**Contents:** [`[editor]`](#editor) · [`[theme]`](#theme) · [`[font]`](#font) · [`[features]`](#features) ·
+[`[keys]`](#keys) · [`[import]`](#import) · [`[mcp]`](#mcp) · [`[update]`](#update) · [Full example](#full-example)
 
 ## `[editor]`
 
@@ -41,10 +41,6 @@ formatting are kept.
 | `tab_width` | integer 1–16 | `4` | Columns per indent level, and how wide a tab is drawn. Runtime: `:set ts=N` |
 | `expand_tab` | bool | `true` | Indent with spaces (`true`) or tabs (`false`). Runtime: `:set et` / `:set noet` |
 | `scrolloff` | integer 0–999 | `4` | Lines kept visible above and below the cursor. Runtime: `:set so=N` |
-| `font_family` | string | `"monospace"` | Font family. The first frame is drawn with the bundled JetBrains Mono. System families take over when the background font scan finishes, and JetBrains Mono stays when the family is missing |
-| `font_size` | number 4–200 | `15.0` | Font size in points. Runtime: Ctrl+= / Ctrl+- / Ctrl+0 |
-| `line_height` | number 0.5–4 | `1.4` | Line height as a multiple of the font size |
-| `theme` | string | `"shrew-dark"` | `"shrew-dark"` or `"shrew-light"` |
 | `cursor_blink` | bool | `false` | Blink the cursor. Off by default, because blinking needs regular redraws |
 | `leader` | string | `"\\"` | The key `<leader>` stands for in mappings: `"\\"` (vim's default), `","`, `" "` or `"<Space>"` |
 | `mapping_timeout_ms` | integer 0–10000 | `1000` | How long to wait for the rest of a mapping such as `jk` before taking the keys as typed (vim's `timeoutlen`) |
@@ -52,10 +48,50 @@ formatting are kept.
 ```toml
 [editor]
 tab_width = 2
-font_family = "Iosevka"
-font_size = 14
-theme = "shrew-light"
 leader = " "
+```
+
+The keys `font_family`, `font_size`, `line_height` and `theme` used to live here and still work in `[editor]`;
+`[font]` and `[theme]` are their home now (a value set in both places: the later one in the file wins). When shrew
+saves a font size or theme, it updates the key where your file has it.
+
+## `[theme]`
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `name` | string | `"shrew-dark"` | A built-in theme id (`dracula`, `nord`, `catppuccin-mocha`, `github-light`, ... see [THEMES.md](THEMES.md#built-in-themes)), a custom theme from the `themes` folder next to this file, a path to a `.sublime-color-scheme` / `.tmTheme`, or `"system"` to follow the desktop's light/dark setting. Runtime: palette *Theme: Select…*, `:theme <id>` |
+| `accent` | string | `"theme"` | An accent over the theme: `"theme"` (its own), `blue`, `indigo`, `violet`, `purple`, `fuchsia`, `pink`, `rose`, `red`, `orange`, `amber`, `yellow`, `lime`, `green`, `emerald`, `teal`, `cyan`, `sky`, `slate`. Runtime: palette *Accent: Select…*, `:accent <id>` |
+| `system_light` | string | `"shrew-light"` | With `name = "system"`: the theme for a light desktop |
+| `system_dark` | string | `"shrew-dark"` | With `name = "system"`: the theme for a dark desktop |
+
+Which ids exist depends on your `themes` folder, so an unknown theme or accent is reported when shrew starts (it then
+uses `shrew-dark`), not by the config parser. Custom themes, importing and the contrast rules are in
+[THEMES.md](THEMES.md).
+
+```toml
+[theme]
+name = "system"
+accent = "teal"
+system_light = "github-light"
+system_dark = "tokyo-night"
+```
+
+## `[font]`
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `family` | string | `"monospace"` | Font family. `"monospace"` is the bundled JetBrains Mono, which also draws the first frame; system families take over when the background font scan finishes, and JetBrains Mono stays when the family is missing. Runtime: palette *Font: Select…*, `:font <family>` |
+| `size` | number 4–200 | `15.0` | Font size in points. Runtime: Ctrl+= / Ctrl+- / Ctrl+0 (saved here) |
+| `line_height` | number 0.5–4 | `1.4` | Line height as a multiple of the font size |
+| `weight` | string or 100–900 | `"regular"` | Weight of normal text: `"thin"`, `"extralight"`, `"light"`, `"regular"`, `"medium"`, `"semibold"`, `"bold"`, `"extrabold"`, `"black"`, or a number. Bold text is 300 heavier. A family without that weight uses its nearest one |
+| `ligatures` | bool | `true` | Programming ligatures (`->`, `!=`, `>=`) in fonts that have them. Runtime: `:set ligatures` / `:set noligatures` |
+
+```toml
+[font]
+family = "Iosevka"
+size = 14
+weight = "medium"
+ligatures = false
 ```
 
 ## `[features]`
@@ -168,9 +204,9 @@ switch the importers off entirely (`[features] vimrc = false`).
 | `set tabstop` / `shiftwidth` / `softtabstop` / `expandtab` | `tab_width`, `expand_tab` |
 | `set number`, `relativenumber`, `hlsearch`, `list`, `cursorline`, `autoindent`, `showmatch` | the matching [features](#features) |
 | `set scrolloff`, `timeoutlen` | `scrolloff`, `mapping_timeout_ms` |
-| `set background=light\|dark` | `theme = "shrew-light"` / `"shrew-dark"` |
+| `set background=light\|dark` | `[theme] name = "shrew-light"` / `"shrew-dark"` |
 | `set clipboard=unnamed` / `unnamedplus` | the `clipboard` feature |
-| `set guifont=…` | `font_family`, `font_size` |
+| `set guifont=…` | `[font] family`, `size` |
 | `syntax on` / `off` | the `syntax` feature |
 | `let mapleader`, `let maplocalleader` | `leader` |
 | the `map` / `noremap` / `unmap` / `mapclear` family | [mappings](#keys) |
@@ -185,10 +221,10 @@ options. shrew counts the skipped lines and shows one summary with a few example
 | Sublime setting | shrew |
 | --- | --- |
 | `tab_size`, `translate_tabs_to_spaces` | `tab_width`, `expand_tab` |
-| `font_face`, `font_size` | `font_family`, `font_size` |
+| `font_face`, `font_size` | `[font] family`, `size` |
 | `line_numbers`, `highlight_line`, `auto_match_enabled`, `auto_indent`, `match_brackets`, `draw_indent_guides`, `draw_white_space` | the matching [features](#features) |
 | `ignored_packages` without `"Vintage"` | `vim = true` (Vintage is Sublime's vim mode) |
-| `color_scheme`, `theme` | the light or dark theme |
+| `color_scheme`, `theme` | the built-in theme of the same name (Monokai, Dracula, Solarized, Gruvbox, Catppuccin, Nord, One Dark, Ayu, Tokyo Night, ...), else the light or dark shrew theme |
 
 Key bindings from `Default (Linux|OSX|Windows).sublime-keymap` are translated into shrew commands: save, the
 multi-cursor commands, `swap_line_up`/`down`, `toggle_comment`, `show_overlay`, `move`/`move_to`, `find_under_expand`
@@ -231,13 +267,20 @@ These environment variables are for testing and mirrors:
 tab_width = 4
 expand_tab = true
 scrolloff = 6
-font_family = "JetBrains Mono"
-font_size = 15
-line_height = 1.4
-theme = "shrew-dark"
 cursor_blink = false
 leader = " "
 mapping_timeout_ms = 500
+
+[theme]
+name = "shrew-dark"
+accent = "theme"
+
+[font]
+family = "JetBrains Mono"
+size = 15
+line_height = 1.4
+weight = "regular"
+ligatures = true
 
 [features]
 relative_numbers = true

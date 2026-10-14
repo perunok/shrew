@@ -73,7 +73,7 @@ fn accent_and_font_pickers() {
     assert_eq!(st.font.family, "Shrew Mono");
     assert!(st.font_changed);
     keys(&mut st, "<Esc>");
-    assert_eq!(st.font.family, shrew_render::DEFAULT_FAMILY);
+    assert_eq!(st.font.family, crate::state::family_for("monospace"));
     keys(&mut st, ":font Shrew Mono<CR>");
     assert_eq!(config(&dir).editor.font_family(), "Shrew Mono");
     keys(&mut st, ":set noligatures<CR>");

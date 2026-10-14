@@ -1,4 +1,4 @@
-# Gruvbox Dark: Gruvbox by Pavel Pertsev (morhetz/gruvbox), dark.
+# Gruvbox by Pavel Pertsev (morhetz/gruvbox), dark.
 # UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
 # lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
 name = "Gruvbox Dark"

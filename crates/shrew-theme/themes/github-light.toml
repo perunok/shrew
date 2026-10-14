@@ -1,4 +1,4 @@
-# GitHub Light: GitHub's light editor theme (primer/github-vscode-theme).
+# GitHub's light editor theme (primer/github-vscode-theme).
 # UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
 # lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
 name = "GitHub Light"

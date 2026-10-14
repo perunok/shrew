@@ -16,6 +16,13 @@ new version when it tags a release.
 - User key mappings from `config.toml`, an existing `~/.vimrc` / `init.vim` and Sublime Text's user key bindings.
 - GPU renderer (wgpu) with a cached glyph atlas and an embedded JetBrains Mono font.
 - Syntax highlighting with Sublime grammars (syntect, pure Rust) on a background thread.
+- 33 themes (shrew's own plus Slinger's 31 with their editor palettes), 18 accents over any theme, `theme = "system"`
+  to follow the desktop's light/dark setting, custom themes in `themes/*.toml` (reloaded when saved), and
+  `:theme import` for Sublime `.sublime-color-scheme` and TextMate `.tmTheme` files. Every built-in theme and accent
+  passes a WCAG contrast audit.
+- Theme, accent and font pickers with live preview (Esc restores, Enter saves to config.toml); `:theme`, `:accent`,
+  `:font`, `:set (no)ligatures`; `[theme]` and `[font]` config sections with font weight; font size changes are
+  saved.
 - Every optional feature listed in the Features palette and switchable at runtime, in the config or at compile time.
 - MCP server so AI assistants (Claude Code, Claude Desktop, Cursor) can read and edit open buffers; off by default.
 - Self-update from GitHub Releases with sha256 verification and a one-click update button.

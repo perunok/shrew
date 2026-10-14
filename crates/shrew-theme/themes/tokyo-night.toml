@@ -1,4 +1,4 @@
-# Tokyo Night: Tokyo Night by enkia / folke (tokyonight.nvim, night).
+# Tokyo Night by enkia / folke (tokyonight.nvim, night).
 # UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
 # lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
 name = "Tokyo Night"

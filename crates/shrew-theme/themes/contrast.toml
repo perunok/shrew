@@ -1,4 +1,4 @@
-# High Contrast: High contrast, dark: WCAG AAA (7:1).
+# High contrast, dark: WCAG AAA (7:1).
 # UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
 # lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
 name = "High Contrast"

@@ -1,4 +1,4 @@
-# Monokai: Wimer Hazenberg's Monokai, as in Sublime Text.
+# Wimer Hazenberg's Monokai, as in Sublime Text.
 # UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
 # lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
 name = "Monokai"

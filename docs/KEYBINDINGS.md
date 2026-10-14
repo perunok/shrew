@@ -342,6 +342,10 @@ or `:duplicate_line`.
 | `:cd [dir]` / `:pwd` | Change / show the working directory (for `:e` and Ctrl+P) |
 | `:update` | Install the available update and restart |
 | `:version` | Show shrew's version |
+| `:theme` / `:theme {id}`, `:colorscheme`, `:colo` | Theme picker (live preview) / switch to a theme and save it ([THEMES.md](THEMES.md)) |
+| `:theme import {file}` | Convert a `.sublime-color-scheme` or `.tmTheme` into a custom theme and switch to it |
+| `:accent` / `:accent {id}` | Accent picker / switch to an accent (`theme` for the theme's own) and save it |
+| `:font` / `:font {family}` | Font picker (installed monospace families, live preview) / switch to a family and save it |
 
 ### `:set`
 
@@ -355,6 +359,7 @@ or `:duplicate_line`.
 | `rnu`, `relativenumber` / `nornu` | Relative line numbers |
 | `hls`, `hlsearch` / `nohls` | Search highlighting |
 | `list` / `nolist` | Show whitespace |
+| `lig`, `ligatures` / `nolig`, `noligatures` / `ligatures!` | Font ligatures on / off / toggle (saved to `[font] ligatures`) |
 
 Several options can go on one line: `:set ts=2 et nowhitespace`.
 
@@ -417,6 +422,10 @@ command palette by its title.
 | `font_bigger` | View: Increase Font Size | Ctrl+= |
 | `font_smaller` | View: Decrease Font Size | Ctrl+- |
 | `font_reset` | View: Reset Font Size | Ctrl+0 |
+| `select_theme` | Theme: Select… | |
+| `select_accent` | Accent: Select… | |
+| `select_font` | Font: Select… | |
+| `toggle_ligatures` | Font: Toggle Ligatures | |
 | `check_updates` | Shrew: Check for Updates | Ctrl+Shift+U |
 | `update` | Shrew: Install Update and Restart | `:update`, the status-bar button |
 | `config` | Shrew: Open Config File | |

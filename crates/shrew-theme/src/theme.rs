@@ -390,8 +390,15 @@ fn derive(u: &UiSpec, s: &SyntaxSpec, scheme: Scheme, high_contrast: bool) -> (U
     let mode_normal = u.mode_normal.unwrap_or(accent);
     // badges must not look alike: take the first candidate whose hue is clearly different
     let pick = |explicit: Option<Rgb>, candidates: &[Rgb], avoid: &[Rgb]| {
-        let ok = |c: &Rgb| avoid.iter().all(|a| c.hue_distance(*a) >= 30.0);
-        explicit.filter(ok).or_else(|| candidates.iter().copied().find(ok)).unwrap_or(explicit.unwrap_or(candidates[0]))
+        let far = |c: &Rgb, from: &[Rgb]| from.iter().all(|a| c.hue_distance(*a) >= 30.0);
+        // a red badge reads like an error: only when nothing else is left
+        let strict = |c: &Rgb| far(c, avoid) && far(c, &[danger]);
+        let loose = |c: &Rgb| far(c, avoid);
+        explicit
+            .filter(loose)
+            .or_else(|| candidates.iter().copied().find(strict))
+            .or_else(|| candidates.iter().copied().find(loose))
+            .unwrap_or(explicit.unwrap_or(candidates[0]))
     };
     let sy = |r: Role| syntax[r].fg;
     let mode_insert = pick(
@@ -401,7 +408,15 @@ fn derive(u: &UiSpec, s: &SyntaxSpec, scheme: Scheme, high_contrast: bool) -> (U
     );
     let mode_visual = pick(
         u.mode_visual,
-        &[sy(Role::Keyword), sy(Role::Constant), sy(Role::Tag), sy(Role::Type), sy(Role::Number), danger],
+        &[
+            sy(Role::Keyword),
+            sy(Role::Function),
+            sy(Role::Constant),
+            sy(Role::Type),
+            sy(Role::Tag),
+            sy(Role::Number),
+            danger,
+        ],
         &[mode_normal, mode_insert],
     );
     let ui = Ui {

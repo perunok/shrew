@@ -1,4 +1,4 @@
-# Catppuccin Mocha: Catppuccin Mocha (catppuccin.com/palette, style guide).
+# Catppuccin Mocha (catppuccin.com/palette, style guide).
 # UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
 # lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
 name = "Catppuccin Mocha"

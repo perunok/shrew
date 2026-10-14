@@ -1,4 +1,4 @@
-# Dracula: Dracula (draculatheme.com/contribute, spec palette).
+# Dracula (draculatheme.com/contribute, spec palette).
 # UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
 # lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
 name = "Dracula"

@@ -81,7 +81,7 @@ system_dark = "tokyo-night"
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `family` | string | `"monospace"` | Font family. `"monospace"` is the bundled JetBrains Mono, which also draws the first frame; system families take over when the background font scan finishes, and JetBrains Mono stays when the family is missing. Runtime: palette *Font: Select…*, `:font <family>` |
-| `size` | number 4–200 | `15.0` | Font size in points. Runtime: Ctrl+= / Ctrl+- / Ctrl+0 (saved here) |
+| `size` | number 4–200 | `15.0` | Font size in points. Runtime: Ctrl+= / Ctrl+- (saved here), Ctrl+0 back to 15 |
 | `line_height` | number 0.5–4 | `1.4` | Line height as a multiple of the font size |
 | `weight` | string or 100–900 | `"regular"` | Weight of normal text: `"thin"`, `"extralight"`, `"light"`, `"regular"`, `"medium"`, `"semibold"`, `"bold"`, `"extrabold"`, `"black"`, or a number. Bold text is 300 heavier. A family without that weight uses its nearest one |
 | `ligatures` | bool | `true` | Programming ligatures (`->`, `!=`, `>=`) in fonts that have them. Runtime: `:set ligatures` / `:set noligatures` |

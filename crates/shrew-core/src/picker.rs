@@ -14,6 +14,15 @@ pub enum PickerKind {
     Buffers,
     Features,
     Choice(Choice),
+    // ----- project navigation -----
+    /// Find in project: the query is the pattern, rows come grouped by file (see [`crate::grep`]).
+    Grep,
+    /// Symbols of the active file, or of the whole project.
+    Symbols {
+        project: bool,
+    },
+    /// Recent projects (Ctrl+Alt+P).
+    Projects,
 }
 
 /// Settings picked from a list the app provides. The app previews the highlighted row as it moves (and restores
@@ -44,6 +53,18 @@ pub enum PickerData {
     Feature(Feature),
     /// A [`Choice`] value (theme id, accent id, font family).
     Value(String),
+    // ----- project navigation -----
+    /// A place in a file (`None`: the active buffer), 0-based; `hl` is a byte range of the label to highlight.
+    Location {
+        path: Option<PathBuf>,
+        line: usize,
+        col: usize,
+        hl: Option<(u32, u32)>,
+    },
+    /// A file's header row in grouped results: drawn, never selected.
+    Header(PathBuf),
+    /// A project folder to open.
+    Project(PathBuf),
 }
 
 #[derive(Clone, Debug)]
@@ -63,14 +84,105 @@ pub struct Picker {
     /// Still receiving items in the background.
     pub loading: bool,
     rx: Option<Receiver<Vec<PickerItem>>>,
+    // ----- project navigation -----
+    /// Leading chars of the query that pick the mode (Ctrl+P's `@`), not matched.
+    pub prefix: usize,
+    /// The Ctrl+P file list, kept while `@` shows symbols, so deleting the `@` brings it back.
+    pub parked: Option<Box<Picker>>,
+    /// Find in project's options and counters.
+    pub grep: Option<crate::grep::GrepState>,
+    /// Stops the background work feeding this picker when it closes.
+    pub cancel: Option<Cancel>,
+}
+
+/// Sets its flag when dropped: background work checks it and stops.
+#[derive(Debug, Default)]
+pub struct Cancel(pub Arc<std::sync::atomic::AtomicBool>);
+
+impl Drop for Cancel {
+    fn drop(&mut self) {
+        self.0.store(true, std::sync::atomic::Ordering::Release);
+    }
 }
 
 impl Picker {
     pub fn new(kind: PickerKind, items: Vec<PickerItem>) -> Self {
-        let mut p =
-            Picker { kind, query: String::new(), items, matches: Vec::new(), selected: 0, loading: false, rx: None };
+        let mut p = Picker {
+            kind,
+            query: String::new(),
+            items,
+            matches: Vec::new(),
+            selected: 0,
+            loading: false,
+            rx: None,
+            prefix: 0,
+            parked: None,
+            grep: None,
+            cancel: None,
+        };
         p.refilter();
         p
+    }
+
+    /// A picker whose items arrive from a background thread on `rx`.
+    pub fn streaming(kind: PickerKind, rx: Receiver<Vec<PickerItem>>) -> Self {
+        let mut p = Picker::new(kind, Vec::new());
+        p.rx = Some(rx);
+        p.loading = true;
+        p
+    }
+
+    /// Replaces the item source (a new find-in-project search): the old items go.
+    pub fn restart(&mut self, rx: Option<Receiver<Vec<PickerItem>>>) {
+        self.items.clear();
+        self.matches.clear();
+        self.selected = 0;
+        self.loading = rx.is_some();
+        self.rx = rx;
+    }
+
+    /// The part of the query that is matched: without the mode prefix, and for files without a `:line` suffix.
+    pub fn pattern(&self) -> &str {
+        let q = self.query.get(self.prefix.min(self.query.len())..).unwrap_or("");
+        if self.kind == PickerKind::Files {
+            return split_line_suffix(q).0;
+        }
+        q
+    }
+
+    /// Ctrl+P's `:42` (go to line) and `name:42` (open at line): the line typed.
+    pub fn line_suffix(&self) -> Option<usize> {
+        if self.kind != PickerKind::Files {
+            return None;
+        }
+        split_line_suffix(&self.query).1
+    }
+
+    /// What to show instead of results (Ctrl+P's `:42`).
+    pub fn hint(&self) -> Option<String> {
+        let line = self.line_suffix()?;
+        self.query.starts_with(':').then(|| format!("Enter: go to line {line}"))
+    }
+
+    fn selectable_item(&self, i: u32) -> bool {
+        !matches!(self.items[i as usize].data, PickerData::Header(_))
+    }
+
+    /// Puts find in project's file groups (a header and its rows) in path order.
+    fn sort_groups(&mut self) {
+        let mut groups: Vec<Vec<PickerItem>> = Vec::new();
+        for item in self.items.drain(..) {
+            match (&item.data, groups.last_mut()) {
+                (PickerData::Header(_), _) | (_, None) => groups.push(vec![item]),
+                (_, Some(g)) => g.push(item),
+            }
+        }
+        groups.sort_by(|a, b| a[0].label.cmp(&b[0].label));
+        self.items = groups.into_iter().flatten().collect();
+    }
+
+    fn selectable(&self, at: usize) -> bool {
+        self.matches.get(at).is_some_and(|&i| !matches!(self.items[i as usize].data, PickerData::Header(_)))
     }
 
     /// Lists the files under `root` (respecting .gitignore) on a background thread.
@@ -141,8 +253,23 @@ impl Picker {
                 }
             }
         }
+        if changed && self.kind == PickerKind::Grep {
+            // results come in arrival order; once all are in, and nothing was picked yet, files go in path order
+            let untouched =
+                self.matches.iter().position(|&i| self.selectable_item(i)).is_none_or(|f| f == self.selected);
+            if !self.loading && untouched {
+                self.sort_groups();
+                self.selected = 0;
+            }
+            self.matches = (0..self.items.len() as u32).collect();
+            if !self.selectable(self.selected) {
+                self.move_by(1);
+            }
+            return true;
+        }
         if changed {
-            let keep = self.current().map(|i| i.label.clone());
+            // a row picked by moving stays picked; untouched, the best match stays on top
+            let keep = self.current().filter(|_| self.selected > 0).map(|i| i.label.clone());
             self.refilter();
             if let Some(k) = keep
                 && let Some(i) = self.matches.iter().position(|&m| self.items[m as usize].label == k)
@@ -154,8 +281,18 @@ impl Picker {
     }
 
     pub fn refilter(&mut self) {
-        let q = self.query.trim();
-        if q.is_empty() {
+        let q = self.pattern().trim();
+        if self.kind == PickerKind::Grep {
+            self.matches = (0..self.items.len() as u32).collect();
+            self.selected = 0;
+            if !self.selectable(0) {
+                self.move_by(1);
+            }
+            return;
+        }
+        if self.kind == PickerKind::Files && self.query.starts_with(':') {
+            self.matches.clear();
+        } else if q.is_empty() {
             self.matches = (0..self.items.len() as u32).collect();
         } else {
             let mut scored: Vec<(i32, u32)> = self
@@ -182,6 +319,23 @@ impl Picker {
         }
         let n = self.matches.len() as isize;
         self.selected = (self.selected as isize + d).rem_euclid(n) as usize;
+        // header rows are skipped, in the direction of travel
+        let step = if d < 0 { -1 } else { 1 };
+        for _ in 0..n {
+            if self.selectable(self.selected) {
+                break;
+            }
+            self.selected = (self.selected as isize + step).rem_euclid(n) as usize;
+        }
+    }
+}
+
+/// `name:42` -> (`name`, Some(42)); anything else unchanged.
+fn split_line_suffix(q: &str) -> (&str, Option<usize>) {
+    match q.rsplit_once(':') {
+        Some((head, n)) if !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) => (head, n.parse().ok()),
+        Some((head, "")) => (head, None),
+        _ => (q, None),
     }
 }
 
@@ -256,5 +410,43 @@ mod tests {
         let a = fuzzy_score("ed", "src/editor.rs").unwrap();
         let b = fuzzy_score("ed", "src/shared.rs").unwrap();
         assert!(a > b);
+    }
+
+    fn item(label: &str, data: PickerData) -> PickerItem {
+        PickerItem { label: label.into(), detail: String::new(), data }
+    }
+
+    #[test]
+    fn line_suffixes_in_the_file_picker() {
+        let mut p = Picker::new(PickerKind::Files, vec![item("src/editor.rs", PickerData::Path("e".into()))]);
+        p.query = "edit:42".into();
+        p.refilter();
+        assert_eq!((p.pattern(), p.line_suffix(), p.matches.len()), ("edit", Some(42), 1));
+        p.query = ":7".into();
+        p.refilter();
+        assert!(p.matches.is_empty());
+        assert_eq!(p.hint().as_deref(), Some("Enter: go to line 7"));
+        p.query = "@main".into();
+        p.prefix = 1;
+        assert_eq!(p.pattern(), "main");
+    }
+
+    #[test]
+    fn headers_are_never_selected() {
+        let loc = || PickerData::Location { path: None, line: 0, col: 0, hl: None };
+        let items = vec![
+            item("a.rs", PickerData::Header("a.rs".into())),
+            item("x", loc()),
+            item("b.rs", PickerData::Header("b.rs".into())),
+            item("y", loc()),
+        ];
+        let mut p = Picker::new(PickerKind::Grep, items);
+        assert_eq!(p.selected, 1);
+        p.move_by(1);
+        assert_eq!(p.selected, 3);
+        p.move_by(1);
+        assert_eq!(p.selected, 1, "wraps past the header");
+        p.move_by(-1);
+        assert_eq!(p.selected, 3);
     }
 }

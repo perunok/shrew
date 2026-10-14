@@ -10,6 +10,12 @@ Nothing has been released yet: the first release, 0.1.0, will be everything belo
 
 ### Added
 
+- Project navigation: the project root is found from `.git` / `.hg` / `.jj` / `.svn` / `.shrew`, a Cargo workspace,
+  `package.json`, `go.mod` or `pyproject.toml` (never `$HOME` or `/`); a file tree sidebar (Ctrl+B, Ctrl+Shift+E,
+  `srw <folder>`) with lazy folders, `.gitignore`d entries dimmed, a filter and new / rename / trash; find in project
+  (Ctrl+Shift+F, `:grep`) with regex, case, whole-word and glob options; go to symbol in the file (Ctrl+R,
+  Ctrl+Shift+O, `@` in Ctrl+P) and in the project (Ctrl+Shift+R); `:42` and `name:42` in Ctrl+P; recent files and
+  projects (Ctrl+Alt+P); reopen closed files (Ctrl+Shift+T); vim's jump list (Ctrl+O / Ctrl+I, `''`) and `gf`.
 - Editing engine: rope buffers, multiple cursors, undo/redo with grouped edits, search and replace.
 - Vim modal editing (normal, insert, visual, visual line, visual block): motions, operators, text objects, counts,
   registers, macros, marks, dot-repeat, ex commands. Can be switched off for Sublime-style always-insert editing.

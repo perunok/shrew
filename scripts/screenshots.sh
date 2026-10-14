@@ -44,6 +44,9 @@ shot $out/light.png ":theme one-light<CR>/fn contrast<CR>Vjj" crates/shrew-theme
 shot $out/contrast.png ":theme contrast<CR>/pub fn mix<CR>zt" crates/shrew-theme/src/color.rs
 shot $out/substitute.png "/Rope<CR>:%s/Rope/Text/g" "$core/motion.rs"
 shot $out/about.png ":about<CR>" "$core/motion.rs"
+shot $out/sidebar.png "<C-S-e>" "$core/tree.rs"
+shot $out/find-in-project.png "<C-S-f>sync_tree" "$core/tree.rs"
+shot $out/symbols.png "<C-p>@" "$core/tree.rs"
 
 # a 50 MB, one-million-line file, at line 500,000 with a search
 tmp=$(mktemp -d)

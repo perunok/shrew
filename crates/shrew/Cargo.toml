@@ -12,7 +12,7 @@ name = "srw"
 path = "src/main.rs"
 
 [features]
-default = ["syntax", "picker", "clipboard", "mcp", "update", "embed-font"]
+default = ["syntax", "picker", "clipboard", "mcp", "update", "embed-font", "project"]
 # Syntax highlighting with Sublime grammars (syntect + fancy-regex, pure Rust), on a background thread.
 syntax = ["dep:shrew-syntax"]
 # Extra `.sublime-syntax` files from Sublime Text's Packages/User folders.
@@ -27,6 +27,8 @@ mcp = ["dep:shrew-mcp"]
 update = ["dep:shrew-update"]
 # Bundle JetBrains Mono so the first frame never waits for a font scan.
 embed-font = ["shrew-render/embed-font"]
+# Project navigation: the sidebar file tree, find in project, the project symbol index (ignore crate, pure Rust).
+project = ["shrew-core/project"]
 
 [dependencies]
 shrew-core = { path = "../shrew-core", default-features = false }
@@ -43,6 +45,8 @@ env_logger.workspace = true
 # single-instance requests (one JSON line each)
 serde.workspace = true
 serde_json = "1"
+# the cache folder for recent files and projects
+dirs = "6"
 
 [target.'cfg(unix)'.dependencies]
 # getuid and setsid only (bindings, no C compiled)

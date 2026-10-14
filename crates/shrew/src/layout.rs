@@ -29,6 +29,10 @@ pub struct Layout {
     /// Whole text rows and columns that fit.
     pub rows: usize,
     pub cols: usize,
+    /// The file tree on the left (zero width when hidden; see [`Layout::with_sidebar`]).
+    pub sidebar: Rect,
+    /// `tabs` is shrew's own title bar, spanning the whole width above the sidebar (see [`Layout::with_top_bar`]).
+    pub top_bar: bool,
 }
 
 impl Layout {
@@ -61,7 +65,29 @@ impl Layout {
             cmdline: Rect::new(0.0, tabs_h + text_h + status_h, w, cmd_h),
             rows: ((text_h / ch).floor() as usize).max(1),
             cols: (((w - gutter_w - sb_w) / cw).floor() as usize).max(1),
+            sidebar: Rect::new(0.0, tabs_h, 0.0, text_h),
+            top_bar: false,
         }
+    }
+
+    /// Makes room for the sidebar, `w` pixels on the left down to the status bar: the text moves right. It starts
+    /// at the top of the tab row (which moves right too, Sublime-style), or below shrew's own title bar, which keeps
+    /// the whole width. At least 20 columns stay for the text.
+    pub fn with_sidebar(mut self, w: f32) -> Layout {
+        let w = w.min(self.width - self.gutter_w - self.scrollbar.w - 20.0 * self.cw).round();
+        if w <= 0.0 {
+            return self;
+        }
+        let top = if self.top_bar { self.tabs.bottom() } else { self.tabs.y };
+        self.sidebar = Rect::new(0.0, top, w, self.status.y - top);
+        if !self.top_bar {
+            self.tabs.x += w;
+            self.tabs.w -= w;
+        }
+        self.text.x += w;
+        self.text.w -= w;
+        self.cols = (((self.text.w - self.gutter_w - self.scrollbar.w) / self.cw).floor() as usize).max(1);
+        self
     }
 
     /// Left edge of the text (column `view.left`).
@@ -85,14 +111,32 @@ impl Layout {
     pub fn with_top_bar(mut self, h: f32) -> Layout {
         let d = h - self.tabs.h;
         let d = d.min(self.text.h - self.ch).max(-self.tabs.h);
+        self.top_bar = true;
         self.tabs.h += d;
         self.text.y += d;
         self.text.h -= d;
         self.scrollbar.y += d;
         self.scrollbar.h -= d;
+        self.sidebar = Rect::new(self.sidebar.x, self.text.y, self.sidebar.w, self.status.y - self.text.y);
         self.rows = ((self.text.h / self.ch).floor() as usize).max(1);
         self
     }
+}
+
+/// The window's layout for the current state, shared by the event loop and headless rendering. Regions are carved
+/// in a fixed order so they never overlap: the title bar takes the top row, the sidebar the left edge below it,
+/// the minimap the right of the text and the terminal panel the bottom above the status bar.
+pub fn compute(r: &shrew_render::Renderer, st: &crate::state::State) -> Layout {
+    let ed = &st.ed;
+    let lay = Layout::new(
+        &r.metrics(),
+        r.size(),
+        r.scale(),
+        ed.buf().doc.rope.len_lines(),
+        ed.features.on(shrew_core::Feature::LineNumbers),
+        ed.buffers.len() > 1,
+    );
+    crate::titlebar::layout(lay, ed).with_sidebar(crate::sidebar::width(st, r.size().0 as f32, r.scale()))
 }
 
 /// The scroll position actually drawn (fractional while smooth scrolling), in lines and columns.
@@ -164,6 +208,21 @@ mod tests {
         assert!(one.rows > l.rows);
         assert!(one.gutter_w < l.gutter_w);
         assert_eq!(Layout::new(&metrics(), (800, 600), 1.0, 123_456, true, false).digits, 6);
+    }
+
+    #[test]
+    fn the_sidebar_takes_the_left() {
+        let l = Layout::new(&metrics(), (800, 600), 1.0, 120, true, true);
+        assert_eq!(l.with_sidebar(0.0), l, "hidden: nothing moves");
+        let s = l.with_sidebar(200.0);
+        assert_eq!((s.sidebar.x, s.sidebar.w), (0.0, 200.0));
+        assert_eq!((s.sidebar.y, s.sidebar.bottom()), (l.tabs.y, l.status.y));
+        assert_eq!((s.text.x, s.tabs.x), (200.0, 200.0));
+        assert_eq!(s.text.right(), l.text.right());
+        assert!(s.cols < l.cols);
+        assert_eq!(s.status, l.status, "the status bar keeps the whole width");
+        let narrow = l.with_sidebar(10_000.0);
+        assert!(narrow.cols >= 19, "the text keeps some room");
     }
 
     #[test]

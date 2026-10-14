@@ -33,7 +33,7 @@ choice survives a restart. Your comments, ordering and formatting are kept.
 
 **Contents:** [`[editor]`](#editor) · [`[theme]`](#theme) · [`[font]`](#font) · [`[features]`](#features) ·
 [`[keys]`](#keys) · [`[import]`](#import) · [`[mcp]`](#mcp) · [`[update]`](#update) · [`[titlebar]`](#titlebar) ·
-[Full example](#full-example)
+[`[sidebar]`](#sidebar) · [Full example](#full-example)
 
 ## `[editor]`
 
@@ -294,6 +294,16 @@ window buttons sit together, and one at the very edge sits in the window's corne
 [titlebar]
 left = ["close", "minimize", "maximize", "menu", "project", "tabs"]
 ```
+
+## `[sidebar]`
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `width` | number 80–2000 | `250` | Width of the file tree in logical pixels. Dragging the sidebar's edge saves it here |
+
+Whether the sidebar shows is the `sidebar` feature (Ctrl+B toggles it and saves that too). Recent files and projects
+are kept outside this file, in `<cache dir>/shrew/recent` (`~/.cache/shrew/recent` on Linux); turn the `recent`
+feature off to stop that.
 
 ## Full example
 

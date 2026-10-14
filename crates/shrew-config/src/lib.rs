@@ -190,6 +190,8 @@ pub struct Config {
     pub mcp_port: Option<u16>,
     /// `[titlebar]`: the custom title bar's items.
     pub titlebar: TitleBarConfig,
+    /// `[sidebar] width`, logical pixels.
+    pub sidebar_width: Option<f32>,
 }
 
 /// `[titlebar] left / right / hidden`: item names as written (the app knows which exist and sanitises them).
@@ -242,6 +244,9 @@ impl Config {
             if v.is_some() {
                 slot.clone_from(v);
             }
+        }
+        if over.sidebar_width.is_some() {
+            self.sidebar_width = over.sidebar_width;
         }
     }
 }

@@ -138,6 +138,10 @@ pub(crate) enum Cmd {
     SelectMatch(bool),
     /// `&` (this line, no flags) / `g&` (every line, same flags): the last `:s` again.
     RepeatSubstitute(bool),
+    /// Ctrl+O (false) / Ctrl+I, Tab (true): along the jump list.
+    Jump(bool),
+    /// `gf`: the file named under the cursor.
+    GotoFile,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -209,6 +213,26 @@ enum MotionParse {
 #[inline]
 fn ch(k: &KeyPress) -> Option<char> {
     k.text()
+}
+
+/// Motions vim's jump list records (`:h jump-motions`).
+fn is_jump(m: Motion) -> bool {
+    use Motion::*;
+    matches!(
+        m,
+        SearchNext(_)
+            | SearchWord(_)
+            | FileStart
+            | FileEnd
+            | Mark(..)
+            | MatchPair
+            | LinePercent
+            | ParaFwd
+            | ParaBack
+            | ScreenTop
+            | ScreenMiddle
+            | ScreenBottom
+    )
 }
 
 /// The pending-key marker for insert-mode Ctrl+O (shift: it was typed at the end of the line).
@@ -463,6 +487,8 @@ pub(crate) fn parse(keys: &[KeyPress], mode: Mode, recording: bool) -> Parse {
             'v' | 'q' => done(Visual(Mode::VisualBlock)),
             'a' => done(Increment(1)),
             'x' => done(Increment(-1)),
+            'o' => done(Jump(false)),
+            'i' => done(Jump(true)),
             _ => Parse::Invalid,
         };
     }
@@ -476,6 +502,7 @@ pub(crate) fn parse(keys: &[KeyPress], mode: Mode, recording: bool) -> Parse {
                 Operate(Op::Delete, Target::Motion(Motion::Right))
             }),
             Key::Insert => done(Insert(InsertAt::Before)),
+            Key::Tab if k.mods == crate::input::Mods::default() => done(Jump(true)),
             _ => Parse::Invalid,
         };
     };
@@ -538,6 +565,7 @@ pub(crate) fn parse(keys: &[KeyPress], mode: Mode, recording: bool) -> Parse {
             None if next.is_none() => Parse::Pending,
             Some('v') => done(Reselect),
             Some('t') => done(NextBuffer(true)),
+            Some('f') => done(GotoFile),
             Some('T') => done(NextBuffer(false)),
             Some('J') => done(Join(false)),
             Some('n') => done(SelectMatch(true)),
@@ -970,6 +998,12 @@ impl Editor {
                 let last = text::last_line(&self.buf().doc.rope);
                 if all { self.repeat_substitute(0, last, true) } else { self.repeat_substitute(line, line, false) }
             }
+            Jump(newer) => {
+                for _ in 0..count {
+                    self.jump(newer);
+                }
+            }
+            GotoFile => self.goto_file_under_cursor(),
         }
     }
 
@@ -1187,6 +1221,9 @@ impl Editor {
             out.push(nr);
         }
         if moved {
+            if is_jump(m) {
+                self.push_jump();
+            }
             self.buf_mut().sel = Selection::new(out, prim);
             if matches!(
                 m,

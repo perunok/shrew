@@ -31,6 +31,8 @@ Every shot is the real editor, rendered headless from shrew's own source code. R
 | ![Theme picker](docs/screenshots/theme-picker.png)<br>**33 themes** with a live preview as you move through them | ![Light theme](docs/screenshots/light.png)<br>**Light themes** too, here One Light in visual line mode |
 | ![High contrast](docs/screenshots/contrast.png)<br>**High Contrast** (WCAG AAA); every theme passes a contrast audit | ![Substitute](docs/screenshots/substitute.png)<br>**`:%s` substitution**, with the last search highlighted |
 | ![About](docs/screenshots/about.png)<br>**About shrew** and the Shrew Manifesto (`:about`) | ![Huge file](docs/screenshots/huge-file.png)<br>**A 50 MB, million-line file**, searched at line 500,000 |
+| ![Sidebar](docs/screenshots/sidebar.png)<br>**The sidebar** (Ctrl+B): the project's tree, following the active file | ![Find in project](docs/screenshots/find-in-project.png)<br>**Find in project** (Ctrl+Shift+F), grouped by file as results stream in |
+| ![Symbols](docs/screenshots/symbols.png)<br>**Go to symbol** (`@` in Ctrl+P, Ctrl+R) from the grammar's scopes | |
 
 ## Features
 
@@ -53,6 +55,11 @@ Every shot is the real editor, rendered headless from shrew's own source code. R
 - **A title bar of its own.** The tabs, the menus (F10, Alt+F) and the window buttons share the top row, arranged
   as you like (`[titlebar]`). Drag it to move the window, double-click to maximize, or switch back to the system
   title bar with one toggle.
+- **Project navigation.** shrew finds the project a file belongs to (`.git`, a Cargo workspace, `package.json`, …,
+  never your home folder). A file tree sidebar (Ctrl+B), find in project (Ctrl+Shift+F, pure-Rust parallel grep),
+  go to symbol in the file (Ctrl+R / `@` in Ctrl+P) and in the project (Ctrl+Shift+R) from the grammars' scopes,
+  recent files and projects (Ctrl+Alt+P), reopen closed files (Ctrl+Shift+T), vim's jump list (Ctrl+O / Ctrl+I) and
+  `gf`. See [KEYBINDINGS.md](docs/KEYBINDINGS.md#project-navigation).
 - **Themes.** 33 built in (Dracula, Nord, Gruvbox, Catppuccin, Tokyo Night, Solarized, One Dark, two high-contrast
   ones and more), 18 accents over any of them, following the desktop's light/dark setting, your own TOML themes,
   and imported Sublime or TextMate color schemes. Theme, accent and font pickers preview live. See
@@ -111,6 +118,10 @@ the table below for your build and config.
 | `vimrc` | Read options and mappings from `~/.vimrc` or `init.vim` at startup (see `[import]`) | on | |
 | `sublime_import` | Read Sublime Text's user settings and key bindings at startup (see `[import]`) | on | |
 | `custom_titlebar` | shrew's own title bar: tabs, menus (F10) and window buttons in one row. Off: the system title bar | on | |
+| `sidebar` | File tree of the project on the left (Ctrl+B, Ctrl+Shift+E) | off | `project` |
+| `project_search` | Find in project (Ctrl+Shift+F, `:grep`), respects `.gitignore` | on | `project` |
+| `symbols` | Go to symbol in the file (Ctrl+R, `@` in Ctrl+P) and the project (Ctrl+Shift+R) | on | `syntax` |
+| `recent` | Remember recent files and projects (Open Recent, Ctrl+Alt+P) in the cache dir | on | |
 
 Keys also work without the underscore (`:set nolinenumbers`). The usual vim spellings work too: `:set nu`, `rnu`,
 `hls`, `list`, `et`, `ts=2`, `so=8`.
@@ -125,7 +136,7 @@ mcp = true
 ```
 
 **Compile-time.** The `shrew` package's (the `srw` binary's) default cargo features are `syntax`, `picker`,
-`clipboard`, `mcp`, `update` and `embed-font`. A minimal build:
+`clipboard`, `mcp`, `update`, `embed-font` and `project`. A minimal build:
 
 ```sh
 cargo build --release -p shrew --no-default-features                     # just the editor

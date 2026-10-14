@@ -28,18 +28,7 @@ pub fn run(cli: &Cli, out: &std::path::Path) -> Result<(), String> {
     let mut ui = Ui::new();
     ui.animate = false;
     let mut scene = Scene::new();
-    let layout = |r: &Renderer, st: &State| {
-        let ed = &st.ed;
-        let lay = Layout::new(
-            &r.metrics(),
-            r.size(),
-            r.scale(),
-            ed.buf().doc.rope.len_lines(),
-            ed.features.on(Feature::LineNumbers),
-            ed.buffers.len() > 1,
-        );
-        crate::titlebar::layout(lay, ed)
-    };
+    let layout = |r: &Renderer, st: &State| crate::layout::compute(r, st);
     // a first layout pass sizes the views, so keys like Ctrl+D scroll by the real page
     let lay = layout(&r, &st);
     draw::build(&mut scene, &mut st, &mut ui, &lay, Instant::now());

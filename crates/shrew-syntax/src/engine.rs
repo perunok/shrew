@@ -137,7 +137,8 @@ impl Engine {
     }
 
     fn run(self: Arc<Self>, opts: Options) {
-        *self.set.write().unwrap_or_else(|e| e.into_inner()) = Some((Arc::new(SyntaxSet::load_defaults_newlines()), 1));
+        // shared with the symbol finder (`symbols::default_set`)
+        *self.set.write().unwrap_or_else(|e| e.into_inner()) = Some((crate::symbols::default_set(), 1));
         (self.wake)();
         // user grammars need the whole set rebuilt (~0.3 s): do that aside and swap it in when done
         let dirs = user_dirs(&opts);

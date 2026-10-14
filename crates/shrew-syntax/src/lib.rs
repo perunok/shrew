@@ -31,6 +31,7 @@
 mod detect;
 mod engine;
 mod highlighter;
+pub mod symbols;
 mod theme;
 mod work;
 

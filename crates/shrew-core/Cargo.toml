@@ -6,11 +6,13 @@ edition.workspace = true
 license.workspace = true
 
 [features]
-default = ["picker", "syntax"]
+default = ["picker", "syntax", "project"]
 # Syntax highlighting with Sublime grammars (syntect, pure Rust).
 syntax = ["dep:syntect"]
 # Fuzzy file picker (walks the project respecting .gitignore).
 picker = ["dep:ignore"]
+# Project navigation: find in project, the sidebar's .gitignore marks, the symbol index walk.
+project = ["dep:ignore"]
 
 [dependencies]
 ropey.workspace = true

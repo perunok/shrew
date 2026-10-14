@@ -2,7 +2,7 @@
 //! touched, so a frame costs the same in a 10-line file and a 10-million-line one.
 //!
 //! Layers: 0 = editor (backgrounds, selections, text) and bars; 1 = cursors and the scrollbar (above text);
-//! 2 = the picker and About overlays.
+//! 2 = the picker, About and Settings overlays; 3 = what opens over Settings (its lists, the pickers).
 
 use crate::anim::{Anim, Target};
 use crate::colors::{Colors, mix};
@@ -25,6 +25,8 @@ pub struct Hits {
     /// Picker rows and the index into `matches` each shows.
     pub picker_rows: Vec<(Rect, usize)>,
     pub about: Option<Rect>,
+    /// The Settings gear in the status bar.
+    pub gear: Option<Rect>,
     /// The scrollbar track and the line count it maps to.
     pub scrollbar: Option<(Rect, usize)>,
 }
@@ -119,6 +121,7 @@ pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: 
     editor(scene, st, ui, lay, &c, scroll);
     status(scene, st, ui, lay, &c);
     cmdline(scene, &st.ed, st, lay, &c);
+    crate::settings::draw(scene, st, lay, &c);
     if st.ed.picker.is_some() {
         picker(scene, &st.ed, ui, lay, &c);
     }
@@ -149,7 +152,7 @@ fn editor(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors, 
     let head = b.sel.primary().head.min(rope.len_chars());
     let cur_line = text::line_of(rope, head);
     let insert_like = ed.mode == Mode::Insert || !ed.vim();
-    let overlay = ed.prompt.is_some() || ed.picker.is_some() || ed.about.is_some();
+    let overlay = ed.prompt.is_some() || ed.picker.is_some() || ed.about.is_some() || st.settings.is_open();
 
     scene.push_clip(lay.text);
     // current line
@@ -746,6 +749,20 @@ fn status(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors) 
 
     // right side first (it always shows), laid out from the right edge
     let mut right = bar.right() - lay.pad * 2.0;
+    // the Settings gear (Ctrl+,) in the corner
+    if ed.features.on(Feature::Settings) {
+        let gw = 2.0 * cw;
+        right -= gw;
+        let open = st.settings.is_open();
+        let r = Rect::new((right - cw / 2.0).round(), bar.y + lay.pad, (gw + cw).round(), bar.h - 2.0 * lay.pad);
+        if open {
+            scene.rounded_rect(r, r.h / 2.0, c.panel_selection, None);
+        }
+        let x = (right + (gw - columns(GEAR) as f32 * cw) / 2.0).round();
+        scene.text(x, y, GEAR, TextStyle::new(if open { c.accent } else { c.panel_muted }), &[]);
+        ui.hits.gear = Some(r);
+        right -= 2.0 * cw;
+    }
     let mut item = |scene: &mut Scene, s: &str, col: Color| {
         right -= columns(s) as f32 * cw;
         scene.text(right.round(), y, s, TextStyle::new(col), &[]);
@@ -835,8 +852,11 @@ fn status(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors) 
     scene.pop_clip();
 }
 
+/// The status bar's Settings button.
+const GEAR: &str = "⚙";
+
 /// `s` cut to its last `cols` columns behind an ellipsis.
-fn elide_start(s: &str, cols: usize) -> String {
+pub(crate) fn elide_start(s: &str, cols: usize) -> String {
     if columns(s) <= cols {
         return s.to_string();
     }
@@ -890,7 +910,7 @@ fn prompt(scene: &mut Scene, p: &Prompt, x: f32, y: f32, lay: &Layout, c: &Color
 
 fn picker(scene: &mut Scene, ed: &Editor, ui: &mut Ui, lay: &Layout, c: &Colors) {
     let Some(p) = &ed.picker else { return };
-    scene.layer(2);
+    scene.layer(3);
     let cw = lay.cw;
     let pad = lay.pad;
     let w = (lay.width * 0.6).clamp(60.0 * cw, 100.0 * cw).min(lay.width - 2.0 * cw).round();
@@ -986,7 +1006,7 @@ fn picker(scene: &mut Scene, ed: &Editor, ui: &mut Ui, lay: &Layout, c: &Colors)
 }
 
 /// A floating panel with a soft shadow, as the picker and the About panel use.
-fn popup(scene: &mut Scene, panel: Rect, lay: &Layout, c: &Colors) {
+pub(crate) fn popup(scene: &mut Scene, panel: Rect, lay: &Layout, c: &Colors) {
     let Rect { x, y, w, h } = panel;
     let radius = (8.0 * lay.scale).round();
     for i in 1..=4 {
@@ -1088,7 +1108,7 @@ fn picker_columns(p: &shrew_core::picker::Picker, room: usize) -> (usize, Option
 }
 
 /// `s` cut to `cols` columns, ending in an ellipsis when cut.
-fn elide_end(s: &str, cols: usize) -> std::borrow::Cow<'_, str> {
+pub(crate) fn elide_end(s: &str, cols: usize) -> std::borrow::Cow<'_, str> {
     if columns(s) <= cols {
         return s.into();
     }

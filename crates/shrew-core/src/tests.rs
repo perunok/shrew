@@ -497,3 +497,22 @@ fn about_panel_is_modal_and_read_only() {
     keys(&mut e, "<Esc>");
     assert_eq!(e.about, None);
 }
+
+#[test]
+fn settings_open_from_a_chord_the_palette_and_ex() {
+    use crate::Event;
+    let mut e = ed("|abc");
+    keys(&mut e, "<C-,>");
+    assert_eq!(e.events.pop(), Some(Event::OpenSettings(String::new())));
+    keys(&mut e, ":settings editor<CR>");
+    assert_eq!(e.events.pop(), Some(Event::OpenSettings("editor".into())));
+    keys(&mut e, "<C-S-p>preferences settings<CR>");
+    assert_eq!(e.events.pop(), Some(Event::OpenSettings(String::new())));
+    assert!(e.picker.is_none());
+    // the chord list asks the real bindings: Ctrl+Shift+Q is Ctrl+Q again and is listed once
+    let chords = e.chords();
+    assert!(chords.contains(&(KeyPress::ctrl(','), crate::Command::Settings)));
+    assert!(chords.contains(&(KeyPress::ctrl('s'), crate::Command::Save)));
+    let quit = chords.iter().filter(|c| c.1 == crate::Command::Quit).count();
+    assert_eq!(quit, 1);
+}

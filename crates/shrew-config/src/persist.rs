@@ -175,7 +175,7 @@ pub fn persist_feature(path: &Path, f: Feature, on: bool) -> io::Result<()> {
     doc.save()
 }
 
-/// Settings the app writes back when they change at runtime (pickers, `:theme`, Ctrl+=).
+/// Settings the app writes back when they change at runtime (pickers, `:theme`, Ctrl+=, the Settings panel).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Setting {
     Theme,
@@ -185,6 +185,16 @@ pub enum Setting {
     FontWeight,
     LineHeight,
     Ligatures,
+    // the Settings panel's rows
+    SystemLight,
+    SystemDark,
+    TabWidth,
+    ExpandTab,
+    Scrolloff,
+    CursorBlink,
+    Leader,
+    MappingTimeout,
+    McpPort,
 }
 
 impl Setting {
@@ -198,6 +208,15 @@ impl Setting {
             Setting::FontWeight => ("font", "weight", None),
             Setting::LineHeight => ("font", "line_height", Some("line_height")),
             Setting::Ligatures => ("font", "ligatures", None),
+            Setting::SystemLight => ("theme", "system_light", None),
+            Setting::SystemDark => ("theme", "system_dark", None),
+            Setting::TabWidth => ("editor", "tab_width", None),
+            Setting::ExpandTab => ("editor", "expand_tab", None),
+            Setting::Scrolloff => ("editor", "scrolloff", None),
+            Setting::CursorBlink => ("editor", "cursor_blink", None),
+            Setting::Leader => ("editor", "leader", None),
+            Setting::MappingTimeout => ("editor", "mapping_timeout_ms", None),
+            Setting::McpPort => ("mcp", "port", None),
         }
     }
 }

@@ -77,6 +77,12 @@ pub struct State {
     /// How MCP jobs reach the UI thread (set by the windowed app; none headless).
     #[cfg(feature = "mcp")]
     pub mcp_host: Option<Arc<dyn shrew_mcp::Host>>,
+    /// The Settings panel (empty until it is first opened).
+    pub settings: crate::settings::Settings,
+    /// What the vimrc and Sublime imports read, for the Settings panel.
+    pub imports: Vec<shrew_config::ImportReport>,
+    /// `[mcp] port` from config.toml, when set: the MCP server listens there.
+    pub mcp_port: Option<u16>,
 }
 
 impl State {
@@ -122,6 +128,9 @@ impl State {
             mcp: None,
             #[cfg(feature = "mcp")]
             mcp_host: None,
+            settings: Default::default(),
+            imports: loaded.imports.clone(),
+            mcp_port: loaded.config.mcp_port,
         };
         st.apply_theme_config(ThemeCfg::from(cfg));
         st.show_warnings(&warnings);
@@ -172,12 +181,20 @@ impl State {
 
     /// A key from the keyboard (or `--keys`).
     pub fn key(&mut self, k: KeyPress) {
-        self.ed.handle_key(k);
+        // the Settings panel takes the keys, unless one of its pickers is open over it
+        if self.settings.is_open() && self.ed.picker.is_none() {
+            self.settings_key(k);
+        } else {
+            self.ed.handle_key(k);
+        }
         self.after_input();
     }
 
     /// Text typed through an input method.
     pub fn text(&mut self, s: &str) {
+        if self.settings.is_open() && self.ed.picker.is_none() {
+            return s.chars().for_each(|c| self.key(KeyPress::ch(c)));
+        }
         if self.ed.mapping_pending() {
             self.ed.flush_pending_mappings();
         }
@@ -243,6 +260,7 @@ impl State {
             }
             Event::BufferOpened(id) => self.buffer_opened(id),
             Event::Load(path) => self.open_at(&path, None, None),
+            Event::OpenSettings(section) => self.open_settings(&section),
         }
     }
 
@@ -253,6 +271,7 @@ impl State {
             Feature::Syntax => self.set_syntax(on),
             Feature::Mcp => self.set_mcp(on),
             Feature::UpdateCheck if on => self.auto_update_check(),
+            Feature::Settings if !on => self.settings.close(),
             _ => {}
         }
     }
@@ -544,6 +563,8 @@ impl State {
             self.font_changed = true;
         }
         self.cursor_blink = cfg.cursor_blink();
+        self.imports = loaded.imports.clone();
+        self.mcp_port = loaded.config.mcp_port;
         let look = ThemeCfg::from(cfg);
         if look != self.look.cfg {
             self.apply_theme_config(look);
@@ -559,7 +580,7 @@ impl State {
 
     // ----- MCP -----
 
-    fn set_mcp(&mut self, on: bool) {
+    pub(crate) fn set_mcp(&mut self, on: bool) {
         #[cfg(feature = "mcp")]
         {
             let Some(dir) = shrew_mcp::files::mcp_dir() else { return };
@@ -568,6 +589,14 @@ impl State {
                     return;
                 }
                 let Some(host) = self.mcp_host.clone() else { return };
+                // `[mcp] port` in config.toml (the Settings panel writes it) wins over the one saved with the token
+                if let Some(port) = self.mcp_port {
+                    let mut s = shrew_mcp::files::load_settings(&dir);
+                    if s.port != port {
+                        s.port = port;
+                        let _ = shrew_mcp::files::save_settings(&dir, &s);
+                    }
+                }
                 match shrew_mcp::McpServer::start(&dir, host) {
                     Ok(s) => {
                         log::info!("MCP endpoint at {}", s.url());

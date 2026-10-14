@@ -31,6 +31,7 @@ Every shot is the real editor, rendered headless from shrew's own source code. R
 | ![Theme picker](docs/screenshots/theme-picker.png)<br>**33 themes** with a live preview as you move through them | ![Light theme](docs/screenshots/light.png)<br>**Light themes** too, here One Light in visual line mode |
 | ![High contrast](docs/screenshots/contrast.png)<br>**High Contrast** (WCAG AAA); every theme passes a contrast audit | ![Substitute](docs/screenshots/substitute.png)<br>**`:%s` substitution**, with the last search highlighted |
 | ![About](docs/screenshots/about.png)<br>**About shrew** and the Shrew Manifesto (`:about`) | ![Huge file](docs/screenshots/huge-file.png)<br>**A 50 MB, million-line file**, searched at line 500,000 |
+| ![Settings](docs/screenshots/settings.png)<br>**Settings** (Ctrl+,): every setting by section, saved to `config.toml` | ![Settings in a light theme](docs/screenshots/settings-light.png)<br>**Keys or mouse**: switches, sliders, `/` to search, `r` to reset |
 
 ## Features
 
@@ -48,6 +49,9 @@ Every shot is the real editor, rendered headless from shrew's own source code. R
 - **Brings your config along.** At startup shrew reads your `~/.vimrc` / `init.vim` (options, leader, the whole
   `map` / `noremap` family) and Sublime Text's user settings and key bindings. You add or override anything in
   `config.toml`, and shrew's own changes to it (`:set`, theme and font pickers) keep your comments.
+- **Settings panel.** Ctrl+, (or `:settings`, or the gear in the status bar) shows every setting by section:
+  appearance, editor, features, keybindings, imports, AI assistants, updates. Keys or mouse, `/` searches them all,
+  `r` resets one, and every change is saved to `config.toml` with your comments kept.
 - **Pickers.** A fuzzy file finder (Ctrl+P) that walks the project in the background and respects `.gitignore`, a
   command palette (Ctrl+Shift+P), a buffer list (Ctrl+Shift+B) and the Features list.
 - **Themes.** 33 built in (Dracula, Nord, Gruvbox, Catppuccin, Tokyo Night, Solarized, One Dark, two high-contrast
@@ -74,7 +78,8 @@ Every shot is the real editor, rendered headless from shrew's own source code. R
 Plain editing is always there: rope buffers, unlimited undo/redo with grouped edits, multiple cursors, regex search
 and `:s` replace, and the vim and Sublime keymaps. Everything else is an optional feature. Every optional feature:
 
-- shows up in the **Features** list (`:features`, or palette *Features: List and Toggle*), where Enter toggles it;
+- shows up in the **Features** list (`:features`, or palette *Features: List and Toggle*), where Enter toggles it, and
+  in the Settings panel (Ctrl+,);
 - can be switched **at runtime** with `:set <key>`, `:set no<key>` or `:set <key>!` (toggle). Changes made this way
   are written back to `config.toml`, and your comments in the file are kept;
 - can be set **in the config** under `[features]`, as `<key> = true|false`;
@@ -107,6 +112,7 @@ the table below for your build and config.
 | `update_check` | Check GitHub for new releases at startup (at most once a day) | on | `update` |
 | `vimrc` | Read options and mappings from `~/.vimrc` or `init.vim` at startup (see `[import]`) | on | |
 | `sublime_import` | Read Sublime Text's user settings and key bindings at startup (see `[import]`) | on | |
+| `settings` | Settings panel (Ctrl+,, `:settings`) and the gear in the status bar | on | |
 
 Keys also work without the underscore (`:set nolinenumbers`). The usual vim spellings work too: `:set nu`, `rnu`,
 `hls`, `list`, `et`, `ts=2`, `so=8`.

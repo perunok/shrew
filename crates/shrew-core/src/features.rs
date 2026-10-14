@@ -25,6 +25,7 @@ pub enum Feature {
     UpdateCheck,
     Vimrc,
     SublimeImport,
+    Settings,
 }
 
 pub struct FeatureInfo {
@@ -71,6 +72,7 @@ pub static FEATURES: &[FeatureInfo] = &[
         true,
         "Read Sublime Text's user settings and key bindings at startup (see [import])",
     ),
+    f(Feature::Settings, "settings", true, "Settings panel (Ctrl+,, :settings) and the gear in the status bar"),
 ];
 
 pub fn info(feature: Feature) -> &'static FeatureInfo {

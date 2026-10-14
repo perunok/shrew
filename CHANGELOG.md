@@ -19,6 +19,10 @@ Nothing has been released yet: the first release, 0.1.0, will be everything belo
   (`crates/shrew-core/tests/vim_diff.rs`), and latency tests on a 50 MB, million-line buffer.
 - Mouse: click, double/triple-click, drag to select, Shift+click to extend, Ctrl/Alt+click for another cursor, the
   wheel and the scrollbar.
+- Settings panel (Ctrl+, / Cmd+,, palette *Preferences: Settings*, `:settings [section]`, the gear in the status bar):
+  Appearance, Editor, Features, Layout & window, Keybindings, Import, AI assistants, Updates and About, driven by keys
+  or the mouse, with search and reset to default. Every change applies at once and is saved to `config.toml`.
+  `[mcp] port` is now honoured.
 - `config.toml` with comment-preserving writes: `:set`, the Features list and the pickers save their changes and keep
   your comments.
 - User key mappings from `config.toml`, an existing `~/.vimrc` / `init.vim` and Sublime Text's user key bindings.

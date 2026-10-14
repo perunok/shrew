@@ -9,7 +9,9 @@ also picks up what it can from your vimrc and from Sublime Text.
 | macOS | `~/Library/Application Support/shrew/config.toml` |
 | Windows | `%APPDATA%\shrew\config.toml` |
 
-To open the file, use palette *Shrew: Open Config File* (`:config`). If the file does not exist yet, it is created
+Most settings can also be changed in the **Settings panel** (Ctrl+, or `:settings`; see
+[KEYBINDINGS.md](KEYBINDINGS.md#settings-panel)), which writes them here. To open the file, use palette *Shrew: Open
+Config File* (`:config`). If the file does not exist yet, it is created
 with every setting commented out at its default value, each with a one-line explanation, so you can uncomment what
 you want to change.
 
@@ -28,8 +30,8 @@ number, and the rest of the file still applies. Only a file that is not valid TO
 Warnings show in the status line at startup.
 
 **shrew writes to the file too, carefully.** When you toggle a feature at runtime (`:set nosyntax`, the Features
-list), pick a theme, accent or font, or change the font size, shrew updates that one value in `config.toml`, so the
-choice survives a restart. Your comments, ordering and formatting are kept.
+list), pick a theme, accent or font, change the font size or change anything in the Settings panel, shrew updates that
+one value in `config.toml`, so the choice survives a restart. Your comments, ordering and formatting are kept.
 
 **Contents:** [`[editor]`](#editor) · [`[theme]`](#theme) · [`[font]`](#font) · [`[features]`](#features) ·
 [`[keys]`](#keys) · [`[import]`](#import) · [`[mcp]`](#mcp) · [`[update]`](#update) · [Full example](#full-example)
@@ -101,7 +103,7 @@ README has [the full table with defaults](../README.md#features). The keys are:
 
 `vim`, `syntax`, `bracket_match`, `auto_pairs`, `auto_indent`, `line_numbers`, `relative_numbers`, `current_line`,
 `indent_guides`, `whitespace`, `search_highlight`, `word_highlight`, `smooth_scroll`, `cursor_animation`, `picker`,
-`palette`, `clipboard`, `mcp`, `update_check`, `vimrc`, `sublime_import`.
+`palette`, `clipboard`, `mcp`, `update_check`, `vimrc`, `sublime_import`, `settings`.
 
 ```toml
 [features]
@@ -236,7 +238,7 @@ does not use. Bindings with a `context` are conditional in Sublime, so they are 
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `port` | integer 1–65535 | `7356` | Port of the MCP endpoint on `127.0.0.1`, when the `mcp` feature is on |
+| `port` | integer 1–65535 | `7356` | Port of the MCP endpoint on `127.0.0.1`, when the `mcp` feature is on (the next free one when it is taken) |
 
 The server itself is switched by the `mcp` feature (off by default). The endpoint listens on loopback only and needs
 a token, which shrew keeps in `~/.config/shrew/mcp/`. Clients normally use the `shrew --mcp-stdio` bridge, which

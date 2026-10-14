@@ -134,6 +134,8 @@ pub enum Event {
     ThemeImport(String),
     /// `:set ligatures` (`Some(true)`), `:set noligatures`, or a toggle (`None`).
     Ligatures(Option<bool>),
+    /// Open the Settings panel (Ctrl+,, `:settings [section]`), on a section when the name is not empty.
+    OpenSettings(String),
 }
 
 #[derive(Clone, Debug)]
@@ -773,8 +775,50 @@ impl Editor {
             ('j', false) if !self.vim() => JoinLines,
             ('b', true) => SwitchBuffer,
             ('u', true) => CheckForUpdates,
+            (',', false) => Command::Settings,
             _ => return None,
         })
+    }
+
+    /// The built-in chords that run a command in the current mode (Ctrl+S, Ctrl+Shift+P, Alt+F3, ...), for listings
+    /// such as the Settings panel's Keybindings section. It asks [`Editor::binding`] itself, so it never drifts.
+    pub fn chords(&self) -> Vec<(KeyPress, Command)> {
+        let m = |ctrl, alt, shift| Mods { ctrl, alt, shift, logo: false };
+        let mut keys = Vec::new();
+        for c in "abcdefghijklmnopqrstuvwxyz0123456789,./[]=+-".chars() {
+            keys.extend([false, true].map(|shift| KeyPress::new(Key::Char(c), m(true, false, shift))));
+        }
+        for (key, mods) in [
+            (Key::F(3), m(false, false, false)),
+            (Key::F(3), m(false, false, true)),
+            (Key::F(3), m(false, true, false)),
+            (Key::Up, m(false, true, false)),
+            (Key::Down, m(false, true, false)),
+            (Key::Up, m(true, false, true)),
+            (Key::Down, m(true, false, true)),
+            (Key::Up, m(true, true, false)),
+            (Key::Down, m(true, true, false)),
+            (Key::Up, m(false, true, true)),
+            (Key::Down, m(false, true, true)),
+            (Key::Enter, m(true, false, false)),
+            (Key::Enter, m(true, false, true)),
+            (Key::Tab, m(true, false, false)),
+            (Key::Tab, m(true, false, true)),
+            (Key::PageDown, m(true, false, false)),
+            (Key::PageUp, m(true, false, false)),
+        ] {
+            keys.push(KeyPress::new(key, mods));
+        }
+        let mut out: Vec<(KeyPress, Command)> = Vec::new();
+        for k in keys {
+            let Some(c) = self.binding(k) else { continue };
+            // Ctrl+Shift+Q is Ctrl+Q again: list it once
+            let plain = KeyPress::new(k.key, Mods { shift: false, ..k.mods });
+            if !(k.mods.shift && out.last().is_some_and(|&(p, pc)| p == plain && pc == c)) {
+                out.push((k, c));
+            }
+        }
+        out
     }
 
     // ----- commands -----
@@ -945,6 +989,11 @@ impl Editor {
                 self.picker = None;
                 self.prompt = None;
                 self.about = Some(0);
+            }
+            Command::Settings => {
+                self.picker = None;
+                self.prompt = None;
+                self.events.push(Event::OpenSettings(String::new()));
             }
         }
     }
@@ -1920,6 +1969,7 @@ impl Editor {
             "accent" => self.events.push(Event::Choose(Choice::Accent, arg.to_string())),
             "font" if arg.is_empty() => self.events.push(Event::OpenChoice(Choice::Font)),
             "font" => self.events.push(Event::Choose(Choice::Font, arg.to_string())),
+            "settings" | "preferences" | "prefs" => self.events.push(Event::OpenSettings(arg.to_string())),
             "syntax" => match arg {
                 "on" | "enable" => self.set_option("syntax"),
                 "off" => self.set_option("nosyntax"),

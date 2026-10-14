@@ -8,6 +8,7 @@
 //! - [`app`]: the winit event loop, input and the renderer.
 //! - [`draw`] / [`layout`] / [`anim`]: building a frame from the state, and the geometry hit testing shares.
 //! - [`about`]: the About panel's text (version, the Shrew Manifesto, credits).
+//! - [`settings`]: the Settings panel (Ctrl+,): sections of setting rows, saved to config.toml.
 //! - [`headless`]: `--screenshot`, a frame rendered without a window.
 
 mod about;
@@ -24,6 +25,7 @@ mod keys;
 mod launch;
 mod layout;
 mod remote;
+mod settings;
 mod state;
 
 use cli::{Action, Cli};

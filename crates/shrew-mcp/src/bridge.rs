@@ -167,6 +167,9 @@ impl Transport for Http {
                 return Err(SendError::Unreachable);
             }
             Err(ureq::Error::ConnectionFailed) => return Err(SendError::Unreachable),
+            // Windows retries a SYN to a closed loopback port for ~2 s instead of refusing at once: a connect that
+            // times out on 127.0.0.1 means nothing is listening
+            Err(ureq::Error::Timeout(ureq::Timeout::Connect)) => return Err(SendError::Unreachable),
             Err(e) => return Err(SendError::Failed(e.to_string())),
         };
         match resp.status().as_u16() {

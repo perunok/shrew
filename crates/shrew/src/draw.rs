@@ -950,6 +950,8 @@ fn picker(scene: &mut Scene, ed: &Editor, ui: &mut Ui, lay: &Layout, c: &Colors)
     let q = p.query.trim();
     let hl = TextStyle::new(c.fuzzy_match).bold();
     let mut spans: Vec<(Range<usize>, TextStyle)> = Vec::new();
+    let room = ((inner.w - 2.0 * pad) / cw).max(0.0) as usize;
+    let (label_cols, detail_x) = picker_columns(p, room);
     for (row, &mi) in p.matches.iter().enumerate().skip(ui.picker_top).take(max_rows) {
         let item = &p.items[mi as usize];
         let ry = ry0 + (row - ui.picker_top) as f32 * row_h;
@@ -971,23 +973,58 @@ fn picker(scene: &mut Scene, ed: &Editor, ui: &mut Ui, lay: &Layout, c: &Colors)
             }
         }
         let label_x = inner.x + pad;
-        let label_cols = columns(&item.label);
         let fg = if row == p.selected { c.panel_foreground } else { mix(c.panel_foreground, c.panel_muted, 0.85) };
-        scene.text(label_x, ty, &item.label, TextStyle::new(fg), &spans);
-        if !item.detail.is_empty() {
-            let dcols = columns(&item.detail);
-            let room = ((inner.w - 2.0 * pad) / cw) as usize;
-            // right-aligned when it fits, else right after the label
-            let dx = if label_cols + 3 + dcols <= room {
-                inner.right() - pad - dcols as f32 * cw
-            } else {
-                label_x + (label_cols + 3) as f32 * cw
-            };
-            scene.text(dx.round(), ty, &item.detail, TextStyle::new(c.panel_muted), &[]);
+        let label = elide_end(&item.label, label_cols);
+        // matches past the cut are gone with it
+        let cut = matches!(label, std::borrow::Cow::Owned(_));
+        let kept = if cut { label.len() - '…'.len_utf8() } else { label.len() };
+        spans.retain(|(r, _)| r.end <= kept);
+        scene.text(label_x, ty, &label, TextStyle::new(fg), &spans);
+        // details all start at one column, after the longest label
+        if let Some(dcol) = detail_x
+            && !item.detail.is_empty()
+        {
+            let detail = elide_end(&item.detail, room - dcol);
+            scene.text(label_x + dcol as f32 * cw, ty, &detail, TextStyle::new(c.panel_muted), &[]);
         }
     }
     scene.pop_clip();
     scene.layer(0);
+}
+
+/// Gap between a picker's label and detail columns.
+const DETAIL_GAP: usize = 3;
+
+/// A picker's label width and the column its details start at (none when no item has one or there is no room), out
+/// of `room` columns. The column follows the longest label (of every item, so it holds still while filtering), up
+/// to half the row; longer labels are cut.
+fn picker_columns(p: &shrew_core::picker::Picker, room: usize) -> (usize, Option<usize>) {
+    // file lists can be huge and have no details
+    if p.kind == PickerKind::Files || p.items.iter().all(|i| i.detail.is_empty()) {
+        return (room, None);
+    }
+    let longest = p.items.iter().map(|i| columns(&i.label)).max().unwrap_or(0);
+    let label = longest.min(room / 2);
+    let dcol = label + DETAIL_GAP;
+    if dcol + 4 > room { (room, None) } else { (label, Some(dcol)) }
+}
+
+/// `s` cut to `cols` columns, ending in an ellipsis when cut.
+fn elide_end(s: &str, cols: usize) -> std::borrow::Cow<'_, str> {
+    if columns(s) <= cols {
+        return s.into();
+    }
+    let mut out = String::new();
+    let mut w = 1;
+    for ch in s.chars() {
+        w += char_columns(ch);
+        if w > cols {
+            break;
+        }
+        out.push(ch);
+    }
+    out.push('…');
+    out.into()
 }
 
 fn human_bytes(n: u64) -> String {
@@ -1062,6 +1099,31 @@ mod tests {
         assert_eq!(elide_start("src/main.rs", 20), "src/main.rs");
         assert_eq!(elide_start("crates/shrew/src/main.rs", 10), "…c/main.rs");
         assert_eq!(columns(&elide_start("日本語/日本語.rs", 7)), 6);
+    }
+
+    #[test]
+    fn long_labels_lose_their_end() {
+        assert_eq!(elide_end("Toggle line numbers", 30), "Toggle line numbers");
+        assert_eq!(elide_end("Toggle line numbers", 8), "Toggle …");
+        assert_eq!(columns(&elide_end("日本語の名前", 6)), 5);
+    }
+
+    #[test]
+    fn picker_details_share_one_column() {
+        use shrew_core::picker::{Picker, PickerData, PickerItem};
+        let item = |label: &str, detail: &str| PickerItem {
+            label: label.into(),
+            detail: detail.into(),
+            data: PickerData::Buffer(0),
+        };
+        let p = Picker::new(PickerKind::Buffers, vec![item("a.rs", "src/a.rs"), item("longer.rs", "")]);
+        assert_eq!(picker_columns(&p, 80), (9, Some(12)));
+        // a very long label takes at most half the row
+        let p = Picker::new(PickerKind::Buffers, vec![item(&"x".repeat(100), "d")]);
+        assert_eq!(picker_columns(&p, 80), (40, Some(43)));
+        // no details: the label gets the row
+        let p = Picker::new(PickerKind::Buffers, vec![item("a.rs", "")]);
+        assert_eq!(picker_columns(&p, 80), (80, None));
     }
 
     #[test]

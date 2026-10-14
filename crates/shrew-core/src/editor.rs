@@ -124,6 +124,8 @@ pub enum Event {
     FeatureToggled(Feature),
     /// A buffer was opened or its file type changed; syntax state for it should be (re)created.
     BufferOpened(u64),
+    /// A file over [`Editor::async_load_bytes`] to open: the app reads it on a background thread.
+    Load(PathBuf),
 }
 
 #[derive(Clone, Debug)]
@@ -168,6 +170,8 @@ pub struct Editor {
     pub cwd: PathBuf,
     /// Lets background work (file listing, syntax loading) wake the UI.
     pub waker: Option<Arc<dyn Fn() + Send + Sync>>,
+    /// Files bigger than this are not read by [`Editor::open`]: it emits [`Event::Load`] instead. None: always read.
+    pub async_load_bytes: Option<u64>,
     // vim state
     pub(crate) pending: Vec<KeyPress>,
     pub(crate) last_find: Option<(char, bool, bool)>,
@@ -218,6 +222,7 @@ impl Editor {
             events: Vec::new(),
             cwd: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
             waker: None,
+            async_load_bytes: None,
             pending: Vec::new(),
             last_find: None,
             dot: Vec::new(),
@@ -259,11 +264,18 @@ impl Editor {
         self.buffers.len() - 1
     }
 
-    /// Opens `path` (or switches to it when already open). Missing files open as new, empty buffers.
+    /// Opens `path` (or switches to it when already open). Missing files open as new, empty buffers. Big files
+    /// (see [`Editor::async_load_bytes`]) are handed to the app as [`Event::Load`].
     pub fn open(&mut self, path: &Path) -> std::io::Result<()> {
         let path = self.absolute(path);
         if let Some(i) = self.buffers.iter().position(|b| b.doc.path.as_deref() == Some(&path)) {
             self.switch_to(i);
+            return Ok(());
+        }
+        if let Some(max) = self.async_load_bytes
+            && std::fs::metadata(&path).is_ok_and(|m| m.is_file() && m.len() > max)
+        {
+            self.events.push(Event::Load(path));
             return Ok(());
         }
         let doc = Document::load(&path)?;
@@ -2281,6 +2293,19 @@ impl Editor {
             self.set_mode(Mode::Normal);
         }
         self.buf_mut().center_on_cursor();
+    }
+
+    /// [`Editor::goto_line`], then 1-based char column `col` of that line (clamped to its end).
+    pub fn goto_line_col(&mut self, n: usize, col: Option<usize>) {
+        self.goto_line(n);
+        let Some(col) = col else { return };
+        let caret = self.mode == Mode::Insert;
+        let b = self.buf_mut();
+        let rope = &b.doc.rope;
+        let line = text::line_of(rope, b.sel.primary().head);
+        let pos = text::line_start(rope, line) + col.saturating_sub(1).min(text::line_len(rope, line));
+        b.sel = Selection::point(if caret { pos } else { text::clamp_normal(rope, pos) });
+        b.center_on_cursor();
     }
 
     /// `:s/pat/rep/flags` on lines `a..=b`. `cmd` starts at the delimiter. Patterns are vim regexes; flags `g`

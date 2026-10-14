@@ -1,5 +1,6 @@
 #!/bin/sh
-# Installs shrew from GitHub Releases into ~/.local/bin (Linux, macOS), verifying the published sha256.
+# Installs shrew from GitHub Releases into ~/.local/bin (Linux, macOS), verifying the published sha256. The command is
+# `srw` (`srw file.rs`); `shrew` is a symlink to it.
 # On Linux it also installs the .desktop entry and icon, so shrew shows up in the app launcher.
 #
 #   curl -fsSL https://raw.githubusercontent.com/perunok/shrew/main/scripts/install.sh | sh
@@ -57,10 +58,10 @@ DATA="${XDG_DATA_HOME:-$HOME/.local/share}"
 # ----- uninstall -----
 
 if [ "$UNINSTALL" = 1 ]; then
-  rm -f "$DIR/shrew" "$DATA/applications/shrew.desktop" \
+  rm -f "$DIR/srw" "$DIR/shrew" "$DATA/applications/shrew.desktop" \
     "$DATA/icons/hicolor/scalable/apps/shrew.svg" "$DATA/icons/hicolor/256x256/apps/shrew.png"
   command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database -q "$DATA/applications" 2>/dev/null || true
-  say "removed $DIR/shrew and its desktop entry (settings in ~/.config/shrew are kept)"
+  say "removed $DIR/srw, $DIR/shrew and the desktop entry (settings in ~/.config/shrew are kept)"
   exit 0
 fi
 
@@ -147,21 +148,25 @@ actual=$(sha256 "$tmp/$asset")
 mkdir -p "$DIR"
 chmod 755 "$tmp/$asset"
 # Copy next to the target first, then rename: atomic, and safe while an old shrew is running.
-cp "$tmp/$asset" "$DIR/.shrew.new.$$"
-mv -f "$DIR/.shrew.new.$$" "$DIR/shrew"
+cp "$tmp/$asset" "$DIR/.srw.new.$$"
+mv -f "$DIR/.srw.new.$$" "$DIR/srw"
+# `shrew` is the same program: a symlink (it also replaces the binary of installs from before the rename)
+ln -sf srw "$DIR/shrew"
 if [ "$os" = Darwin ]; then
-  xattr -d com.apple.quarantine "$DIR/shrew" 2>/dev/null || true
+  xattr -d com.apple.quarantine "$DIR/srw" 2>/dev/null || true
 fi
-say "installed $DIR/shrew"
+say "installed $DIR/srw (and $DIR/shrew -> srw)"
 
 if [ "$DESKTOP" = 1 ]; then
   raw="${SHREW_DOWNLOAD_URL:-https://raw.githubusercontent.com/$REPO/$tag/assets}"
   if fetch "$raw/shrew.desktop" "$tmp/shrew.desktop" && fetch "$raw/shrew.svg" "$tmp/shrew.svg"; then
     mkdir -p "$DATA/applications" "$DATA/icons/hicolor/scalable/apps"
     # Launchers often run without ~/.local/bin on PATH: point Exec at the binary itself.
-    exe="$DIR/shrew"
+    exe="$DIR/srw"
     case "$exe" in *' '*) exe="\"$exe\"" ;; esac
-    sed "s|^Exec=shrew|Exec=$exe|" "$tmp/shrew.desktop" > "$DATA/applications/shrew.desktop"
+    # (the desktop files of releases before the rename say Exec=shrew)
+    sed -e "s|^Exec=srw|Exec=$exe|" -e "s|^Exec=shrew|Exec=$exe|" -e "s|^TryExec=srw|TryExec=$DIR/srw|" \
+      "$tmp/shrew.desktop" > "$DATA/applications/shrew.desktop"
     cp "$tmp/shrew.svg" "$DATA/icons/hicolor/scalable/apps/shrew.svg"
     if fetch "$raw/shrew.png" "$tmp/shrew.png" 2>/dev/null; then
       mkdir -p "$DATA/icons/hicolor/256x256/apps"
@@ -176,7 +181,7 @@ if [ "$DESKTOP" = 1 ]; then
 fi
 
 case ":$PATH:" in
-  *":$DIR:"*) say "run: shrew [files...]" ;;
+  *":$DIR:"*) say "run: srw [files...]   (or shrew; see srw --help)" ;;
   *)
     say "$DIR is not on your PATH. Add it, e.g. for bash/zsh:"
     printf '\n    export PATH="%s:$PATH"\n\n' "$DIR"

@@ -37,8 +37,8 @@ beyond plain editing can be switched off, and when it is off it is never started
 
 ## Install
 
-**Linux and macOS.** This installs to `~/.local/bin`, verifies the checksum, and on Linux adds shrew to the
-application menu:
+**Linux and macOS.** This installs the `srw` command (and a `shrew` symlink to it) to `~/.local/bin`, verifies the
+checksum, and on Linux adds shrew to the application menu:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/perunok/shrew/main/scripts/install.sh | sh
@@ -47,7 +47,7 @@ curl -fsSL https://raw.githubusercontent.com/perunok/shrew/main/scripts/install.
 Options: `sh -s -- --version 0.2.0`, `--dir /some/bin`, `--no-desktop`, `--uninstall`.
 
 **Windows.** Download `shrew-x86_64-pc-windows-msvc.exe` (or the `.zip`) from the
-[latest release](https://github.com/perunok/shrew/releases/latest) and put it on your `PATH`.
+[latest release](https://github.com/perunok/shrew/releases/latest), rename it to `srw.exe` and put it on your `PATH`.
 
 **By hand.** Every [release](https://github.com/perunok/shrew/releases) has these files:
 
@@ -60,7 +60,7 @@ Options: `sh -s -- --version 0.2.0`, `--dir /some/bin`, `--no-desktop`, `--unins
 | Windows x86_64 | `shrew-x86_64-pc-windows-msvc.exe` | `shrew-v<version>-x86_64-pc-windows-msvc.zip` |
 
 Each raw binary has a `.sha256` file next to it (check it with `sha256sum -c`). The Linux archives also contain
-`shrew.desktop` and the icon. The builds are not signed yet. On macOS, run `xattr -d com.apple.quarantine shrew` if
+`shrew.desktop` and the icon. The builds are not signed yet. On macOS, run `xattr -d com.apple.quarantine srw` if
 Gatekeeper refuses to open it. On Windows, choose SmartScreen > More info > Run anyway.
 
 **From source.** See [Building from source](#building-from-source).
@@ -68,9 +68,15 @@ Gatekeeper refuses to open it. On Windows, choose SmartScreen > More info > Run 
 ## Quick start
 
 ```sh
-shrew                  # a scratch buffer; Ctrl+P finds files under the current directory
-shrew src/main.rs      # open files
+srw                    # a scratch buffer; Ctrl+P finds files under the current directory
+srw src/main.rs:42     # open files (at a line); the prompt comes back at once
+srw .                  # this folder as the project: the file picker opens in it
+git config --global core.editor "srw -w"   # commit messages in shrew
 ```
+
+Like Sublime's `subl`, `srw` hands the files to the shrew that is already running and brings its window to the
+front, or starts one in the background. `shrew` is the same command under its longer name. See
+[docs/CLI.md](docs/CLI.md) for every option.
 
 shrew starts in vim's normal mode. If you do not use vim, run `:set novim` or toggle **Vim** in the Features list
 (palette, *Features: List and Toggle*). From then on shrew always types, and the familiar shortcuts work: Ctrl+S,
@@ -137,7 +143,7 @@ smooth_scroll = false
 mcp = true
 ```
 
-**Compile-time.** The `shrew` binary's default cargo features are `syntax`, `picker`, `clipboard`, `mcp`, `update`
+**Compile-time.** The `shrew` package's (the `srw` binary's) default cargo features are `syntax`, `picker`, `clipboard`, `mcp`, `update`
 and `embed-font`. A minimal build:
 
 ```sh
@@ -323,7 +329,7 @@ package to install on any platform.
 git clone https://github.com/perunok/shrew
 cd shrew
 cargo build --release -p shrew
-./target/release/shrew
+./target/release/srw
 ```
 
 ```sh

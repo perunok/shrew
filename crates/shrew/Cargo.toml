@@ -5,8 +5,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+# `srw file` from a terminal. `shrew` is a symlink to it (scripts/install.sh, the release archives) and behaves the
+# same; release assets keep the `shrew-<triple>` names the updater downloads.
 [[bin]]
-name = "shrew"
+name = "srw"
 path = "src/main.rs"
 
 [features]
@@ -39,3 +41,14 @@ winit.workspace = true
 arboard = { workspace = true, optional = true }
 log.workspace = true
 env_logger.workspace = true
+# single-instance requests (one JSON line each)
+serde.workspace = true
+serde_json = "1"
+
+[target.'cfg(unix)'.dependencies]
+# getuid and setsid only (bindings, no C compiled)
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+# the single-instance endpoint's token
+getrandom = "0.3"

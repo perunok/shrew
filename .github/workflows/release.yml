@@ -11,8 +11,11 @@ name: Release
 # and scripts/install.sh: do not rename them.
 #   shrew-<triple>                    raw binary (shrew-<triple>.exe on Windows), what the updater downloads
 #   shrew-<triple>.sha256             its checksum in sha256sum format: "<hex>  shrew-<triple>"
-#   shrew-v<version>-<triple>.tar.gz  for people: binary, README, LICENSE (+ .desktop and icon on Linux)
-#   shrew-v<version>-<triple>.zip     the same on Windows
+#   shrew-v<version>-<triple>.tar.gz  for people: `srw` + a `shrew -> srw` symlink, README, LICENSE (+ .desktop and
+#                                     icon on Linux)
+#   shrew-v<version>-<triple>.zip     the same on Windows (`srw.exe`, no symlink)
+#
+# The cargo binary is `srw` (package `shrew`); the raw assets keep the `shrew-` names above whatever it is called.
 #
 # Builds are unsigned: macOS binaries get an ad-hoc signature (Gatekeeper still asks the first time), Windows shows
 # SmartScreen. No system packages are installed: shrew is pure Rust and loads OS libraries at runtime.
@@ -97,20 +100,29 @@ jobs:
 
       - name: Ad-hoc sign (macOS)
         if: runner.os == 'macOS'
-        run: codesign --force --sign - "target/$TARGET/release/shrew"
+        run: codesign --force --sign - "target/$TARGET/release/srw"
 
       - name: Smoke test
         if: matrix.native
         shell: bash
         run: |
-          exe="target/$TARGET/release/shrew"
+          exe="target/$TARGET/release/srw"
           [ "$RUNNER_OS" = Windows ] && exe="$exe.exe"
           out=$("$exe" --version)
           echo "$out"
           case "$out" in
             *"$VERSION"*) ;;
-            *) echo "::error::'shrew --version' printed '$out', expected it to contain $VERSION"; exit 1 ;;
+            *) echo "::error::'srw --version' printed '$out', expected it to contain $VERSION"; exit 1 ;;
           esac
+          # the shrew symlink runs the same program under its own name
+          if [ "$RUNNER_OS" != Windows ]; then
+            ln -sf srw "target/$TARGET/release/shrew"
+            help=$("target/$TARGET/release/shrew" --help)
+            case "$help" in
+              *"usage: shrew "*) ;;
+              *) echo "::error::'shrew --help' (the symlink) does not work"; exit 1 ;;
+            esac
+          fi
 
       - name: Package
         shell: bash
@@ -119,7 +131,8 @@ jobs:
           [ "$RUNNER_OS" = Windows ] && exe=".exe"
           bin="shrew-$TARGET$exe"
           mkdir -p dist
-          cp "target/$TARGET/release/shrew$exe" "dist/$bin"
+          # the binary is srw; the asset keeps the name the updater and install.sh download
+          cp "target/$TARGET/release/srw$exe" "dist/$bin"
 
           # sha256sum format, which the updater and install.sh parse: "<hex>  <file name>"
           if command -v sha256sum >/dev/null; then sum=(sha256sum); else sum=(shasum -a 256); fi
@@ -128,7 +141,10 @@ jobs:
 
           name="shrew-v$VERSION-$TARGET"
           mkdir -p "stage/$name"
-          cp "target/$TARGET/release/shrew$exe" README.md LICENSE "stage/$name/"
+          cp "target/$TARGET/release/srw$exe" README.md LICENSE "stage/$name/"
+          if [ "$RUNNER_OS" != Windows ]; then
+            ln -s srw "stage/$name/shrew" # both names work: `srw file` and `shrew file`
+          fi
           if [ "$RUNNER_OS" = Linux ]; then
             cp assets/shrew.desktop assets/shrew.svg assets/shrew.png "stage/$name/"
           fi
@@ -192,8 +208,8 @@ jobs:
           Or download below. Running shrews update themselves: the status bar offers the new version once this
           release is published.
 
-          - **Linux**: \`x86_64-unknown-linux-gnu\` (Intel/AMD) or \`aarch64-unknown-linux-gnu\` (ARM). The \`.tar.gz\` also has a \`.desktop\` file and icon.
-          - **macOS**: \`aarch64-apple-darwin\` (Apple silicon) or \`x86_64-apple-darwin\` (Intel). Unsigned: if macOS refuses to open it, run \`xattr -d com.apple.quarantine shrew\`.
+          - **Linux**: \`x86_64-unknown-linux-gnu\` (Intel/AMD) or \`aarch64-unknown-linux-gnu\` (ARM). The \`.tar.gz\` has the \`srw\` binary (and a \`shrew\` symlink to it), a \`.desktop\` file and icon.
+          - **macOS**: \`aarch64-apple-darwin\` (Apple silicon) or \`x86_64-apple-darwin\` (Intel). Unsigned: if macOS refuses to open it, run \`xattr -d com.apple.quarantine srw\`.
           - **Windows**: \`x86_64-pc-windows-msvc\`. Unsigned: SmartScreen > More info > Run anyway.
 
           Each raw binary \`shrew-<target>\` has a \`shrew-<target>.sha256\` next to it (\`sha256sum -c\` format).

@@ -7,7 +7,7 @@ use shrew_core::features::{self, Feature};
 use shrew_core::{Document, Editor, Event, KeyPress};
 use shrew_render::FontConfig;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::time::Instant;
@@ -15,8 +15,9 @@ use std::time::Instant;
 /// Wakes the UI thread from a background thread (an event-loop proxy in the app, a no-op headless).
 pub type Waker = Arc<dyn Fn() + Send + Sync>;
 
-/// Files bigger than this load on a background thread behind a loading indicator.
-pub const BACKGROUND_LOAD_BYTES: u64 = 4 << 20;
+/// Files bigger than this load on a background thread behind a loading indicator; smaller ones are read right
+/// away, so opening them never flickers.
+pub const BACKGROUND_LOAD_BYTES: u64 = 1 << 20;
 
 pub const MIN_FONT_SIZE: f32 = 6.0;
 pub const MAX_FONT_SIZE: f32 = 72.0;
@@ -37,6 +38,7 @@ pub struct Loading {
     pub bytes: u64,
     pub started: Instant,
     line: Option<usize>,
+    col: Option<usize>,
     rx: Receiver<io::Result<Document>>,
 }
 
@@ -54,6 +56,8 @@ pub struct State {
     config_seen: Option<(u64, u64)>,
     pub wake: Waker,
     pub loading: Vec<Loading>,
+    /// `srw --wait` requests whose buffers are still open.
+    pub waits: Vec<crate::remote::Wait>,
     /// The editor asked to quit (or the window was closed twice).
     pub quit: bool,
     close_warned: bool,
@@ -84,6 +88,8 @@ impl State {
         ed.waker = Some(wake.clone());
         if !headless {
             install_clipboard(&mut ed);
+            // `:e`, the file picker, drag and drop: big files come back as Event::Load
+            ed.async_load_bytes = Some(BACKGROUND_LOAD_BYTES);
         }
         let cfg = &loaded.config.editor;
         let font = font_config(cfg);
@@ -97,6 +103,7 @@ impl State {
             config_seen: None,
             wake,
             loading: Vec::new(),
+            waits: Vec::new(),
             quit: false,
             close_warned: false,
             headless,
@@ -118,40 +125,34 @@ impl State {
         st
     }
 
-    /// Opens the command-line files: small ones right away, big ones in the background. `line` (`+N`) applies to
-    /// the first file. A directory becomes the working directory and opens the file picker.
-    pub fn open_files(&mut self, files: &[PathBuf], line: Option<usize>) {
-        let mut first: Option<usize> = None;
-        for (i, f) in files.iter().enumerate() {
-            let path = self.ed.absolute(f);
-            let line = if i == 0 { line } else { None };
-            if path.is_dir() {
-                self.ed.cwd = path;
-                self.ed.run(shrew_core::Command::OpenFile);
-                continue;
+    /// Opens `path` with the cursor on 1-based `line` (and char column `col`): switches to it when it is open
+    /// already, reads a big file on a background thread (the cursor moves once it is in), a small one right away.
+    pub fn open_at(&mut self, path: &Path, line: Option<usize>, col: Option<usize>) {
+        let path = self.ed.absolute(path);
+        if let Some(l) = self.loading.iter_mut().find(|l| l.path == path) {
+            if line.is_some() {
+                (l.line, l.col) = (line, col);
             }
-            let bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
-            if bytes > BACKGROUND_LOAD_BYTES && !self.headless {
-                self.load_in_background(path, bytes, line);
-                continue;
+            return;
+        }
+        let open = self.ed.buffers.iter().any(|b| b.doc.path.as_deref() == Some(path.as_path()));
+        if !open && !self.headless {
+            let bytes = std::fs::metadata(&path).ok().filter(|m| m.is_file()).map_or(0, |m| m.len());
+            if bytes > BACKGROUND_LOAD_BYTES {
+                return self.load_in_background(path, bytes, line, col);
             }
-            match self.ed.open(&path) {
-                Ok(()) => {
-                    first.get_or_insert(self.ed.active);
-                    if let Some(n) = line {
-                        self.ed.goto_line(n);
-                    }
+        }
+        match self.ed.open(&path) {
+            Ok(()) => {
+                if let Some(n) = line {
+                    self.ed.goto_line_col(n, col);
                 }
-                Err(e) => self.ed.error(format!("{}: {e}", path.display())),
             }
+            Err(e) => self.ed.error(format!("{}: {e}", path.display())),
         }
-        if let Some(i) = first {
-            self.ed.switch_to(i);
-        }
-        self.process_events();
     }
 
-    fn load_in_background(&mut self, path: PathBuf, bytes: u64, line: Option<usize>) {
+    fn load_in_background(&mut self, path: PathBuf, bytes: u64, line: Option<usize>, col: Option<usize>) {
         let (tx, rx) = mpsc::channel();
         let wake = self.wake.clone();
         let p = path.clone();
@@ -160,7 +161,7 @@ impl State {
             wake();
         });
         match spawned {
-            Ok(_) => self.loading.push(Loading { path, bytes, started: Instant::now(), line, rx }),
+            Ok(_) => self.loading.push(Loading { path, bytes, started: Instant::now(), line, col, rx }),
             Err(e) => self.ed.error(format!("{}: {e}", path.display())),
         }
     }
@@ -184,6 +185,7 @@ impl State {
     pub fn after_input(&mut self) {
         self.process_events();
         self.check_config_saved();
+        self.check_waits();
         if self.close_warned && self.ed.buffers.iter().all(|b| !b.doc.dirty) {
             self.close_warned = false;
         }
@@ -230,6 +232,7 @@ impl State {
                 self.feature_changed(f);
             }
             Event::BufferOpened(id) => self.buffer_opened(id),
+            Event::Load(path) => self.open_at(&path, None, None),
         }
     }
 
@@ -400,7 +403,7 @@ impl State {
                     log::debug!("loaded {} ({} bytes) in {:?}", l.path.display(), l.bytes, l.started.elapsed());
                     self.ed.install_document(doc);
                     if let Some(n) = l.line {
-                        self.ed.goto_line(n);
+                        self.ed.goto_line_col(n, l.col);
                     }
                 }
                 Some(Err(e)) => self.ed.error(format!("{}: {e}", l.path.display())),
@@ -784,7 +787,8 @@ mod tests {
     fn opened_buffers_get_highlighters_and_closed_ones_lose_them() {
         let mut st = state();
         let dir = env!("CARGO_MANIFEST_DIR");
-        st.open_files(&[PathBuf::from(dir).join("src/main.rs")], Some(3));
+        st.open_at(&PathBuf::from(dir).join("src/main.rs"), Some(3), None);
+        st.process_events();
         let id = st.ed.buf().id;
         assert!(st.highlighters.contains_key(&id));
         assert_eq!(shrew_core::text::line_of(st.ed.buf().rope(), st.ed.buf().sel.primary().head), 2, "+3 is line 3");
@@ -813,6 +817,44 @@ mod tests {
             st.key(k);
         }
         assert_eq!(st.highlighters.len(), st.ed.buffers.len());
+    }
+
+    #[test]
+    fn big_files_load_in_the_background_from_everywhere() {
+        let dir = std::env::temp_dir().join(format!("shrew-load-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let big = dir.join("big.txt");
+        let line = "0123456789".repeat(10) + "\n";
+        std::fs::write(&big, line.repeat((BACKGROUND_LOAD_BYTES as usize / line.len()) + 10)).unwrap();
+        let mut st = state();
+        st.headless = false;
+        st.ed.async_load_bytes = Some(BACKGROUND_LOAD_BYTES);
+        // `:e` asks the app (Event::Load) instead of blocking
+        for k in KeyPress::parse_seq(&format!(":e {}<CR>", big.display())) {
+            st.key(k);
+        }
+        assert_eq!(st.loading.len(), 1);
+        assert!(st.ed.buf().doc.path.is_none(), "nothing installed yet");
+        // asking again (srw big.txt:5:3) does not load it twice, and moves the cursor when it is in
+        st.open_at(&big, Some(5), Some(3));
+        assert_eq!(st.loading.len(), 1);
+        let deadline = Instant::now() + std::time::Duration::from_secs(10);
+        while !st.loading.is_empty() && Instant::now() < deadline {
+            st.poll();
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        let b = st.ed.buf();
+        assert_eq!(b.doc.path.as_deref(), Some(big.as_path()));
+        let head = b.sel.primary().head;
+        assert_eq!(shrew_core::text::line_of(b.rope(), head), 4);
+        assert_eq!(head - shrew_core::text::line_start(b.rope(), 4), 2);
+        // small files stay synchronous
+        let small = dir.join("small.txt");
+        std::fs::write(&small, "hi\n").unwrap();
+        st.open_at(&small, None, None);
+        assert!(st.loading.is_empty());
+        assert_eq!(st.ed.buf().doc.path.as_deref(), Some(small.as_path()));
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

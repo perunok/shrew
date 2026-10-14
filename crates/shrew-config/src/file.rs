@@ -3,7 +3,7 @@
 //! Parsing is by hand over `toml_edit`'s tree rather than serde derive: a wrong type or unknown key costs one
 //! warning (with its line), never the rest of the file.
 
-use crate::{Config, EditorConfig, ImportSource, KeySpec, THEMES, Warning};
+use crate::{Config, EditorConfig, ImportSource, KeySpec, Warning};
 use shrew_core::commands::COMMANDS;
 use shrew_core::features::{self, FEATURES, Feature};
 use shrew_core::keymap::{MapMode, leader_key};
@@ -82,7 +82,39 @@ pub fn parse(text: &str, source: &str) -> (Config, Vec<Warning>) {
         match key {
             "editor" => {
                 if let Some(t) = cx.table(item, key) {
-                    config.editor = editor(&mut cx, t);
+                    let e = editor(&mut cx, t);
+                    config.editor.merge(&e);
+                }
+            }
+            "theme" => {
+                let Some(t) = cx.table(item, key) else { continue };
+                let e = &mut config.editor;
+                for (k, v) in t.iter() {
+                    let slot = match k {
+                        "name" => &mut e.theme,
+                        "accent" => &mut e.accent,
+                        "system_light" => &mut e.system_light,
+                        "system_dark" => &mut e.system_dark,
+                        _ => {
+                            cx.warn(v, format!("unknown key theme.{k}"));
+                            continue;
+                        }
+                    };
+                    *slot = theme_name(&mut cx, v, k).or(slot.take());
+                }
+            }
+            "font" => {
+                let Some(t) = cx.table(item, key) else { continue };
+                for (k, v) in t.iter() {
+                    let e = &mut config.editor;
+                    match k {
+                        "family" => e.font_family = family(&mut cx, v, k).or(e.font_family.take()),
+                        "size" => e.font_size = cx.num(v, "font.size", 4.0, 200.0).or(e.font_size),
+                        "line_height" => e.line_height = cx.num(v, "font.line_height", 0.5, 4.0).or(e.line_height),
+                        "weight" => e.font_weight = weight(&mut cx, v).or(e.font_weight),
+                        "ligatures" => e.ligatures = cx.bool(v, "font.ligatures").or(e.ligatures),
+                        _ => cx.warn(v, format!("unknown key font.{k}")),
+                    }
                 }
             }
             "features" => {
@@ -168,18 +200,10 @@ fn editor(cx: &mut Ctx, t: &dyn TableLike) -> EditorConfig {
             "tab_width" => e.tab_width = cx.int(v, k, 1..=16).map(|n| n as usize),
             "expand_tab" => e.expand_tab = cx.bool(v, k),
             "scrolloff" => e.scrolloff = cx.int(v, k, 0..=999).map(|n| n as usize),
-            "font_family" => e.font_family = cx.str(v, k).filter(|s| !s.trim().is_empty()).map(String::from),
+            "font_family" => e.font_family = family(cx, v, k),
             "font_size" => e.font_size = cx.num(v, k, 4.0, 200.0),
             "line_height" => e.line_height = cx.num(v, k, 0.5, 4.0),
-            "theme" => {
-                if let Some(s) = cx.str(v, k) {
-                    if THEMES.contains(&s) {
-                        e.theme = Some(s.to_string());
-                    } else {
-                        cx.warn(v, format!("unknown theme {s:?} (available: {})", THEMES.join(", ")));
-                    }
-                }
-            }
+            "theme" => e.theme = theme_name(cx, v, k),
             "cursor_blink" => e.cursor_blink = cx.bool(v, k),
             "leader" => {
                 if let Some(s) = cx.str(v, k) {
@@ -195,6 +219,49 @@ fn editor(cx: &mut Ctx, t: &dyn TableLike) -> EditorConfig {
         }
     }
     e
+}
+
+/// A theme or accent id. Which ids exist is only known at runtime (custom themes), so the app checks that.
+fn theme_name(cx: &mut Ctx, v: &Item, k: &str) -> Option<String> {
+    let s = cx.str(v, k)?.trim();
+    if s.is_empty() {
+        cx.warn(v, format!("{k}: empty"));
+        return None;
+    }
+    Some(s.to_string())
+}
+
+fn family(cx: &mut Ctx, v: &Item, k: &str) -> Option<String> {
+    cx.str(v, k).map(str::trim).filter(|s| !s.is_empty()).map(String::from)
+}
+
+/// `"regular"`, `"medium"`, `"bold"` (and the other CSS names), or 100..=900.
+fn weight(cx: &mut Ctx, v: &Item) -> Option<u16> {
+    if let Some(n) = v.as_integer() {
+        if (100..=900).contains(&n) {
+            return Some(n as u16);
+        }
+    } else if let Some(w) = v.as_str().and_then(font_weight) {
+        return Some(w);
+    }
+    cx.warn(v, "font.weight: expected \"regular\", \"medium\", \"bold\" or a number from 100 to 900".into());
+    None
+}
+
+/// CSS weight names.
+pub fn font_weight(name: &str) -> Option<u16> {
+    Some(match name.trim().to_ascii_lowercase().replace(['-', '_', ' '], "").as_str() {
+        "thin" => 100,
+        "extralight" | "ultralight" => 200,
+        "light" => 300,
+        "regular" | "normal" | "book" => 400,
+        "medium" => 500,
+        "semibold" | "demibold" => 600,
+        "bold" => 700,
+        "extrabold" | "ultrabold" => 800,
+        "black" | "heavy" => 900,
+        _ => return None,
+    })
 }
 
 fn expand_home(p: &str) -> PathBuf {
@@ -222,17 +289,38 @@ pub fn default_config_text() -> String {
 # expand_tab = true
 # Lines kept visible above and below the cursor.
 # scrolloff = 4
-# font_family = "monospace"
-# font_size = 15.0
-# Line height as a multiple of the font size.
-# line_height = 1.4
-# "shrew-dark" or "shrew-light".
-# theme = "shrew-dark"
 # cursor_blink = false
 # The key <leader> stands for in mappings: "\\" (vim's default), "," or " " (space).
 # leader = "\\"
 # How long to wait (ms) for the rest of a mapping such as "jk" before taking the keys as typed.
 # mapping_timeout_ms = 1000
+
+# Colors. Pick one live with the palette (Theme: Select…, Accent: Select…) or :theme / :accent;
+# shrew writes the choice here.
+[theme]
+# A theme id (shrew-dark, shrew-light, dracula, nord, gruvbox-dark, catppuccin-mocha, tokyo-night,
+# github-light, solarized-light, contrast, ... the list is in docs/THEMES.md), a custom theme from
+# the themes folder next to this file, a .sublime-color-scheme / .tmTheme path, or "system" to
+# follow the desktop's light/dark setting.
+# name = "shrew-dark"
+# An accent laid over the theme: "theme" (its own), blue, indigo, violet, purple, fuchsia, pink,
+# rose, red, orange, amber, yellow, lime, green, emerald, teal, cyan, sky or slate.
+# accent = "theme"
+# With name = "system": the themes for a light and for a dark desktop.
+# system_light = "shrew-light"
+# system_dark = "shrew-dark"
+
+[font]
+# "monospace" is the bundled JetBrains Mono; any installed family works (palette: Font: Select…).
+# family = "monospace"
+# In points. Ctrl+= / Ctrl+- / Ctrl+0 change it and save it here.
+# size = 15.0
+# Line height as a multiple of the font size.
+# line_height = 1.4
+# "regular", "medium", "bold" (or 100-900), where the family has that weight.
+# weight = "regular"
+# Programming ligatures (->, !=, >=) in fonts that have them. Runtime: :set (no)ligatures
+# ligatures = true
 
 # Features: anything turned off here is never started, so it costs nothing.
 [features]

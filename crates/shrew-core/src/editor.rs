@@ -7,7 +7,7 @@ use crate::features::{self, Feature, Features};
 use crate::input::{Key, KeyPress, Mods};
 use crate::lang;
 use crate::ops::{self, Opts};
-use crate::picker::{Picker, PickerData, PickerItem, PickerKind};
+use crate::picker::{Choice, Picker, PickerData, PickerItem, PickerKind};
 use crate::search;
 use crate::selection::{Range, Selection};
 use crate::text;
@@ -126,6 +126,14 @@ pub enum Event {
     BufferOpened(u64),
     /// A file over [`Editor::async_load_bytes`] to open: the app reads it on a background thread.
     Load(PathBuf),
+    /// Open the picker for a [`Choice`] (the app fills it: see [`Editor::open_choice`]).
+    OpenChoice(Choice),
+    /// A theme, accent or font was picked (Enter in its picker, or `:theme <id>`): apply and save it.
+    Choose(Choice, String),
+    /// `:theme import <path>`: convert a Sublime/TextMate color scheme into a custom theme.
+    ThemeImport(String),
+    /// `:set ligatures` (`Some(true)`), `:set noligatures`, or a toggle (`None`).
+    Ligatures(Option<bool>),
 }
 
 #[derive(Clone, Debug)]
@@ -377,12 +385,6 @@ impl Editor {
 
     pub(crate) fn commit(&mut self) {
         self.buf_mut().commit();
-    }
-
-    pub(crate) fn wake(&self) {
-        if let Some(w) = &self.waker {
-            w();
-        }
     }
 
     /// Switches mode, converting the selection between caret (insert) and inclusive (visual/normal) forms.
@@ -921,6 +923,10 @@ impl Editor {
             FontBigger => self.events.push(Event::FontSize(1)),
             FontSmaller => self.events.push(Event::FontSize(-1)),
             FontReset => self.events.push(Event::FontReset),
+            SelectTheme => self.events.push(Event::OpenChoice(Choice::Theme)),
+            SelectAccent => self.events.push(Event::OpenChoice(Choice::Accent)),
+            SelectFont => self.events.push(Event::OpenChoice(Choice::Font)),
+            ToggleLigatures => self.events.push(Event::Ligatures(None)),
             CheckForUpdates => self.events.push(Event::CheckUpdates),
             InstallUpdate => self.events.push(Event::InstallUpdate),
             OpenConfig => self.events.push(Event::OpenConfig),
@@ -1890,6 +1896,15 @@ impl Editor {
             }
             "update" => self.run(Command::InstallUpdate),
             "version" => self.info(format!("shrew {}", env!("CARGO_PKG_VERSION"))),
+            "theme" | "colorscheme" | "colo" => match arg.split_once(char::is_whitespace) {
+                Some(("import", path)) => self.events.push(Event::ThemeImport(path.trim().to_string())),
+                _ if arg.is_empty() => self.events.push(Event::OpenChoice(Choice::Theme)),
+                _ => self.events.push(Event::Choose(Choice::Theme, arg.to_string())),
+            },
+            "accent" if arg.is_empty() => self.events.push(Event::OpenChoice(Choice::Accent)),
+            "accent" => self.events.push(Event::Choose(Choice::Accent, arg.to_string())),
+            "font" if arg.is_empty() => self.events.push(Event::OpenChoice(Choice::Font)),
+            "font" => self.events.push(Event::Choose(Choice::Font, arg.to_string())),
             "syntax" => match arg {
                 "on" | "enable" => self.set_option("syntax"),
                 "off" => self.set_option("nosyntax"),
@@ -1930,6 +1945,9 @@ impl Editor {
                 "nohls" | "nohlsearch" => self.set_feature(Feature::SearchHighlight, false),
                 "list" => self.set_feature(Feature::Whitespace, true),
                 "nolist" => self.set_feature(Feature::Whitespace, false),
+                "lig" | "ligatures" => self.events.push(Event::Ligatures(Some(true))),
+                "nolig" | "noligatures" => self.events.push(Event::Ligatures(Some(false))),
+                "lig!" | "ligatures!" | "invligatures" => self.events.push(Event::Ligatures(None)),
                 _ => {
                     let (key, on) = match opt.strip_suffix('!') {
                         Some(k) => (k, None),
@@ -2436,6 +2454,13 @@ impl Editor {
         self.picker = Some(p);
     }
 
+    /// Opens the picker for `choice` with the app's items, the current value highlighted.
+    pub fn open_choice(&mut self, choice: Choice, items: Vec<PickerItem>, selected: usize) {
+        let mut p = Picker::new(PickerKind::Choice(choice), items);
+        p.selected = selected.min(p.matches.len().saturating_sub(1));
+        self.picker = Some(p);
+    }
+
     fn open_file_picker(&mut self) {
         if !self.features.on(Feature::Picker) {
             return self.error("file picker is off (:set picker)");
@@ -2472,6 +2497,11 @@ impl Editor {
                     PickerData::Feature(f) => {
                         self.toggle_feature(f);
                         self.open_feature_picker();
+                    }
+                    PickerData::Value(v) => {
+                        if let PickerKind::Choice(c) = kind {
+                            self.events.push(Event::Choose(c, v));
+                        }
                     }
                 }
                 self.after_key();

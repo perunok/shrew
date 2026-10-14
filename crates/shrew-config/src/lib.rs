@@ -17,8 +17,8 @@ mod persist;
 pub mod sublime;
 pub mod vimrc;
 
-pub use file::{default_config_text, parse};
-pub use persist::{ConfigDoc, persist_feature, persist_value, write_default_if_missing};
+pub use file::{default_config_text, font_weight, parse};
+pub use persist::{ConfigDoc, Setting, persist_feature, persist_setting, persist_value, write_default_if_missing};
 pub use shrew_core::keymap::{MapMode, Mapping, Rhs};
 
 use shrew_core::commands::Command;
@@ -32,7 +32,11 @@ pub const DEFAULT_FONT_SIZE: f32 = 15.0;
 /// Line height as a multiple of the font size.
 pub const DEFAULT_LINE_HEIGHT: f32 = 1.4;
 pub const DEFAULT_THEME: &str = "shrew-dark";
-pub const THEMES: &[&str] = &["shrew-dark", "shrew-light"];
+pub const DEFAULT_LIGHT_THEME: &str = "shrew-light";
+/// `accent = "theme"`: the theme's own accent.
+pub const DEFAULT_ACCENT: &str = "theme";
+/// Regular.
+pub const DEFAULT_FONT_WEIGHT: u16 = 400;
 /// Same default as shrew-mcp's `DEFAULT_PORT`.
 pub const DEFAULT_MCP_PORT: u16 = 7356;
 
@@ -60,7 +64,7 @@ impl fmt::Display for Warning {
     }
 }
 
-/// `[editor]`. `None` means "not set by this layer"; the getters give the effective value.
+/// `[editor]`, `[theme]` and `[font]`. `None` means "not set by this layer"; the getters give the effective value.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct EditorConfig {
     pub tab_width: Option<usize>,
@@ -69,7 +73,15 @@ pub struct EditorConfig {
     pub font_family: Option<String>,
     pub font_size: Option<f32>,
     pub line_height: Option<f32>,
+    /// CSS-style weight of normal text (400 regular, 500 medium, 700 bold).
+    pub font_weight: Option<u16>,
+    pub ligatures: Option<bool>,
+    /// A theme id, a custom theme, a scheme file path, or "system".
     pub theme: Option<String>,
+    pub accent: Option<String>,
+    /// The themes `theme = "system"` picks for a light and a dark desktop.
+    pub system_light: Option<String>,
+    pub system_dark: Option<String>,
     pub cursor_blink: Option<bool>,
     /// `<leader>` in mappings, vim notation (`\`, `,`, `<Space>`).
     pub leader: Option<String>,
@@ -86,8 +98,23 @@ impl EditorConfig {
     pub fn line_height(&self) -> f32 {
         self.line_height.unwrap_or(DEFAULT_LINE_HEIGHT)
     }
+    pub fn font_weight(&self) -> u16 {
+        self.font_weight.unwrap_or(DEFAULT_FONT_WEIGHT)
+    }
+    pub fn ligatures(&self) -> bool {
+        self.ligatures.unwrap_or(true)
+    }
     pub fn theme(&self) -> &str {
         self.theme.as_deref().unwrap_or(DEFAULT_THEME)
+    }
+    pub fn accent(&self) -> &str {
+        self.accent.as_deref().unwrap_or(DEFAULT_ACCENT)
+    }
+    pub fn system_light(&self) -> &str {
+        self.system_light.as_deref().unwrap_or(DEFAULT_LIGHT_THEME)
+    }
+    pub fn system_dark(&self) -> &str {
+        self.system_dark.as_deref().unwrap_or(DEFAULT_THEME)
     }
     pub fn cursor_blink(&self) -> bool {
         self.cursor_blink.unwrap_or(false)
@@ -96,7 +123,7 @@ impl EditorConfig {
         self.mapping_timeout_ms.unwrap_or(1000)
     }
 
-    fn merge(&mut self, o: &EditorConfig) {
+    pub(crate) fn merge(&mut self, o: &EditorConfig) {
         fn take<T: Clone>(a: &mut Option<T>, b: &Option<T>) {
             if b.is_some() {
                 *a = b.clone();
@@ -108,7 +135,12 @@ impl EditorConfig {
         take(&mut self.font_family, &o.font_family);
         take(&mut self.font_size, &o.font_size);
         take(&mut self.line_height, &o.line_height);
+        take(&mut self.font_weight, &o.font_weight);
+        take(&mut self.ligatures, &o.ligatures);
         take(&mut self.theme, &o.theme);
+        take(&mut self.accent, &o.accent);
+        take(&mut self.system_light, &o.system_light);
+        take(&mut self.system_dark, &o.system_dark);
         take(&mut self.cursor_blink, &o.cursor_blink);
         take(&mut self.leader, &o.leader);
         take(&mut self.mapping_timeout_ms, &o.mapping_timeout_ms);

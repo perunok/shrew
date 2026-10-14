@@ -41,13 +41,23 @@ pub struct FontConfig {
     pub line_height: f32,
     /// Contextual alternates/ligatures (`->`, `!=` in fonts that have them).
     pub ligatures: bool,
+    /// CSS weight of normal text (400 regular, 500 medium); bold text is 300 heavier. A family without that weight
+    /// uses its nearest one.
+    pub weight: u16,
     /// Scan system fonts in the background for fallback glyphs and non-embedded families.
     pub system_fonts: bool,
 }
 
 impl Default for FontConfig {
     fn default() -> Self {
-        FontConfig { family: DEFAULT_FAMILY.into(), size: 14.0, line_height: 1.3, ligatures: true, system_fonts: true }
+        FontConfig {
+            family: DEFAULT_FAMILY.into(),
+            size: 14.0,
+            line_height: 1.3,
+            ligatures: true,
+            weight: 400,
+            system_fonts: true,
+        }
     }
 }
 
@@ -91,7 +101,7 @@ impl Fonts {
         let wake: Arc<Mutex<Option<WakeFn>>> = Arc::default();
         let embedded = !EMBEDDED.is_empty();
         let (db, loader) = if embedded {
-            let loader = config.system_fonts.then(|| spawn_loader(config.family.clone(), ready.clone(), wake.clone()));
+            let loader = config.system_fonts.then(|| spawn_loader(&config, ready.clone(), wake.clone()));
             (base_db(), loader)
         } else {
             // Nothing embedded: the scan is the only way to get any font, so it has to block.
@@ -125,7 +135,7 @@ impl Fonts {
             && self.loader.is_none()
             && !self.ready.load(Ordering::Acquire)
         {
-            self.loader = Some(spawn_loader(config.family.clone(), self.ready.clone(), self.wake.clone()));
+            self.loader = Some(spawn_loader(&config, self.ready.clone(), self.wake.clone()));
         }
         self.features = features(&config);
         self.config = config;
@@ -211,10 +221,8 @@ impl Fonts {
     /// Shaping attributes for a style (`bits`: 1 = bold, 2 = italic).
     pub fn attrs(&self, bits: u8) -> Attrs<'_> {
         let family = if self.config.family.is_empty() { Family::Monospace } else { Family::Name(&self.config.family) };
-        let mut a = Attrs::new().family(family);
-        if bits & 1 != 0 {
-            a = a.weight(Weight::BOLD);
-        }
+        let (regular, bold) = weights(&self.config);
+        let mut a = Attrs::new().family(family).weight(if bits & 1 != 0 { bold } else { regular });
         if bits & 2 != 0 {
             a = a.style(Style::Italic);
         }
@@ -223,6 +231,26 @@ impl Fonts {
         }
         a
     }
+}
+
+/// The weights of regular and bold text.
+fn weights(config: &FontConfig) -> (Weight, Weight) {
+    let w = config.weight.clamp(100, 900);
+    (Weight(w), Weight((w + 300).clamp(700, 900)))
+}
+
+/// Installed monospace families (sorted, each once), for a font picker. Only the embedded family until the system
+/// font scan has finished.
+pub(crate) fn monospace_families(system: &FontSystem) -> Vec<String> {
+    let mut v: Vec<String> = system
+        .db()
+        .faces()
+        .filter(|f| f.monospaced)
+        .filter_map(|f| f.families.first().map(|(n, _)| n.clone()))
+        .collect();
+    v.sort_unstable_by_key(|n| n.to_lowercase());
+    v.dedup();
+    v
 }
 
 /// Emoji go to the color emoji font first; generic fallback would often find a monochrome symbol font earlier.
@@ -258,8 +286,10 @@ fn base_db() -> Database {
     db
 }
 
-fn spawn_loader(family: String, ready: Arc<AtomicBool>, wake: Arc<Mutex<Option<WakeFn>>>) -> Receiver<FontSystem> {
+fn spawn_loader(config: &FontConfig, ready: Arc<AtomicBool>, wake: Arc<Mutex<Option<WakeFn>>>) -> Receiver<FontSystem> {
     let (tx, rx) = mpsc::sync_channel(1);
+    let family = config.family.clone();
+    let (regular, bold) = weights(config);
     let spawned = std::thread::Builder::new().name("shrew-fonts".into()).spawn(move || {
         let t = Instant::now();
         let mut db = base_db();
@@ -268,12 +298,9 @@ fn spawn_loader(family: String, ready: Arc<AtomicBool>, wake: Arc<Mutex<Option<W
         let mut system = FontSystem::new_with_locale_and_db(locale(), db);
         // The first shape per style ranks every installed face (opening many font files); do it here, not in a frame.
         let fam = if family.is_empty() { Family::Monospace } else { Family::Name(&family) };
-        for (w, st) in [
-            (Weight::NORMAL, Style::Normal),
-            (Weight::BOLD, Style::Normal),
-            (Weight::NORMAL, Style::Italic),
-            (Weight::BOLD, Style::Italic),
-        ] {
+        for (w, st) in
+            [(regular, Style::Normal), (bold, Style::Normal), (regular, Style::Italic), (bold, Style::Italic)]
+        {
             let attrs = Attrs::new().family(fam).weight(w).style(st);
             ShapeLine::new(&mut system, "warm", &AttrsList::new(&attrs), Shaping::Advanced, 1);
         }
@@ -305,7 +332,7 @@ fn locale() -> String {
 fn compute_metrics(system: &mut FontSystem, config: &FontConfig, scale: f32) -> Metrics {
     let px = (config.size * scale).max(1.0);
     let fam = if config.family.is_empty() { Family::Monospace } else { Family::Name(&config.family) };
-    let attrs = Attrs::new().family(fam);
+    let attrs = Attrs::new().family(fam).weight(weights(config).0);
     let line = ShapeLine::new(system, "0", &AttrsList::new(&attrs), Shaping::Advanced, 1);
     let glyph = line.spans.iter().flat_map(|s| &s.words).flat_map(|w| &w.glyphs).next();
     let (cell_width, font_metrics) = match glyph {
@@ -359,8 +386,13 @@ mod tests {
         assert!((f.metrics.cell_width - 2.0 * m1.cell_width).abs() < 0.01);
         assert!(!f.set(FontConfig { ligatures: false, ..cfg() }, 2.0));
         assert_eq!(f.attrs(3).weight, Weight::BOLD);
+        assert_eq!(f.attrs(0).weight, Weight::NORMAL);
         assert_eq!(f.attrs(3).style, Style::Italic);
         assert_eq!(f.attrs(0).font_features.features.len(), 3);
+        f.set(FontConfig { weight: 500, ..cfg() }, 1.0);
+        assert_eq!(f.attrs(0).weight, Weight(500));
+        assert_eq!(f.attrs(1).weight, Weight(800));
+        assert_eq!(monospace_families(&f.system), vec![DEFAULT_FAMILY.to_string()]);
     }
 
     #[test]

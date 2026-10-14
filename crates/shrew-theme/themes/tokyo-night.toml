@@ -1,0 +1,59 @@
+# Tokyo Night by enkia / folke (tokyonight.nvim, night).
+# UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
+# lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
+name = "Tokyo Night"
+scheme = "dark"
+
+[ui]
+bg = "#1a1b26"
+surface = "#16161e"
+surface-raised = "#1f2335"
+surface-hover = "#292e42"
+border = "#2f3549"
+border-strong = "#414868"
+text = "#c0caf5"
+text-muted = "#a9b1d6"
+text-faint = "#737aa2"
+accent = "#7aa2f7"
+accent-fg = "#0a0a0d"
+accent-soft = "#2d3650"
+accent-text = "#7aa2f7"
+selection = "#384668"
+danger = "#f7768e"
+danger-fg = "#0a0a0d"
+danger-soft = "#402a38"
+success = "#9ece6a"
+success-soft = "#303932"
+warning = "#e0af68"
+warning-soft = "#3c3431"
+
+[syntax]
+keyword = "#9d7cd8"
+control = "#bb9af7"
+string = "#9ece6a"
+string-escape = "#89ddff"
+number = "#ff9e64"
+constant = "#ff9e64"
+comment = "#616b9a"  # lifted from #565f89
+doc-comment = "#616b9a"
+function = "#7aa2f7"
+method = "#7aa2f7"
+type = "#2ac3de"
+builtin-type = "#27a1b9"
+property = "#73daca"
+variable = "#c0caf5"
+parameter = "#e0af68"
+namespace = "#7dcfff"
+macro = "#7dcfff"
+attribute = "#bb9af7"
+tag = "#f7768e"
+operator = "#89ddff"
+punctuation = "#89ddff"
+regex = "#b4f9f8"
+heading = { fg = "#7aa2f7", bold = true }
+link = { fg = "#73daca", underline = true }
+emphasis = "#e0af68"
+diff-added = "#9ece6a"
+diff-removed = "#f7768e"
+diff-changed = "#e0af68"
+invalid = "#e06262"  # lifted from #db4b4b

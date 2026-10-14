@@ -658,7 +658,7 @@ fn scrollbar(scene: &mut Scene, ui: &mut Ui, lay: &Layout, c: &Colors, scroll: S
     let y = (track.y + frac * (track.h - h)).round();
     let w = (4.0 * lay.scale).round().max(2.0);
     let x = track.right() - w - (2.0 * lay.scale).round();
-    scene.rounded_rect(Rect::new(x, y, w, h), w / 2.0, c.panel_muted.with_alpha(110), None);
+    scene.rounded_rect(Rect::new(x, y, w, h), w / 2.0, c.scrollbar, None);
     ui.hits.scrollbar = Some((track, total));
 }
 
@@ -772,9 +772,9 @@ fn status(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors) 
         right -= w;
         let pill = Rect::new(right.round(), bar.y + lay.pad, w.round(), bar.h - 2.0 * lay.pad);
         let (bg, fg) = match tone {
-            Tone::Accent => (c.accent, c.background),
-            Tone::Success => (c.success, c.background),
-            Tone::Error => (c.error, c.background),
+            Tone::Accent => (c.accent, c.accent_fg),
+            Tone::Success => (c.success, c.success_fg),
+            Tone::Error => (c.error, c.error_fg),
             Tone::Muted => (c.panel_selection, c.panel_foreground),
         };
         scene.rounded_rect(pill, pill.h / 2.0, bg, None);
@@ -787,15 +787,15 @@ fn status(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors) 
     scene.push_clip(Rect::new(bar.x, bar.y, (right - bar.x).max(0.0), bar.h));
     let mut x = lay.pad * 2.0;
     if ed.vim() {
-        let (label, col) = match ed.mode {
-            Mode::Normal => ("NORMAL", c.mode_normal),
-            Mode::Insert => ("INSERT", c.mode_insert),
-            m => (m.label(), c.mode_visual),
+        let (label, col, ink) = match ed.mode {
+            Mode::Normal => ("NORMAL", c.mode_normal, c.mode_normal_fg),
+            Mode::Insert => ("INSERT", c.mode_insert, c.mode_insert_fg),
+            m => (m.label(), c.mode_visual, c.mode_visual_fg),
         };
         let w = (columns(label) as f32 + 2.0) * cw;
         let badge = Rect::new(x.round(), bar.y + lay.pad, w.round(), bar.h - 2.0 * lay.pad);
         scene.rounded_rect(badge, r, col, None);
-        scene.text((x + cw).round(), y, label, TextStyle::new(c.background).bold(), &[]);
+        scene.text((x + cw).round(), y, label, TextStyle::new(ink).bold(), &[]);
         x += w + cw;
     }
     let mut tail = String::new();
@@ -910,7 +910,7 @@ fn picker(scene: &mut Scene, ed: &Editor, ui: &mut Ui, lay: &Layout, c: &Colors)
             None,
         );
     }
-    scene.rounded_rect(panel, radius, c.panel_background, Some((lay.scale.round().max(1.0), c.panel_border)));
+    scene.rounded_rect(panel, radius, c.popup, Some((lay.scale.round().max(1.0), c.popup_border)));
     ui.hits.picker = Some(panel);
     let inner = Rect::new(x + 2.0 * pad, y, w - 4.0 * pad, h);
     scene.push_clip(inner);
@@ -928,6 +928,7 @@ fn picker(scene: &mut Scene, ed: &Editor, ui: &mut Ui, lay: &Layout, c: &Colors)
         PickerKind::Commands => "commands",
         PickerKind::Buffers => "buffers",
         PickerKind::Features => "features",
+        PickerKind::Choice(choice) => choice.noun(),
     };
     let count = format!("{}{}/{} {kind}", if p.loading { "… " } else { "" }, p.matches.len(), p.items.len());
     let cx = inner.right() - pad - columns(&count) as f32 * cw;

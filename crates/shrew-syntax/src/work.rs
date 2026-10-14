@@ -14,7 +14,7 @@
 //! does), and forget them as the viewport moves away.
 
 use crate::detect::{self, LangHint};
-use crate::theme::{Rgb, Span, Theme};
+use crate::theme::{Rgb, Span, Theme, flatten};
 use ropey::Rope;
 use std::ops::Range;
 use std::sync::Arc;
@@ -458,7 +458,7 @@ impl Work {
         let (theme, _) = self.theme.clone().expect("theme is set on ingest");
         let hl = SynHighlighter::new(theme.syntect());
         let default = hl.get_default();
-        let bg = theme.palette.background;
+        let bg = theme.background;
         let mut state = match self.runs[i].ckpts.last() {
             Some(c) if c.temp => self.runs[i].ckpts.pop().unwrap().state,
             Some(c) => c.state.clone(),
@@ -559,7 +559,7 @@ fn highlight_line(
         let span = Span {
             start: r.start as u32,
             end: end as u32,
-            fg: Rgb::from_syntect(style.foreground, bg),
+            fg: flatten(style.foreground, bg),
             bold: fs.contains(FontStyle::BOLD),
             italic: fs.contains(FontStyle::ITALIC),
             underline: fs.contains(FontStyle::UNDERLINE),

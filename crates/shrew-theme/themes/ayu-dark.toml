@@ -1,0 +1,59 @@
+# Ayu Dark (ayu-theme/ayu-colors).
+# UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
+# lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
+name = "Ayu Dark"
+scheme = "dark"
+
+[ui]
+bg = "#0d1017"
+surface = "#0b0e14"
+surface-raised = "#131721"
+surface-hover = "#1b1f29"
+border = "#262b36"
+border-strong = "#3d4350"
+text = "#bfbdb6"
+text-muted = "#9d9b95"
+text-faint = "#636a76"
+accent = "#e6b450"
+accent-fg = "#050609"
+accent-soft = "#383122"
+accent-text = "#e6b450"
+selection = "#554628"
+danger = "#e46160"
+danger-fg = "#050609"
+danger-soft = "#301c22"
+success = "#7fd962"
+success-soft = "#203224"
+warning = "#ffb454"
+warning-soft = "#362c21"
+
+[syntax]
+keyword = "#ff8f40"
+control = "#ff8f40"
+string = "#aad94c"
+string-escape = "#95e6cb"
+number = "#d2a6ff"
+constant = "#d2a6ff"
+comment = { fg = "#636a73", italic = true }
+doc-comment = { fg = "#636a73", italic = true }
+function = "#ffb454"
+method = "#ffb454"
+type = "#59c2ff"
+builtin-type = "#39bae6"
+property = "#f07178"
+variable = "#bfbdb6"
+parameter = "#d2a6ff"
+namespace = "#59c2ff"
+macro = "#e6c08a"
+attribute = "#ffb454"
+tag = "#39bae6"
+operator = "#f29668"
+punctuation = "#8a8986"
+regex = "#95e6cb"
+heading = { fg = "#ffb454", bold = true }
+link = { fg = "#39bae6", underline = true }
+emphasis = "#f07178"
+diff-added = "#7fd962"
+diff-removed = "#f26d78"
+diff-changed = "#73b8ff"
+invalid = "#d95757"

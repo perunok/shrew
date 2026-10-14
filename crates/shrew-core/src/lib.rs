@@ -25,6 +25,7 @@ pub use editor::{Clipboard, CursorShape, Editor, Event, Mode, Prompt, PromptKind
 pub use features::{Feature, Features};
 pub use input::{Key, KeyPress, Mods, MouseButton};
 pub use keymap::{Keymap, MapMode, Mapping, Rhs};
+pub use picker::Choice;
 pub use selection::{Range, Selection};
 
 pub use ropey;

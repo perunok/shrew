@@ -2,7 +2,11 @@
 //! updater and the MCP server, plus the handling of the [`Event`]s the editor emits. The windowed app and the
 //! headless `--screenshot` mode both drive a [`State`].
 
+mod look;
+mod os_theme;
+
 use crate::colors::Colors;
+use look::{Look, ThemeCfg};
 use shrew_core::features::{self, Feature};
 use shrew_core::{Document, Editor, Event, KeyPress};
 use shrew_render::FontConfig;
@@ -48,8 +52,8 @@ pub struct State {
     /// The font the renderer should use; `font_changed` tells the app to hand it over.
     pub font: FontConfig,
     pub font_changed: bool,
-    /// Font size from the config (Ctrl+0 goes back to it).
-    base_font_size: f32,
+    /// Theme, accent, theme pickers, desktop light/dark (see `look`).
+    pub look: Look,
     pub cursor_blink: bool,
     pub config_path: Option<PathBuf>,
     /// The config file's buffer and the version last applied, to reload it when it is saved.
@@ -94,11 +98,11 @@ impl State {
         let cfg = &loaded.config.editor;
         let font = font_config(cfg);
         let mut st = State {
-            base_font_size: font.size,
             font,
             font_changed: false,
+            look: Look::new(loaded.path.as_deref()),
             cursor_blink: cfg.cursor_blink(),
-            colors: Colors::FALLBACK,
+            colors: Colors::from_theme(&shrew_theme::Theme::default()),
             config_path: loaded.path.clone(),
             config_seen: None,
             wake,
@@ -119,7 +123,7 @@ impl State {
             #[cfg(feature = "mcp")]
             mcp_host: None,
         };
-        st.set_theme(cfg.theme());
+        st.apply_theme_config(ThemeCfg::from(cfg));
         st.show_warnings(&warnings);
         st.ed.events.clear(); // the initial scratch buffer: highlighters are created on demand below
         st
@@ -186,6 +190,8 @@ impl State {
         self.process_events();
         self.check_config_saved();
         self.check_waits();
+        self.check_theme_saved();
+        self.sync_preview();
         if self.close_warned && self.ed.buffers.iter().all(|b| !b.doc.dirty) {
             self.close_warned = false;
         }
@@ -218,7 +224,11 @@ impl State {
                 let size = (self.font.size + d as f32).clamp(MIN_FONT_SIZE, MAX_FONT_SIZE);
                 self.set_font_size(size);
             }
-            Event::FontReset => self.set_font_size(self.base_font_size),
+            Event::FontReset => self.set_font_size(shrew_config::DEFAULT_FONT_SIZE),
+            Event::OpenChoice(c) => self.open_choice(c),
+            Event::Choose(c, v) => self.choose(c, v),
+            Event::ThemeImport(p) => self.import_theme(&p),
+            Event::Ligatures(on) => self.set_ligatures(on),
             Event::CheckUpdates => self.check_updates(),
             Event::InstallUpdate => self.install_update(),
             Event::OpenConfig => self.open_config(),
@@ -247,10 +257,12 @@ impl State {
         }
     }
 
+    /// Ctrl+= / Ctrl+- / Ctrl+0: applied and saved to config.toml.
     fn set_font_size(&mut self, size: f32) {
         if size != self.font.size {
             self.font.size = size;
             self.font_changed = true;
+            self.persist_font_size();
         }
         self.ed.info(format!("font size {size}"));
     }
@@ -270,29 +282,7 @@ impl State {
         }
     }
 
-    // ----- theme & syntax -----
-
-    fn set_theme(&mut self, name: &str) {
-        #[cfg(feature = "syntax")]
-        {
-            let theme = shrew_syntax::Theme::builtin(name).unwrap_or_else(|| {
-                self.ed.error(format!("unknown theme {name:?} (shrew-dark, shrew-light)"));
-                shrew_syntax::Theme::shrew()
-            });
-            self.colors = Colors::from_theme(&theme);
-            if let Some(s) = &self.syntax {
-                s.set_theme(theme);
-            } else if self.ed.features.on(Feature::Syntax) {
-                let wake = self.wake.clone();
-                self.syntax = Some(shrew_syntax::Syntaxes::new(theme, Arc::new(move || wake())));
-            }
-        }
-        #[cfg(not(feature = "syntax"))]
-        {
-            let _ = name;
-            self.colors = Colors::FALLBACK;
-        }
-    }
+    // ----- syntax -----
 
     #[cfg(feature = "syntax")]
     fn set_syntax(&mut self, on: bool) {
@@ -302,7 +292,7 @@ impl State {
         }
         if self.syntax.is_none() {
             let wake = self.wake.clone();
-            let theme = shrew_syntax::Theme::builtin(&self.theme_name()).unwrap_or_else(shrew_syntax::Theme::shrew);
+            let theme = shrew_syntax::Theme::new(&self.look.theme);
             self.syntax = Some(shrew_syntax::Syntaxes::new(theme, Arc::new(move || wake())));
         }
         let ids: Vec<u64> = self.ed.buffers.iter().map(|b| b.id).collect();
@@ -313,11 +303,6 @@ impl State {
 
     #[cfg(not(feature = "syntax"))]
     fn set_syntax(&mut self, _on: bool) {}
-
-    #[cfg(feature = "syntax")]
-    fn theme_name(&self) -> String {
-        self.syntax.as_ref().map(|s| s.theme().name.clone()).unwrap_or_else(|| "shrew".into())
-    }
 
     fn buffer_opened(&mut self, id: u64) {
         #[cfg(feature = "syntax")]
@@ -378,6 +363,7 @@ impl State {
     /// screen may have changed.
     pub fn poll(&mut self) -> bool {
         let mut changed = self.ed.poll();
+        changed |= self.poll_os_theme();
         #[cfg(feature = "syntax")]
         for hl in self.highlighters.values_mut() {
             changed |= hl.poll().is_some();
@@ -557,9 +543,11 @@ impl State {
             self.font = font;
             self.font_changed = true;
         }
-        self.base_font_size = self.font.size;
         self.cursor_blink = cfg.cursor_blink();
-        self.set_theme(cfg.theme());
+        let look = ThemeCfg::from(cfg);
+        if look != self.look.cfg {
+            self.apply_theme_config(look);
+        }
         for info in features::FEATURES {
             if before.on(info.feature) != self.ed.features.on(info.feature) {
                 self.feature_changed(info.feature);
@@ -634,15 +622,26 @@ impl State {
     }
 }
 
-/// The renderer font from `[editor]`: "monospace" (the default) means the embedded JetBrains Mono when it is compiled
+/// The renderer font from `[font]`: "monospace" (the default) means the embedded JetBrains Mono when it is compiled
 /// in, so the first frame never waits for a system font scan.
 pub fn font_config(cfg: &shrew_config::EditorConfig) -> FontConfig {
-    let family = match cfg.font_family() {
+    FontConfig {
+        family: family_for(cfg.font_family()),
+        size: cfg.font_size(),
+        line_height: cfg.line_height(),
+        weight: cfg.font_weight(),
+        ligatures: cfg.ligatures(),
+        ..FontConfig::default()
+    }
+}
+
+/// The renderer's family name for a configured one.
+fn family_for(name: &str) -> String {
+    match name {
         "monospace" if cfg!(feature = "embed-font") => shrew_render::DEFAULT_FAMILY.to_string(),
         "monospace" => String::new(),
         f => f.to_string(),
-    };
-    FontConfig { family, size: cfg.font_size(), line_height: cfg.line_height(), ..FontConfig::default() }
+    }
 }
 
 /// Features whose code is not compiled into this build read as off and show as n/a.

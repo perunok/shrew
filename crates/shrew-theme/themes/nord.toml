@@ -1,0 +1,59 @@
+# Nord by Arctic Ice Studio (nordtheme.com).
+# UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
+# lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
+name = "Nord"
+scheme = "dark"
+
+[ui]
+bg = "#2e3440"
+surface = "#272c36"
+surface-raised = "#343b48"
+surface-hover = "#3b4252"
+border = "#434c5e"
+border-strong = "#4c566a"
+text = "#eceff4"
+text-muted = "#c2cad7"
+text-faint = "#8b96ab"
+accent = "#88c0d0"
+accent-fg = "#121418"
+accent-soft = "#40505d"
+accent-text = "#91cada"
+selection = "#485e6a"
+danger = "#f9959c"
+danger-fg = "#121418"
+danger-soft = "#4c414c"
+success = "#a6c18f"
+success-soft = "#424b4d"
+warning = "#ebcb8b"
+warning-soft = "#4e4e4d"
+
+[syntax]
+keyword = "#8ba9c6"  # lifted from #81a1c1
+control = "#8ba9c6"  # lifted from #81a1c1
+string = "#a3be8c"
+string-escape = "#ebcb8b"
+number = "#bd9cb7"  # lifted from #b48ead
+constant = "#8ba9c6"  # lifted from #81a1c1
+comment = "#7b88a1"
+doc-comment = "#7b88a1"
+function = "#88c0d0"
+method = "#88c0d0"
+type = "#8fbcbb"
+builtin-type = "#8ba9c6"  # lifted from #81a1c1
+property = "#d8dee9"
+variable = "#d8dee9"
+parameter = "#d8dee9"
+namespace = "#8fbcbb"
+macro = "#8ba9c6"  # lifted from #81a1c1
+attribute = "#d69783"  # lifted from #d08770
+tag = "#8ba9c6"  # lifted from #81a1c1
+operator = "#8ba9c6"  # lifted from #81a1c1
+punctuation = "#eceff4"
+regex = "#ebcb8b"
+heading = { fg = "#88c0d0", bold = true }
+link = { fg = "#88c0d0", underline = true }
+emphasis = "#d8dee9"
+diff-added = "#a3be8c"
+diff-removed = "#d4969c"  # lifted from #bf616a
+diff-changed = "#ebcb8b"
+invalid = "#d4969c"  # lifted from #bf616a

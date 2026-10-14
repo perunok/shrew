@@ -1,0 +1,59 @@
+# Atom's One Light.
+# UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
+# lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
+name = "One Light"
+scheme = "light"
+
+[ui]
+bg = "#fafafa"
+surface = "#eaeaeb"
+surface-raised = "#f0f0f1"
+surface-hover = "#e5e5e6"
+border = "#dbdbdc"
+border-strong = "#b4b4b6"
+text = "#383a42"
+text-muted = "#666974"
+text-faint = "#80838f"
+accent = "#376fe9"
+accent-fg = "#ffffff"
+accent-soft = "#dfe7f8"
+accent-text = "#295fd8"
+selection = "#bfcceb"
+danger = "#bd3028"
+danger-fg = "#ffffff"
+danger-soft = "#f3e0df"
+success = "#217624"
+success-soft = "#dee9df"
+warning = "#8b5e03"
+warning-soft = "#ece6da"
+
+[syntax]
+keyword = "#a626a4"
+control = "#a626a4"
+string = "#3d7b3d"  # lifted from #50a14f
+string-escape = "#0176a8"  # lifted from #0184bc
+number = "#936501"  # lifted from #986801
+constant = "#936501"  # lifted from #986801
+comment = "#898b92"  # lifted from #a0a1a7
+doc-comment = "#898b92"
+function = "#2364f0"  # lifted from #4078f2
+method = "#2364f0"  # lifted from #4078f2
+type = "#936501"  # lifted from #c18401
+builtin-type = "#0176a8"  # lifted from #0184bc
+property = "#d12e1f"  # lifted from #e45649
+variable = "#d12e1f"  # lifted from #e45649
+parameter = "#383a42"
+namespace = "#936501"  # lifted from #c18401
+macro = "#0176a8"  # lifted from #0184bc
+attribute = "#936501"  # lifted from #986801
+tag = "#d12e1f"  # lifted from #e45649
+operator = "#0176a8"  # lifted from #0184bc
+punctuation = "#383a42"
+regex = "#0176a8"  # lifted from #0184bc
+heading = { fg = "#d12e1f", bold = true }  # lifted from #e45649
+link = { fg = "#2364f0", underline = true }  # lifted from #4078f2
+emphasis = "#a626a4"
+diff-added = "#3d7b3d"  # lifted from #50a14f
+diff-removed = "#d12e1f"  # lifted from #e45649
+diff-changed = "#936501"  # lifted from #986801
+invalid = "#d12e1f"  # lifted from #e45649

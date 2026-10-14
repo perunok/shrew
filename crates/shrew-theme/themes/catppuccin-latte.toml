@@ -1,0 +1,59 @@
+# Catppuccin Latte (catppuccin.com/palette, style guide).
+# UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
+# lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
+name = "Catppuccin Latte"
+scheme = "light"
+
+[ui]
+bg = "#eff1f5"
+surface = "#e6e9ef"
+surface-raised = "#dce0e8"
+surface-hover = "#d3d7e1"
+border = "#ccd0da"
+border-strong = "#acb0be"
+text = "#4c4f69"
+text-muted = "#5c5f77"
+text-faint = "#6c6f85"
+accent = "#8839ef"
+accent-fg = "#ffffff"
+accent-soft = "#e1d7f4"
+accent-text = "#7d27e1"
+selection = "#cfbfef"
+danger = "#bf0331"
+danger-fg = "#ffffff"
+danger-soft = "#ebd2dc"
+success = "#1c6f02"
+success-soft = "#d4e1d5"
+warning = "#8c5604"
+warning-soft = "#e3ded6"
+
+[syntax]
+keyword = "#8737ef"  # lifted from #8839ef
+control = "#8737ef"  # lifted from #8839ef
+string = "#307820"  # lifted from #40a02b
+string-escape = "#c01d95"  # lifted from #ea76cb
+number = "#b74301"  # lifted from #fe640b
+constant = "#b74301"  # lifted from #fe640b
+comment = "#7c7f93"
+doc-comment = "#7c7f93"
+function = "#0f5cf4"  # lifted from #1e66f5
+method = "#0f5cf4"  # lifted from #1e66f5
+type = "#925d13"  # lifted from #df8e1d
+builtin-type = "#925d13"  # lifted from #df8e1d
+property = "#3654fc"  # lifted from #7287fd
+variable = "#4c4f69"
+parameter = "#cf1c2b"  # lifted from #e64553
+namespace = "#3654fc"  # lifted from #7287fd
+macro = "#12747a"  # lifted from #179299
+attribute = "#925d13"  # lifted from #df8e1d
+tag = "#0f5cf4"  # lifted from #1e66f5
+operator = "#03719c"  # lifted from #04a5e5
+punctuation = "#65677a"  # lifted from #7c7f93
+regex = "#c01d95"  # lifted from #ea76cb
+heading = { fg = "#d20f39", bold = true }
+link = { fg = "#3654fc", underline = true }  # lifted from #7287fd
+emphasis = "#cf1c2b"  # lifted from #e64553
+diff-added = "#307820"  # lifted from #40a02b
+diff-removed = "#d20f39"
+diff-changed = "#925d13"  # lifted from #df8e1d
+invalid = "#d20f39"

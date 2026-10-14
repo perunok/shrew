@@ -24,6 +24,7 @@ pub fn run(cli: &Cli, out: &std::path::Path) -> Result<(), String> {
     let mut r = Renderer::headless(w, h, cli.scale, st.font.clone()).map_err(|e| format!("renderer: {e}"))?;
     r.wait_for_fonts(Duration::from_secs(5));
     r.poll_fonts();
+    st.look.font_families = Some(r.monospace_families());
     let mut ui = Ui::new();
     ui.animate = false;
     let mut scene = Scene::new();

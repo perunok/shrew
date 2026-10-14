@@ -1,0 +1,59 @@
+# Wimer Hazenberg's Monokai, as in Sublime Text.
+# UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
+# lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
+name = "Monokai"
+scheme = "dark"
+
+[ui]
+bg = "#272822"
+surface = "#1e1f1c"
+surface-raised = "#2f302a"
+surface-hover = "#3e3d32"
+border = "#49483e"
+border-strong = "#75715e"
+text = "#f8f8f2"
+text-muted = "#cfcfc2"
+text-faint = "#a09d89"
+accent = "#66d9ef"
+accent-fg = "#0d0e0d"
+accent-soft = "#344b4b"
+accent-text = "#66d9ef"
+selection = "#365e64"
+danger = "#fe7494"
+danger-fg = "#0d0e0d"
+danger-soft = "#4c2e32"
+success = "#a6e22e"
+success-soft = "#3d4824"
+warning = "#fd971f"
+warning-soft = "#4b3b21"
+
+[syntax]
+keyword = "#fb5f97"  # lifted from #f92672
+control = "#fb5f97"  # lifted from #f92672
+string = "#e6db74"
+string-escape = "#ae81ff"
+number = "#ae81ff"
+constant = "#ae81ff"
+comment = "#7f7b66"  # lifted from #75715e
+doc-comment = "#7f7b66"
+function = "#a6e22e"
+method = "#a6e22e"
+type = { fg = "#66d9ef", italic = true }
+builtin-type = { fg = "#66d9ef", italic = true }
+property = "#f8f8f2"
+variable = "#f8f8f2"
+parameter = { fg = "#fd971f", italic = true }
+namespace = "#a6e22e"
+macro = "#a6e22e"
+attribute = "#a6e22e"
+tag = "#fb5f97"  # lifted from #f92672
+operator = "#fb5f97"  # lifted from #f92672
+punctuation = "#f8f8f2"
+regex = "#e6db74"
+heading = { fg = "#a6e22e", bold = true }
+link = { fg = "#66d9ef", underline = true }
+emphasis = "#fd971f"
+diff-added = "#a6e22e"
+diff-removed = "#fb5f97"  # lifted from #f92672
+diff-changed = "#e6db74"
+invalid = "#fb5f97"  # lifted from #f92672

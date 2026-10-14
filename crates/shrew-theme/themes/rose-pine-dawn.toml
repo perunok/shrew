@@ -1,0 +1,59 @@
+# Rosé Pine Dawn (rosepinetheme.com/palette).
+# UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
+# lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
+name = "Rosé Pine Dawn"
+scheme = "light"
+
+[ui]
+bg = "#fffaf3"
+surface = "#faf4ed"
+surface-raised = "#f2e9e1"
+surface-hover = "#ebe2da"
+border = "#dfdad9"
+border-strong = "#cecacd"
+text = "#575279"
+text-muted = "#686481"
+text-faint = "#8f8a9c"
+accent = "#286983"
+accent-fg = "#ffffff"
+accent-soft = "#e1e6e3"
+accent-text = "#286983"
+selection = "#c8d3d4"
+danger = "#9d4e65"
+danger-fg = "#ffffff"
+danger-soft = "#f4e5e2"
+success = "#286983"
+success-soft = "#e3e7e4"
+warning = "#8f5b05"
+warning-soft = "#f2e6d4"
+
+[syntax]
+keyword = "#286983"
+control = "#286983"
+string = "#9e6210"  # lifted from #ea9d34
+string-escape = "#c3443e"  # lifted from #d7827e
+number = "#9e6210"  # lifted from #ea9d34
+constant = "#c3443e"  # lifted from #d7827e
+comment = { fg = "#8f899d", italic = true }  # lifted from #9893a5
+doc-comment = { fg = "#8f899d", italic = true }
+function = "#c3443e"  # lifted from #d7827e
+method = "#c3443e"  # lifted from #d7827e
+type = "#457780"  # lifted from #56949f
+builtin-type = "#457780"  # lifted from #56949f
+property = "#457780"  # lifted from #56949f
+variable = "#575279"
+parameter = { fg = "#7e649b", italic = true }  # lifted from #907aa9
+namespace = "#7e649b"  # lifted from #907aa9
+macro = "#7e649b"  # lifted from #907aa9
+attribute = "#7e649b"  # lifted from #907aa9
+tag = "#457780"  # lifted from #56949f
+operator = "#706c8a"  # lifted from #797593
+punctuation = "#706c8a"  # lifted from #797593
+regex = "#7e649b"  # lifted from #907aa9
+heading = { fg = "#7e649b", bold = true }  # lifted from #907aa9
+link = { fg = "#457780", underline = true }  # lifted from #56949f
+emphasis = "#ab526c"  # lifted from #b4637a
+diff-added = "#457780"  # lifted from #56949f
+diff-removed = "#ab526c"  # lifted from #b4637a
+diff-changed = "#c3443e"  # lifted from #d7827e
+invalid = "#ab526c"  # lifted from #b4637a

@@ -1,0 +1,59 @@
+# Nord's Snow Storm and Frost on light (nordtheme.com), Slinger's variant.
+# UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
+# lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
+name = "Nord Light"
+scheme = "light"
+
+[ui]
+bg = "#eceff4"
+surface = "#e5e9f0"
+surface-raised = "#dfe4ec"
+surface-hover = "#d8dee9"
+border = "#d0d7e2"
+border-strong = "#aeb7c6"
+text = "#2e3440"
+text-muted = "#4c566a"
+text-faint = "#616e88"
+accent = "#5578a3"
+accent-fg = "#ffffff"
+accent-soft = "#d7dee9"
+accent-text = "#41648d"
+selection = "#c2cede"
+danger = "#9d434d"
+danger-fg = "#ffffff"
+danger-soft = "#e3d9df"
+success = "#50683a"
+success-soft = "#d9dedd"
+warning = "#7a5d1b"
+warning-soft = "#deddd9"
+
+[syntax]
+keyword = "#476993"
+control = "#476993"
+string = "#566e40"
+string-escape = "#7a5d1b"
+number = "#7f5c79"
+constant = "#476993"
+comment = "#5b6882"
+doc-comment = "#5b6882"
+function = "#2f6b85"
+method = "#2f6b85"
+type = "#446e6d"  # lifted from #45706f
+builtin-type = "#476993"
+property = "#2e3440"
+variable = "#2e3440"
+parameter = "#2e3440"
+namespace = "#446e6d"  # lifted from #45706f
+macro = "#476993"
+attribute = "#9a5232"
+tag = "#476993"
+operator = "#476993"
+punctuation = "#4c566a"
+regex = "#7a5d1b"
+heading = { fg = "#2f6b85", bold = true }
+link = { fg = "#2f6b85", underline = true }
+emphasis = "#2e3440"
+diff-added = "#50683a"
+diff-removed = "#9d434d"
+diff-changed = "#7a5d1b"
+invalid = "#9d434d"

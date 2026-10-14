@@ -1,0 +1,59 @@
+# Ethan Schoonover's Solarized, light (ethanschoonover.com/solarized).
+# UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
+# lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
+name = "Solarized Light"
+scheme = "light"
+
+[ui]
+bg = "#fdf6e3"
+surface = "#eee8d5"
+surface-raised = "#f5efdc"
+surface-hover = "#e6dfc9"
+border = "#dcd5c0"
+border-strong = "#b3ad99"
+text = "#073642"
+text-muted = "#556b72"
+text-faint = "#657b83"
+accent = "#268bd2"
+accent-fg = "#041b21"
+accent-soft = "#dfe7e1"
+accent-text = "#046aa7"
+selection = "#bed2d4"
+danger = "#c30b16"
+danger-fg = "#ffffff"
+danger-soft = "#f6d9c9"
+success = "#5b6a02"
+success-soft = "#e8e4c6"
+warning = "#7f5f04"
+warning-soft = "#ede3c6"
+
+[syntax]
+keyword = "#647300"  # lifted from #859900
+control = "#647300"  # lifted from #859900
+string = "#1f7770"  # lifted from #2aa198
+string-escape = "#cf2623"  # lifted from #dc322f
+number = "#c42b75"  # lifted from #d33682
+constant = "#bb4514"  # lifted from #cb4b16
+comment = "#7a8c8c"  # lifted from #93a1a1
+doc-comment = "#7a8c8c"
+function = "#1f70a9"  # lifted from #268bd2
+method = "#1f70a9"  # lifted from #268bd2
+type = "#876600"  # lifted from #b58900
+builtin-type = "#876600"  # lifted from #b58900
+property = "#1f70a9"  # lifted from #268bd2
+variable = "#1f70a9"  # lifted from #268bd2
+parameter = "#586e75"
+namespace = "#876600"  # lifted from #b58900
+macro = "#bb4514"  # lifted from #cb4b16
+attribute = "#586e75"
+tag = "#1f70a9"  # lifted from #268bd2
+operator = "#647300"  # lifted from #859900
+punctuation = "#586e75"
+regex = "#cf2623"  # lifted from #dc322f
+heading = { fg = "#bb4514", bold = true }  # lifted from #cb4b16
+link = { fg = "#5d63be", underline = true }  # lifted from #6c71c4
+emphasis = "#c42b75"  # lifted from #d33682
+diff-added = "#647300"  # lifted from #859900
+diff-removed = "#cf2623"  # lifted from #dc322f
+diff-changed = "#876600"  # lifted from #b58900
+invalid = "#cf2623"  # lifted from #dc322f

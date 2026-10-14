@@ -1,0 +1,59 @@
+# Warm paper tones (Slinger).
+# UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
+# lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
+name = "Paper"
+scheme = "light"
+
+[ui]
+bg = "#fbf8f1"
+surface = "#f1ebdf"
+surface-raised = "#ebe4d5"
+surface-hover = "#e3dac8"
+border = "#dcd2bf"
+border-strong = "#b5a991"
+text = "#2e2a23"
+text-muted = "#5f574a"
+text-faint = "#80776a"
+accent = "#a8431c"
+accent-fg = "#ffffff"
+accent-soft = "#efdfd3"
+accent-text = "#a8431c"
+selection = "#dfc3b0"
+danger = "#b3261e"
+danger-fg = "#ffffff"
+danger-soft = "#f2ddd6"
+success = "#3b6e22"
+success-soft = "#e2e6d6"
+warning = "#8c5b05"
+warning-soft = "#ede4d2"
+
+[syntax]
+keyword = "#7a3b96"
+control = "#7a3b96"
+string = "#3b6e22"
+string-escape = "#a3325f"
+number = "#a35302"
+constant = "#a3325f"
+comment = { fg = "#71695c", italic = true }
+doc-comment = { fg = "#71695c", italic = true }
+function = "#1f5d99"
+method = "#1f5d99"
+type = "#1b6f6a"
+builtin-type = "#1b6f6a"
+property = "#2e2a23"
+variable = "#2e2a23"
+parameter = "#2e2a23"
+namespace = "#1b6f6a"
+macro = "#a3325f"
+attribute = "#1b6f6a"
+tag = "#a3325f"
+operator = "#5f574a"
+punctuation = "#5f574a"
+regex = "#a3325f"
+heading = { fg = "#a8431c", bold = true }
+link = { fg = "#1f5d99", underline = true }
+emphasis = "#7a3b96"
+diff-added = "#3b6e22"
+diff-removed = "#b3261e"
+diff-changed = "#8c5b05"
+invalid = "#b3261e"

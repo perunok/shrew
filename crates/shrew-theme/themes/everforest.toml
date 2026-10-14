@@ -1,0 +1,59 @@
+# Everforest by sainnhe, dark medium.
+# UI colors from Slinger's themes.css. Syntax colors marked "lifted" were made
+# lighter/darker (same hue) to reach the contrast targets in docs/THEMES.md.
+name = "Everforest"
+scheme = "dark"
+
+[ui]
+bg = "#2d353b"
+surface = "#232a2e"
+surface-raised = "#343f44"
+surface-hover = "#3d484d"
+border = "#475258"
+border-strong = "#56635f"
+text = "#d3c6aa"
+text-muted = "#a0aca3"
+text-faint = "#859289"
+accent = "#a7c080"
+accent-fg = "#101315"
+accent-soft = "#455149"
+accent-text = "#b0ca89"
+selection = "#4b5747"
+danger = "#fe9495"
+danger-fg = "#101315"
+danger-soft = "#4c4147"
+success = "#aac383"
+success-soft = "#424d47"
+warning = "#dbbc7f"
+warning-soft = "#4b4c47"
+
+[syntax]
+keyword = "#e88b8d"  # lifted from #e67e80
+control = "#e88b8d"  # lifted from #e67e80
+string = "#83c092"
+string-escape = "#dbbc7f"
+number = "#d699b6"
+constant = "#d699b6"
+comment = { fg = "#859289", italic = true }
+doc-comment = { fg = "#859289", italic = true }
+function = "#a7c080"
+method = "#a7c080"
+type = "#dbbc7f"
+builtin-type = "#dbbc7f"
+property = "#7fbbb3"
+variable = "#d3c6aa"
+parameter = "#d3c6aa"
+namespace = "#e69875"
+macro = "#d699b6"
+attribute = "#dbbc7f"
+tag = "#e69875"
+operator = "#e69875"
+punctuation = "#9da9a0"
+regex = "#83c092"
+heading = { fg = "#e69875", bold = true }
+link = { fg = "#7fbbb3", underline = true }
+emphasis = "#dbbc7f"
+diff-added = "#a7c080"
+diff-removed = "#e88b8d"  # lifted from #e67e80
+diff-changed = "#7fbbb3"
+invalid = "#e88b8d"  # lifted from #e67e80

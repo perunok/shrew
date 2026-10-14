@@ -27,6 +27,10 @@ beyond plain editing can be switched off, and when it is off it is never started
   Ctrl+Shift+P) work together. Turn vim off and shrew is an always-typing, Sublime-style editor.
 - **Brings your config along.** It reads your `~/.vimrc` / `init.vim` and Sublime Text's user settings and key
   bindings at startup, and you can add or override anything in `config.toml`.
+- **Themes.** 33 built in (Dracula, Nord, Gruvbox, Catppuccin, Tokyo Night, Solarized, One Dark, high contrast...),
+  18 accents over any of them, following the desktop's light/dark setting, your own TOML themes and imported Sublime
+  or TextMate color schemes. Pick themes, accents and fonts with live preview. See
+  **[docs/THEMES.md](docs/THEMES.md)**.
 - **Pure Rust.** It builds with `cargo` alone: no C compiler, no system `-dev` packages. GPU drivers, Wayland and X11
   are loaded at runtime.
 - **AI-ready, opt-in.** A built-in [MCP](https://modelcontextprotocol.io) server lets Claude Code, Claude Desktop or
@@ -153,8 +157,9 @@ cargo build --release -p shrew --no-default-features --features syntax   # plus 
 
 A feature that is compiled out shows as unavailable in the Features list, and `:set` on it explains why. With
 `embed-font` off, shrew uses a system monospace font instead of the bundled JetBrains Mono (about 830 KB).
-`shrew-syntax` also has opt-in features: `sublime-user` loads extra `.sublime-syntax` files from Sublime's
-`Packages/User`, and `tmtheme` loads `.tmTheme` color schemes.
+`shrew-syntax` also has an opt-in feature: `sublime-user` loads extra `.sublime-syntax` files from Sublime's
+`Packages/User`. Color schemes (`.sublime-color-scheme`, `.tmTheme`) are always readable: see
+[docs/THEMES.md](docs/THEMES.md).
 
 ## Keybindings
 
@@ -219,11 +224,17 @@ settings, then your vimrc, then `config.toml`.
 tab_width = 4
 expand_tab = true
 scrolloff = 4
-font_family = "JetBrains Mono"
-font_size = 15.0
-line_height = 1.4
-theme = "shrew-dark"      # or "shrew-light"
 leader = " "              # <leader> is Space
+
+[theme]
+name = "shrew-dark"       # 33 built in, your own, or "system": see docs/THEMES.md
+accent = "theme"          # or blue, teal, rose, amber, ... (18)
+
+[font]
+family = "JetBrains Mono"
+size = 15.0
+line_height = 1.4
+ligatures = true
 
 [features]
 relative_numbers = true
@@ -314,7 +325,8 @@ shrew is a Cargo workspace of small crates. Only the app crate knows about windo
 | --- | --- |
 | [`shrew-core`](crates/shrew-core) | The editing engine: rope buffers (ropey), multi-cursor selections, undo history, vim and Sublime keymaps, user mappings, search, ex commands, pickers. No GPU, no windowing, fully unit-tested. |
 | [`shrew-render`](crates/shrew-render) | GPU renderer on wgpu (Vulkan, Metal, DX12, GL): cosmic-text shaping, a cached glyph atlas, instanced quads. Can render headless to PNG. |
-| [`shrew-syntax`](crates/shrew-syntax) | Incremental syntax highlighting with Sublime grammars (syntect, fancy-regex) on one worker thread, plus the built-in themes. |
+| [`shrew-syntax`](crates/shrew-syntax) | Incremental syntax highlighting with Sublime grammars (syntect, fancy-regex) on one worker thread. |
+| [`shrew-theme`](crates/shrew-theme) | Themes as data: 33 built-in UI + syntax palettes, 18 accents, custom themes, Sublime/TextMate scheme import, WCAG contrast audit. |
 | [`shrew-config`](crates/shrew-config) | `config.toml` (comment-preserving writes), and the vimrc and Sublime Text importers. |
 | [`shrew-mcp`](crates/shrew-mcp) | MCP server: a loopback Streamable-HTTP endpoint inside the app and the `--mcp-stdio` bridge. |
 | [`shrew-update`](crates/shrew-update) | Self-update from GitHub Releases: pure-Rust TLS (rustls + RustCrypto), sha256 check, atomic swap. |

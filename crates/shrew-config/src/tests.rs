@@ -33,7 +33,7 @@ fn parses_config_with_warnings() {
     assert_eq!(c.mcp_port, None);
     let msgs: Vec<String> = w.iter().map(|w| w.to_string()).collect();
     assert_eq!(w.len(), 6, "{msgs:#?}");
-    assert!(msgs.iter().any(|m| m.starts_with("config.toml:5: unknown theme")), "{msgs:#?}");
+    assert!(msgs.iter().any(|m| m.starts_with("config.toml:5: theme: expected a string")), "{msgs:#?}");
     assert!(msgs.iter().any(|m| m.contains("editor.bogus")));
     assert!(msgs.iter().any(|m| m.contains("\"nonexistent\"")));
     assert!(msgs.iter().any(|m| m.contains("keys.select")));
@@ -218,5 +218,54 @@ fn persist_keeps_comments() {
     std::fs::write(&path, "[features\nvim = true\n").unwrap();
     assert!(persist_feature(&path, Feature::Vim, false).is_err());
     assert_eq!(std::fs::read_to_string(&path).unwrap(), "[features\nvim = true\n");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn theme_and_font_sections() {
+    let text = "[editor]\ntheme = \"nord\"\nfont_size = 12\n[theme]\nname = \"dracula\"\naccent = \"rose\"\nsystem_light = \"paper\"\n\
+                [font]\nfamily = \"Iosevka\"\nweight = \"medium\"\nligatures = false\nline_height = 1.2\nsize = 13.5\n";
+    let (c, w) = parse(text, "c");
+    assert!(w.is_empty(), "{w:?}");
+    let e = &c.editor;
+    assert_eq!(e.theme(), "dracula", "[theme] comes later and wins");
+    assert_eq!(e.accent(), "rose");
+    assert_eq!(e.system_light(), "paper");
+    assert_eq!(e.system_dark(), DEFAULT_THEME);
+    assert_eq!(e.font_family(), "Iosevka");
+    assert_eq!(e.font_weight(), 500);
+    assert!(!e.ligatures());
+    assert_eq!(e.font_size(), 13.5);
+    assert_eq!(e.line_height(), 1.2);
+    let (_, w) = parse("[font]\nweight = \"chunky\"\nsize = 1\nnope = 1\n[theme]\nname = \"\"\n", "c");
+    assert_eq!(w.len(), 4, "{w:?}");
+    assert_eq!(font_weight("Semi-Bold"), Some(600));
+}
+
+#[test]
+fn settings_are_written_where_the_file_keeps_them() {
+    let dir = temp_dir("settings");
+    let path = dir.join("config.toml");
+    // an old-style [editor] key is updated in place
+    std::fs::write(&path, "[editor]\ntheme = \"shrew-light\" # mine\nfont_size = 14\n").unwrap();
+    persist_setting(&path, Setting::Theme, "nord").unwrap();
+    persist_setting(&path, Setting::FontSize, 16.0).unwrap();
+    persist_setting(&path, Setting::Accent, "teal").unwrap();
+    let text = std::fs::read_to_string(&path).unwrap();
+    assert!(text.starts_with("[editor]\ntheme = \"nord\" # mine\nfont_size = 16.0\n"), "{text}");
+    let (c, w) = parse(&text, "c");
+    assert!(w.is_empty(), "{w:?}");
+    assert_eq!((c.editor.theme(), c.editor.accent(), c.editor.font_size()), ("nord", "teal", 16.0));
+    // the default file: the commented-out lines in [theme] / [font] are uncommented
+    std::fs::write(&path, default_config_text()).unwrap();
+    persist_setting(&path, Setting::Theme, "dracula").unwrap();
+    persist_setting(&path, Setting::Ligatures, false).unwrap();
+    let text = std::fs::read_to_string(&path).unwrap();
+    assert!(text.contains("[theme]\n") && text.contains("\nname = \"dracula\"\n"), "{text}");
+    assert!(text.contains("\nligatures = false\n") && !text.contains("# ligatures = true"));
+    let (c, w) = parse(&text, "c");
+    assert!(w.is_empty(), "{w:?}");
+    assert_eq!(c.editor.theme(), "dracula");
+    assert!(!c.editor.ligatures());
     let _ = std::fs::remove_dir_all(&dir);
 }

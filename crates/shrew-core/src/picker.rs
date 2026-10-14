@@ -1,5 +1,5 @@
-//! Fuzzy pickers: files, commands (palette), buffers, features. File lists stream in from a background thread so
-//! the picker opens instantly even in huge trees.
+//! Fuzzy pickers: files, commands (palette), buffers, features, and lists the app fills (themes, accents, fonts).
+//! File lists stream in from a background thread so the picker opens instantly even in huge trees.
 
 use crate::commands::Command;
 use crate::features::Feature;
@@ -13,6 +13,27 @@ pub enum PickerKind {
     Commands,
     Buffers,
     Features,
+    Choice(Choice),
+}
+
+/// Settings picked from a list the app provides. The app previews the highlighted row as it moves (and restores
+/// the old value on Esc); Enter sends [`Event::Choose`](crate::Event::Choose).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Choice {
+    Theme,
+    Accent,
+    Font,
+}
+
+impl Choice {
+    /// What the list holds, for the picker's header.
+    pub fn noun(self) -> &'static str {
+        match self {
+            Choice::Theme => "themes",
+            Choice::Accent => "accents",
+            Choice::Font => "fonts",
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -21,6 +42,8 @@ pub enum PickerData {
     Command(Command),
     Buffer(usize),
     Feature(Feature),
+    /// A [`Choice`] value (theme id, accent id, font family).
+    Value(String),
 }
 
 #[derive(Clone, Debug)]

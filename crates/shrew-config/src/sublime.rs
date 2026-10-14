@@ -221,7 +221,9 @@ pub fn parse_settings(text: &str, source: &str) -> Imported {
             "color_scheme" | "theme" => {
                 let s = v.as_str().unwrap_or("").to_ascii_lowercase();
                 let light = ["light", "breakers", "celeste", "sixteen"].iter().any(|w| s.contains(w));
-                if light {
+                if let Some(id) = (k == "color_scheme").then(|| known_scheme(&s)).flatten() {
+                    c.editor.theme = Some(id.into());
+                } else if light {
                     c.editor.theme = Some("shrew-light".into());
                 } else if k == "color_scheme" && !s.is_empty() {
                     c.editor.theme = Some("shrew-dark".into());
@@ -249,6 +251,45 @@ pub fn parse_settings(text: &str, source: &str) -> Imported {
         }
     }
     out
+}
+
+/// The built-in shrew theme for a well-known color scheme name (`Packages/Dracula/Dracula.sublime-color-scheme`).
+pub fn known_scheme(name: &str) -> Option<&'static str> {
+    let n = name.to_ascii_lowercase().replace(['_', '-'], " ");
+    let has = |w: &str| n.contains(w);
+    let pick = |cond: bool, a: &'static str, b: &'static str| if cond { a } else { b };
+    Some(if has("solarized") {
+        pick(has("light"), "solarized-light", "solarized")
+    } else if has("gruvbox") {
+        pick(has("light"), "gruvbox-light", "gruvbox-dark")
+    } else if has("catppuccin") {
+        if has("latte") { "catppuccin-latte" } else { pick(has("frapp"), "catppuccin-frappe", "catppuccin-mocha") }
+    } else if has("ayu") {
+        if has("light") { "ayu-light" } else { pick(has("mirage"), "ayu-mirage", "ayu-dark") }
+    } else if has("one dark") || has("onedark") {
+        "one-dark"
+    } else if has("one light") || has("onelight") {
+        "one-light"
+    } else if has("github") {
+        pick(has("light"), "github-light", "github-dark")
+    } else if has("rose pine") || has("ros\u{e9} pine") || has("rosepine") {
+        pick(has("dawn"), "rose-pine-dawn", "rose-pine")
+    } else if has("nord") {
+        pick(has("light"), "nord-light", "nord")
+    } else {
+        [
+            ("tokyo", "tokyo-night"),
+            ("dracula", "dracula"),
+            ("monokai", "monokai"),
+            ("everforest", "everforest"),
+            ("kanagawa", "kanagawa"),
+            ("synthwave", "synthwave-84"),
+            ("oceanic", "oceanic"),
+        ]
+        .iter()
+        .find(|(w, _)| has(w))?
+        .1
+    })
 }
 
 /// A `.sublime-keymap`.
@@ -562,6 +603,14 @@ mod tests {
         assert_eq!(kp("keypad_enter"), KeyPress::plain(Key::Enter));
         assert!(parse_key("ctrl+hyper+x", Os::Linux).is_none());
         assert!(parse_key("<character>", Os::Linux).is_none());
+    }
+
+    #[test]
+    fn known_schemes() {
+        assert_eq!(known_scheme("Packages/Dracula Color Scheme/Dracula.sublime-color-scheme"), Some("dracula"));
+        assert_eq!(known_scheme("Solarized (light).sublime-color-scheme"), Some("solarized-light"));
+        assert_eq!(known_scheme("Catppuccin Frappe.sublime-color-scheme"), Some("catppuccin-frappe"));
+        assert_eq!(known_scheme("Mariana.sublime-color-scheme"), None);
     }
 
     #[test]

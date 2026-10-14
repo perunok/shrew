@@ -3,7 +3,7 @@
 # `srw` (`srw file.rs`); `shrew` is a symlink to it.
 # On Linux it also installs the .desktop entry and icon, so shrew shows up in the app launcher.
 #
-#   curl -fsSL https://raw.githubusercontent.com/perunok/shrew/main/scripts/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/perunok/shrew/master/scripts/install.sh | sh
 #   curl -fsSL .../install.sh | sh -s -- --version 0.2.0 --dir /usr/local/bin --no-desktop
 #   curl -fsSL .../install.sh | sh -s -- --uninstall
 #

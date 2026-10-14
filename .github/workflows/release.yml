@@ -203,7 +203,7 @@ jobs:
 
           Linux and macOS, into \`~/.local/bin\` (checksum verified):
 
-              curl -fsSL https://raw.githubusercontent.com/${GH_REPO}/main/scripts/install.sh | sh
+              curl -fsSL https://raw.githubusercontent.com/${GH_REPO}/master/scripts/install.sh | sh
 
           Or download below. Running shrews update themselves: the status bar offers the new version once this
           release is published.

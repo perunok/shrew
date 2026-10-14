@@ -20,6 +20,18 @@ motion, character or register name. "Ctrl" also means ⌘ Cmd on macOS. Vim keys
    to vim).
 4. Last comes the mode: vim normal or visual, or insert. With the `vim` feature off, shrew is always in insert mode.
 
+**Keys that mean different things in different places**, on purpose:
+
+| Keys | Where | What |
+| --- | --- | --- |
+| Ctrl+B | vim normal / insert or vim off | Page up (vim's) / toggle the sidebar; Ctrl+Shift+E and the title bar button work everywhere |
+| Ctrl+R | vim / vim off | Redo, insert a register (vim's) / go to symbol; Ctrl+Shift+O works everywhere |
+| Ctrl+O, Tab | vim normal / vim off | Jump back, jump forward (vim's) / Ctrl+O opens a file; Alt+Left, Alt+Right jump everywhere |
+| Ctrl+PageUp / PageDown | editor / terminal | Previous / next buffer / previous / next terminal |
+| Alt+F, Alt+E, Alt+V, Alt+G, Alt+H, F10 | editor / terminal | Open the menus / sent to the program (readline's Alt+F moves a word); the menu button still works |
+| Ctrl+Shift+E, Ctrl+Shift+F, Ctrl+, … | editor / terminal | The global chord / sent to the program; add it to `[terminal.keys]` to keep it for shrew |
+| `q`, `r`, `R`, `/`, `:` | sidebar, Settings panel | Their own meaning while they have the keys (see each section) |
+
 **Contents:** [Global chords](#global-chords) · [Insert mode](#insert-mode) · [Normal mode](#normal-mode) ·
 [Visual mode](#visual-mode) · [Prompts](#prompts--and-) · [Pickers](#pickers) · [Sidebar](#sidebar) ·
 [Find in project](#find-in-project) · [Settings](#settings-panel) · [About panel](#about-panel) · [Menus](#menus) ·

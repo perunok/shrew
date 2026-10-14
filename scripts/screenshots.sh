@@ -55,6 +55,9 @@ shot $out/terminal-vim.png ":theme one-light<CR>:term vim -Nu NONE +'syntax on' 
   crates/shrew/src/terminal/mod.rs
 shot $out/settings.png "<C-,>l" "$core/motion.rs"
 shot $out/settings-light.png ":theme one-light<CR>:settings editor<CR>ljjj" "$core/motion.rs"
+# everything at once: title bar, sidebar, minimap and a terminal under the text
+shot $out/workspace.png ":set sidebar<CR>${term}ls crates<CR><C-w>k/fn compute<CR>zt" \
+  crates/shrew/src/layout.rs crates/shrew/src/app.rs
 
 # a 50 MB, one-million-line file, at line 500,000 with a search
 tmp=$(mktemp -d)

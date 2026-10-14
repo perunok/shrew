@@ -857,7 +857,7 @@ impl Editor {
     pub fn chords(&self) -> Vec<(KeyPress, Command)> {
         let m = |ctrl, alt, shift| Mods { ctrl, alt, shift, logo: false };
         let mut keys = Vec::new();
-        for c in "abcdefghijklmnopqrstuvwxyz0123456789,./[]=+-".chars() {
+        for c in "abcdefghijklmnopqrstuvwxyz0123456789,./[]=+-`".chars() {
             keys.extend([false, true].map(|shift| KeyPress::new(Key::Char(c), m(true, false, shift))));
         }
         for (key, mods) in [
@@ -878,6 +878,9 @@ impl Editor {
             (Key::Tab, m(true, false, true)),
             (Key::PageDown, m(true, false, false)),
             (Key::PageUp, m(true, false, false)),
+            (Key::Left, m(false, true, false)),
+            (Key::Right, m(false, true, false)),
+            (Key::Char('p'), m(true, true, false)),
         ] {
             keys.push(KeyPress::new(key, mods));
         }

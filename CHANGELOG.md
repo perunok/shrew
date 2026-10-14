@@ -73,6 +73,12 @@ Nothing has been released yet: the first release, 0.1.0, will be everything belo
 
 ### Changed
 
+- The window's parts fit together: the custom title bar spans the top, the sidebar runs down the left below it, the
+  terminal panel takes the bottom of the rest and the minimap the right of the text above it (one `layout::compute`
+  for drawing and hit testing). Settings > Layout & window holds the title bar, sidebar, minimap and terminal
+  settings; *Customize Title Bar…* opens it there. The menus list the navigation and terminal commands with their
+  chords. Terminals start in the project root. The status bar's gear hides while the title bar shows its own. The
+  sidebar command is now `toggle_sidebar`, like `toggle_minimap` and `toggle_terminal`.
 - Picker rows: every detail (description, path, command name) starts at one column after the labels; long labels
   and details are cut with an ellipsis.
 

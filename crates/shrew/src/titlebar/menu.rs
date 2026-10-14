@@ -4,7 +4,7 @@
 //! start of an entry, or by the mouse. The title bar's right-click menu is the same widget with one, flat list.
 
 use shrew_core::features::Feature;
-use shrew_core::{Command, Editor, Key, KeyPress, MapMode, Mode, Mods, Rhs};
+use shrew_core::{Command, Editor, Key, KeyPress, MapMode, Mode, Rhs};
 use shrew_render::Rect;
 use std::time::{Duration, Instant};
 
@@ -497,26 +497,8 @@ pub fn shortcut(ed: &Editor, cmd: Command) -> Option<String> {
     if let Some(m) = mapped {
         return Some(chord_label(m.lhs[0]));
     }
-    candidates().find(|&k| ed.binding(k) == Some(cmd)).map(chord_label)
-}
-
-/// Every chord a built-in binding could use, the most usual first.
-fn candidates() -> impl Iterator<Item = KeyPress> {
-    let mods = |ctrl, alt, shift| Mods { ctrl, alt, shift, logo: false };
-    let chars = "abcdefghijklmnopqrstuvwxyz0123456789=-/[]";
-    let chords = [mods(true, false, false), mods(true, false, true)];
-    let ch = chords.into_iter().flat_map(move |m| chars.chars().map(move |c| KeyPress::new(Key::Char(c), m)));
-    let named = [Key::Tab, Key::PageDown, Key::PageUp, Key::Enter, Key::Up, Key::Down, Key::F(3)];
-    let combos = [
-        mods(false, false, false),
-        mods(false, false, true),
-        mods(false, true, false),
-        mods(true, false, false),
-        mods(true, false, true),
-        mods(true, true, false),
-        mods(false, true, true),
-    ];
-    ch.chain(named.into_iter().flat_map(move |k| combos.into_iter().map(move |m| KeyPress::new(k, m))))
+    // the same list the Settings panel shows, so the two never disagree
+    ed.chords().into_iter().find(|&(_, c)| c == cmd).map(|(k, _)| chord_label(k))
 }
 
 /// "Ctrl+Shift+P", "Alt+F3" (Cmd for Ctrl on macOS).

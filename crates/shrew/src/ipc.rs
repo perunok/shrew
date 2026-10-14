@@ -43,7 +43,7 @@ pub struct FileArg {
 pub struct Request {
     pub cwd: PathBuf,
     pub files: Vec<FileArg>,
-    /// A directory argument: the new project folder, where the file picker opens.
+    /// A directory argument: the new project folder, shown in the sidebar (the file picker without one).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dir: Option<PathBuf>,
     /// `srw -`: text for a new scratch buffer.

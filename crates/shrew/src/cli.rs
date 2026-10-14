@@ -17,7 +17,7 @@ and the prompt comes back at once.
 
   file:LINE[:COL]       open file with the cursor on LINE (and char column COL)
   +LINE                 put the cursor on LINE of the first file
-  DIR                   make DIR the project folder and open the file picker in it
+  DIR                   make DIR the project folder, shown in the sidebar
   -                     read stdin into a new buffer
   -w, --wait            return only once the files are closed in the editor: EDITOR=\"{name} -w\"
   -n, --new-window      start a new shrew instead of using the running one

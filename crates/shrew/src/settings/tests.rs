@@ -1,6 +1,6 @@
 //! The Settings panel: descriptors' get/set/persist round trips, keys, search, reset and the mouse.
 
-use super::rows::{Kind, Section};
+use super::rows::Section;
 use super::*;
 use crate::draw::{self, Ui};
 use crate::layout::Layout;

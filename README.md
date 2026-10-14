@@ -204,7 +204,7 @@ Gatekeeper refuses to open it. On Windows, choose SmartScreen > More info > Run 
 ```sh
 srw                    # a scratch buffer; Ctrl+P finds files under the current directory
 srw src/main.rs:42     # open files (at a line); the prompt comes back at once
-srw .                  # this folder as the project: the file picker opens in it
+srw .                  # this folder as the project, shown in the sidebar
 git config --global core.editor "srw -w"   # commit messages in shrew
 ```
 

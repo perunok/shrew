@@ -593,9 +593,8 @@ fn layout(rows: &mut Vec<Row>) {
     rows.push(heading(S, "Title bar"));
     rows.push(feature(S, Feature::CustomTitlebar, "Custom title bar"));
     rows.push(info(S, "Items", "[titlebar] left / right / hidden in config.toml: menu, sidebar, project, tabs, files, terminal, settings, about and the window buttons.", |st| {
-        let names = |v: &[crate::titlebar::items::Item]| v.iter().map(|i| i.info().key).collect::<Vec<_>>().join(" ");
         let l = &st.titlebar.layout;
-        format!("{}  |  {}", names(&l.left), names(&l.right))
+        format!("{} left, {} right, {} hidden", l.left.len(), l.right.len(), l.hidden.len())
     }));
     rows.push(action(
         S,

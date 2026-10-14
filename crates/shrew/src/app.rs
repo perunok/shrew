@@ -6,13 +6,16 @@
 
 use crate::cli::Cli;
 use crate::draw::{self, Ui};
+use crate::ipc::{self, Request};
 use crate::keys::{self, RawKey};
 use crate::layout::{Layout, Scroll};
 use crate::state::{State, Waker};
 use shrew_core::features::Feature;
 use shrew_core::{KeyPress, Mode, Mods, text};
 use shrew_render::{FontConfig, Rect, Renderer, Scene};
+use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use winit::application::ApplicationHandler;
@@ -38,6 +41,8 @@ pub enum UserEvent {
     /// A job from an MCP tool, to run on this thread.
     #[cfg(feature = "mcp")]
     Mcp(shrew_mcp::Job),
+    /// Files from `srw` (see [`crate::ipc`]); the sender is for `--wait`.
+    Open(Box<Request>, Option<Sender<()>>),
 }
 
 /// Lets MCP tools (on HTTP threads) run jobs on the UI thread.
@@ -93,14 +98,32 @@ pub struct App {
     first_frame: bool,
     deferred: bool,
     stats: Stats,
+    /// The single-instance endpoint, removed on exit.
+    _ipc: Option<ipc::Guard>,
 }
 
-pub fn run(cli: Cli) -> Result<(), String> {
+/// Runs the editor on `req`. `reply`: the pipe of the `srw` that started this process, told once the request is
+/// taken (or why the window could not open). `server`: the single-instance endpoint, when this is the instance.
+pub fn run(
+    cli: Cli,
+    req: Request,
+    reply: Option<Box<dyn Write + Send>>,
+    server: Option<ipc::Server>,
+) -> Result<(), String> {
     let started = Instant::now();
     // config files (and vimrc/Sublime imports) are read while the event loop connects to the display
     let config =
         std::thread::Builder::new().name("shrew-config".into()).spawn(shrew_config::load).map_err(|e| e.to_string())?;
-    let el = EventLoop::<UserEvent>::with_user_event().build().map_err(|e| format!("cannot open a window: {e}"))?;
+    let el = match EventLoop::<UserEvent>::with_user_event().build() {
+        Ok(el) => el,
+        Err(e) => {
+            let e = format!("cannot open a window: {e}");
+            if let Some(w) = reply {
+                let _ = ipc::write_line(w, &ipc::Reply::Error(e.clone()));
+            }
+            return Err(e);
+        }
+    };
     el.set_control_flow(ControlFlow::Wait);
     let proxy = el.create_proxy();
     let wake_pending = Arc::new(AtomicBool::new(false));
@@ -121,7 +144,24 @@ pub fn run(cli: Cli) -> Result<(), String> {
         shrew_mcp::set_app_version(env!("CARGO_PKG_VERSION"));
         st.mcp_host = Some(Arc::new(AppHost(Mutex::new(proxy.clone()))));
     }
-    st.open_files(&cli.files, cli.line);
+    match reply {
+        Some(w) => ipc::answer(
+            req,
+            |req, done| {
+                st.open_request(req, done);
+                true
+            },
+            w,
+        ),
+        None => st.open_request(req, None),
+    }
+    let ipc_guard = server.map(|s| {
+        let proxy = Mutex::new(proxy.clone());
+        s.serve(Arc::new(move |req, done| {
+            let proxy = proxy.lock().unwrap_or_else(|e| e.into_inner());
+            proxy.send_event(UserEvent::Open(Box::new(req), done)).is_ok()
+        }))
+    });
     log::debug!("state ready at {:?}", started.elapsed());
     let now = Instant::now();
     let mut app = App {
@@ -150,6 +190,7 @@ pub fn run(cli: Cli) -> Result<(), String> {
         first_frame: false,
         deferred: false,
         stats: Stats::default(),
+        _ipc: ipc_guard,
     };
     el.run_app(&mut app).map_err(|e| e.to_string())?;
     if app.cli.stats {
@@ -168,9 +209,15 @@ impl ApplicationHandler<UserEvent> for App {
             .with_inner_size(LogicalSize::new(1100.0, 720.0));
         #[cfg(all(unix, not(target_os = "macos"), not(target_os = "android")))]
         let attrs = {
+            use winit::platform::startup_notify::{EventLoopExtStartupNotify, WindowAttributesExtStartupNotify};
             use winit::platform::{wayland::WindowAttributesExtWayland, x11::WindowAttributesExtX11};
             let attrs = WindowAttributesExtWayland::with_name(attrs, "shrew", "shrew");
-            WindowAttributesExtX11::with_name(attrs, "shrew", "shrew")
+            let attrs = WindowAttributesExtX11::with_name(attrs, "shrew", "shrew");
+            // launched from a launcher or by `srw`: the activation token lets the new window take the focus
+            match el.read_token_from_env() {
+                Some(token) => attrs.with_activation_token(token),
+                None => attrs,
+            }
         };
         let window = match el.create_window(attrs) {
             Ok(w) => Arc::new(w),
@@ -207,7 +254,7 @@ impl ApplicationHandler<UserEvent> for App {
         self.redraw();
     }
 
-    fn user_event(&mut self, _el: &ActiveEventLoop, ev: UserEvent) {
+    fn user_event(&mut self, el: &ActiveEventLoop, ev: UserEvent) {
         match ev {
             UserEvent::Wake => {
                 self.wake_pending.store(false, Ordering::Release);
@@ -221,6 +268,12 @@ impl ApplicationHandler<UserEvent> for App {
             UserEvent::Mcp(job) => {
                 self.st.run_job(job);
                 self.redraw();
+            }
+            UserEvent::Open(req, done) => {
+                self.st.open_request(*req, done);
+                log::info!("request from srw applied: {} buffer(s) open", self.st.ed.buffers.len());
+                self.raise(el);
+                self.input(Instant::now());
             }
         }
     }
@@ -329,8 +382,10 @@ impl ApplicationHandler<UserEvent> for App {
             WindowEvent::MouseInput { state, button, .. } => self.mouse_button(state, button),
             WindowEvent::MouseWheel { delta, .. } => self.wheel(delta),
             WindowEvent::DroppedFile(path) => {
-                if let Err(e) = self.st.ed.open(&path) {
-                    self.st.ed.error(format!("{}: {e}", path.display()));
+                if path.is_dir() {
+                    self.st.open_request(Request { dir: Some(path), ..Request::default() }, None);
+                } else {
+                    self.st.open_at(&path, None, None);
                 }
                 self.st.after_input();
                 self.input(Instant::now());
@@ -363,6 +418,26 @@ impl App {
         self.blink_epoch = now;
         self.update_ime();
         self.redraw();
+    }
+
+    /// Brings the window to the front for a request from `srw`. X11, Windows and macOS: `focus_window` (the window
+    /// manager may still prefer to flash it). Wayland has no focus stealing: winit can apply an activation token only
+    /// to a window it creates, not the client's token to this one, so the compositor is asked for attention instead
+    /// (KDE Plasma highlights the task bar entry).
+    fn raise(&self, el: &ActiveEventLoop) {
+        let Some(w) = &self.window else { return };
+        if w.is_minimized() == Some(true) {
+            w.set_minimized(false);
+        }
+        w.focus_window();
+        #[cfg(all(unix, not(target_os = "macos"), not(target_os = "android")))]
+        {
+            use winit::platform::wayland::ActiveEventLoopExtWayland;
+            if el.is_wayland() && !self.ui.focused {
+                w.request_user_attention(Some(winit::window::UserAttentionType::Informational));
+            }
+        }
+        let _ = el;
     }
 
     fn mapping_deadline(&self) -> Instant {

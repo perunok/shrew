@@ -21,5 +21,15 @@ new version when it tags a release.
 - Self-update from GitHub Releases with sha256 verification and a one-click update button.
 - Release workflow for Linux (x86_64, aarch64), macOS (Intel, Apple silicon) and Windows, plus a `curl | sh`
   installer.
+- The `srw` command (`shrew` is a symlink to it), like Sublime's `subl`: `srw file.rs:42:7` opens files in the running
+  shrew and brings it to the front, or starts one detached from the terminal and returns at once. `srw dir`, `srw -`
+  (stdin), `-w/--wait` for `EDITOR="srw -w"`, `-n/--new-window`, `-f/--foreground`. See docs/CLI.md.
+- Files over 1 MB open on a background thread from everywhere (`:e`, the file picker, `srw`, drag and drop).
+- Files dropped on the window open.
+
+### Changed
+
+- Picker rows: every detail (description, path, command name) starts at one column after the labels; long labels
+  and details are cut with an ellipsis.
 
 [Unreleased]: https://github.com/perunok/shrew/commits/main

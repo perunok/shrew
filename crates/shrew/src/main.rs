@@ -1,6 +1,9 @@
-//! shrew: a tiny, fast, keyboard-first GPU text editor with vim and Sublime keys.
+//! shrew: a tiny, fast, keyboard-first GPU text editor with vim and Sublime keys. The binary is `srw` (`shrew` is
+//! a symlink to it).
 //!
 //! - [`cli`]: command-line flags.
+//! - [`launch`] / [`ipc`] / [`remote`]: `srw file` hands the files to the running shrew (single instance) or starts
+//!   one detached from the terminal; the running one applies the requests.
 //! - [`state`]: the editor plus config, syntax, background loads, updates and MCP (no window).
 //! - [`app`]: the winit event loop, input and the renderer.
 //! - [`draw`] / [`layout`] / [`anim`]: building a frame from the state, and the geometry hit testing shares.
@@ -14,8 +17,11 @@ mod clipboard;
 mod colors;
 mod draw;
 mod headless;
+mod ipc;
 mod keys;
+mod launch;
 mod layout;
+mod remote;
 mod state;
 
 use cli::{Action, Cli};
@@ -26,14 +32,16 @@ fn main() {
     if args.iter().any(|a| a == "--mcp-stdio") {
         std::process::exit(mcp_stdio());
     }
+    let name = cli::program_name();
     let cli = match Cli::parse(args) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("shrew: {e}");
+            eprintln!("{name}: {e}");
             std::process::exit(2);
         }
     };
-    let filter = if cli.stats { "shrew=info,warn" } else { "warn" };
+    // the binary crate is `srw`, the library crates `shrew_*`
+    let filter = if cli.stats { "srw=info,shrew=info,warn" } else { "warn" };
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(filter)).format_timestamp(None).init();
     let result = match &cli.action {
         Action::Version => {
@@ -41,7 +49,7 @@ fn main() {
             Ok(())
         }
         Action::Help => {
-            print!("{}", cli::USAGE);
+            print!("{}", cli::usage(&name));
             Ok(())
         }
         Action::PrintConfig => {
@@ -54,10 +62,10 @@ fn main() {
         }
         Action::McpStdio => Ok(()),
         Action::Screenshot(out) => headless::run(&cli, &out.clone()),
-        Action::Edit => app::run(cli),
+        Action::Edit => launch::run(cli),
     };
     if let Err(e) = result {
-        eprintln!("shrew: {e}");
+        eprintln!("{name}: {e}");
         std::process::exit(1);
     }
 }

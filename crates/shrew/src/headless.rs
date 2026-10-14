@@ -19,7 +19,7 @@ pub fn run(cli: &Cli, out: &std::path::Path) -> Result<(), String> {
     let t0 = Instant::now();
     let mut st = State::new(shrew_config::Loaded::default(), Arc::new(|| {}), true);
     st.config_path = None;
-    st.open_files(&cli.files, cli.line);
+    st.open_request(crate::launch::request(cli, false)?, None);
     let (w, h) = cli.size;
     let mut r = Renderer::headless(w, h, cli.scale, st.font.clone()).map_err(|e| format!("renderer: {e}"))?;
     r.wait_for_fonts(Duration::from_secs(5));

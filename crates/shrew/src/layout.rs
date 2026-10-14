@@ -78,6 +78,21 @@ impl Layout {
     pub fn centered(&self, y: f32, bar_h: f32) -> f32 {
         (y + (bar_h - self.ch) / 2.0).round()
     }
+
+    // ----- phase 3: titlebar -----
+
+    /// The custom title bar: the top row (`tabs`) becomes `h` high and holds the tabs; the editor moves down.
+    pub fn with_top_bar(mut self, h: f32) -> Layout {
+        let d = h - self.tabs.h;
+        let d = d.min(self.text.h - self.ch).max(-self.tabs.h);
+        self.tabs.h += d;
+        self.text.y += d;
+        self.text.h -= d;
+        self.scrollbar.y += d;
+        self.scrollbar.h -= d;
+        self.rows = ((self.text.h / self.ch).floor() as usize).max(1);
+        self
+    }
 }
 
 /// The scroll position actually drawn (fractional while smooth scrolling), in lines and columns.
@@ -167,5 +182,19 @@ mod tests {
             }
         }
         assert!(Scroll { top: 0.0, left: 0.0 }.line_at(&l, l.text.y - 1.0) < 0);
+    }
+
+    #[test]
+    fn a_taller_top_bar_pushes_the_editor_down() {
+        let l = Layout::new(&metrics(), (800, 600), 1.0, 120, true, true).with_top_bar(40.0);
+        assert_eq!(l.tabs.h, 40.0);
+        assert_eq!(l.tabs.bottom(), l.text.y);
+        assert_eq!(l.text.bottom(), l.status.y);
+        assert_eq!(l.scrollbar.y, l.text.y);
+        assert_eq!(l.scrollbar.bottom(), l.text.bottom());
+        assert_eq!(l.rows, (l.text.h / 21.0) as usize);
+        // from no tab row at all
+        let one = Layout::new(&metrics(), (800, 600), 1.0, 120, true, false).with_top_bar(40.0);
+        assert_eq!(one, l);
     }
 }

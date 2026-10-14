@@ -47,6 +47,11 @@ Nothing has been released yet: the first release, 0.1.0, will be everything belo
   regenerates every screenshot in the docs with it.
 - `scripts/check-pure-rust.sh` fails the build when a dependency compiles or links C.
 - README in a new shape: screenshots gallery, features, performance numbers, the Shrew Manifesto.
+- A custom title bar (feature `custom_titlebar`, on by default): the buffer tabs, an application menu (File, Edit,
+  Selection, View, Go, Terminal, Help; F10 and Alt+F/E/V/G/H, keyboard-navigable, with each entry's chord) and the
+  window buttons in one row, arranged with `[titlebar] left / right / hidden`. Drag it to move the window,
+  double-click to maximize, right-click for *Customize Title Bar…* and *Use System Title Bar*; the undecorated window
+  resizes from its edges. The OS title reads "file — project — shrew".
 
 ### Changed
 

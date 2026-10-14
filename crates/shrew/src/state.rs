@@ -77,6 +77,8 @@ pub struct State {
     /// How MCP jobs reach the UI thread (set by the windowed app; none headless).
     #[cfg(feature = "mcp")]
     pub mcp_host: Option<Arc<dyn shrew_mcp::Host>>,
+    /// The custom title bar: its items, open menu, hover state and window actions (see `titlebar`).
+    pub titlebar: crate::titlebar::TitleBar,
 }
 
 impl State {
@@ -122,7 +124,9 @@ impl State {
             mcp: None,
             #[cfg(feature = "mcp")]
             mcp_host: None,
+            titlebar: Default::default(),
         };
+        st.titlebar.configure(&loaded.config.titlebar);
         st.apply_theme_config(ThemeCfg::from(cfg));
         st.show_warnings(&warnings);
         st.ed.events.clear(); // the initial scratch buffer: highlighters are created on demand below
@@ -172,6 +176,10 @@ impl State {
 
     /// A key from the keyboard (or `--keys`).
     pub fn key(&mut self, k: KeyPress) {
+        // an open menu, or a key that opens one (F10, Alt+F)
+        if crate::titlebar::key(self, k) {
+            return;
+        }
         self.ed.handle_key(k);
         self.after_input();
     }
@@ -243,6 +251,7 @@ impl State {
             }
             Event::BufferOpened(id) => self.buffer_opened(id),
             Event::Load(path) => self.open_at(&path, None, None),
+            Event::App(cmd) => crate::titlebar::app_command(self, cmd),
         }
     }
 
@@ -544,6 +553,7 @@ impl State {
             self.font_changed = true;
         }
         self.cursor_blink = cfg.cursor_blink();
+        self.titlebar.configure(&loaded.config.titlebar);
         let look = ThemeCfg::from(cfg);
         if look != self.look.cfg {
             self.apply_theme_config(look);

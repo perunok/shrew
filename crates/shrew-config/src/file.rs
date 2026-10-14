@@ -187,6 +187,26 @@ pub fn parse(text: &str, source: &str) -> (Config, Vec<Warning>) {
                     }
                 }
             }
+            "titlebar" => {
+                let Some(t) = cx.table(item, key) else { continue };
+                for (k, v) in t.iter() {
+                    let slot = match k {
+                        "left" => &mut config.titlebar.left,
+                        "right" => &mut config.titlebar.right,
+                        "hidden" => &mut config.titlebar.hidden,
+                        _ => {
+                            cx.warn(v, format!("unknown key titlebar.{k}"));
+                            continue;
+                        }
+                    };
+                    match v.as_array() {
+                        Some(a) if a.iter().all(|x| x.is_str()) => {
+                            *slot = Some(a.iter().filter_map(|x| x.as_str()).map(String::from).collect());
+                        }
+                        _ => cx.warn(v, format!("titlebar.{k}: expected a list of item names")),
+                    }
+                }
+            }
             _ => cx.warn(item, format!("unknown section or key {key:?}")),
         }
     }
@@ -367,6 +387,15 @@ pub fn default_config_text() -> String {
 [update]
 # Same as the update_check feature.
 # check = true
+
+# The custom title bar (feature custom_titlebar): which items it shows on each side, in order. Items:
+# menu, sidebar, project, tabs, files, terminal, settings, about, minimize, maximize, close.
+# An item left out goes where the default puts it. Tabs, settings and the window buttons can move
+# but not be hidden. Right-click an empty part of the bar for "Customize Title Bar…".
+[titlebar]
+# left = ["menu", "sidebar", "project", "tabs"]
+# right = ["files", "terminal", "settings", "about", "minimize", "maximize", "close"]
+# hidden = []
 "#;
     s
 }

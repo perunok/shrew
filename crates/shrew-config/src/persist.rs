@@ -215,3 +215,8 @@ pub fn persist_value(path: &Path, table: &str, key: &str, value: impl Into<Value
     doc.set(table, key, value)?;
     doc.save()
 }
+
+/// Opens, sets `[table] key = ["a", "b"]`, saves (for example the title bar's `left` items).
+pub fn persist_list(path: &Path, table: &str, key: &str, items: &[&str]) -> io::Result<()> {
+    persist_value(path, table, key, Value::from_iter(items.iter().copied()))
+}

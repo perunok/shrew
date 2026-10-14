@@ -269,3 +269,26 @@ fn settings_are_written_where_the_file_keeps_them() {
     assert!(!c.editor.ligatures());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn titlebar_lists() {
+    let (c, w) = parse("[titlebar]\nleft = [\"menu\", \"tabs\"]\nhidden = []\nright = 3\ncolor = 1\n", "c");
+    assert_eq!(c.titlebar.left, Some(vec!["menu".to_string(), "tabs".to_string()]));
+    assert_eq!(c.titlebar.hidden, Some(vec![]));
+    assert_eq!(c.titlebar.right, None);
+    assert_eq!(w.len(), 2, "{w:?}");
+    // a later layer replaces a list it sets and keeps the others
+    let mut base = c.clone();
+    let (over, _) = parse("[titlebar]\nright = [\"close\"]\n", "c");
+    base.merge(&over);
+    assert_eq!(base.titlebar.right, Some(vec!["close".to_string()]));
+    assert_eq!(base.titlebar.left, c.titlebar.left);
+    // written back as a list, and read again
+    let dir = std::env::temp_dir().join(format!("shrew-titlebar-test-{}", std::process::id()));
+    let path = dir.join("config.toml");
+    crate::persist_list(&path, "titlebar", "left", &["tabs", "menu"]).unwrap();
+    let (c, w) = crate::read_config(&path);
+    assert!(w.is_empty(), "{w:?}");
+    assert_eq!(c.titlebar.left, Some(vec!["tabs".to_string(), "menu".to_string()]));
+    std::fs::remove_dir_all(&dir).ok();
+}

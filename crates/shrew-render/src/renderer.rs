@@ -5,6 +5,7 @@
 //! image, so the time spent blocked on vsync is never in front of input handling.
 
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use cosmic_text::CacheKey;
@@ -109,11 +110,58 @@ pub struct Renderer {
 
 const HEADLESS_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 
+/// A device of the primary backends (Vulkan, Metal, DX12) and the instance and adapter it came from.
+type Opened = (wgpu::Instance, wgpu::Adapter, wgpu::Device, wgpu::Queue);
+
+/// The GPU opened on a background thread while the event loop and the window are created, which on Linux takes
+/// 20 ms or more: bringing up Vulkan is most of shrew's time to the first frame, and it needs no window. Pass it to
+/// [`Renderer::with_warmup`].
+pub struct Warmup(std::thread::JoinHandle<Result<Opened, Error>>);
+
+impl Warmup {
+    /// Starts opening the GPU, unless `WGPU_BACKEND` picks the backends (then [`Renderer::with_warmup`] opens them
+    /// with the window, as [`Renderer::new`] does).
+    pub fn start() -> Option<Warmup> {
+        if wgpu::Backends::from_env().is_some() {
+            return None;
+        }
+        let open = || {
+            let t = Instant::now();
+            let mut desc = wgpu::InstanceDescriptor::new_without_display_handle();
+            desc.backends = wgpu::Backends::PRIMARY;
+            let instance = wgpu::Instance::new(desc.with_env());
+            let (adapter, device, queue) = pollster::block_on(open_device(&instance, None))?;
+            log::debug!("GPU warmed up in {:?}", t.elapsed());
+            Ok((instance, adapter, device, queue))
+        };
+        std::thread::Builder::new().name("shrew-gpu".into()).spawn(open).ok().map(Warmup)
+    }
+
+    fn join(self) -> Result<Opened, Error> {
+        self.0.join().unwrap_or_else(|_| Err(Error::Adapter("the GPU warm-up panicked".into())))
+    }
+}
+
 impl Renderer {
     /// A renderer drawing into a window. `target` is typically an `Arc<winit::window::Window>`; `display` is the
     /// event loop's display handle (`Box::new(event_loop.owned_display_handle())`), needed by the GL backend on
     /// Wayland and harmless elsewhere. `width`/`height` are the window's physical size, `scale` its HiDPI factor.
     pub fn new<T: Into<wgpu::SurfaceTarget<'static>> + Clone>(
+        target: T,
+        display: Option<Box<dyn wgpu::wgt::WgpuHasDisplayHandle>>,
+        width: u32,
+        height: u32,
+        scale: f32,
+        font: FontConfig,
+    ) -> Result<Self, Error> {
+        Self::with_warmup(None, target, display, width, height, scale, font)
+    }
+
+    /// [`Renderer::new`] on a device a [`Warmup`] opened while the window was being created: only the window's
+    /// surface is left to make. Falls back to opening a device here when the warm-up failed or its adapter cannot
+    /// present to this window.
+    pub fn with_warmup<T: Into<wgpu::SurfaceTarget<'static>> + Clone>(
+        warm: Option<Warmup>,
         target: T,
         display: Option<Box<dyn wgpu::wgt::WgpuHasDisplayHandle>>,
         width: u32,
@@ -133,12 +181,28 @@ impl Renderer {
                 let (adapter, device, queue) = pollster::block_on(open_device(&instance, Some(&surface)))?;
                 Ok::<_, Error>((instance, surface, adapter, device, queue))
             };
+            let warmed = |(instance, adapter, device, queue): Opened, target: T| {
+                let surface = instance.create_surface(target).map_err(|e| Error::Surface(e.to_string()))?;
+                if !adapter.is_surface_supported(&surface) {
+                    return Err(Error::Surface("the warmed-up adapter cannot present to this window".into()));
+                }
+                Ok((instance, surface, adapter, device, queue))
+            };
             // Vulkan/Metal/DX12 first; GL only when none works, since bringing up EGL as well costs startup time.
             // The display handle only matters to GL, so it goes to whichever attempt may use GL.
             let (instance, surface, adapter, device, queue) = if wgpu::Backends::from_env().is_some() {
                 open(wgpu::Backends::all(), display, target)?
             } else {
-                match open(wgpu::Backends::PRIMARY, None, target.clone()) {
+                let primary = match warm.map(Warmup::join) {
+                    Some(Ok(opened)) => warmed(opened, target.clone()).or_else(|e| {
+                        log::debug!("{e}; opening the GPU again");
+                        open(wgpu::Backends::PRIMARY, None, target.clone())
+                    }),
+                    // the warm-up already tried the primary backends
+                    Some(Err(e)) => Err(e),
+                    None => open(wgpu::Backends::PRIMARY, None, target.clone()),
+                };
+                match primary {
                     Ok(gpu) => gpu,
                     Err(e) => {
                         log::warn!("{e}; trying OpenGL");
@@ -414,9 +478,9 @@ impl Renderer {
         self.lines.clear();
     }
 
-    /// Rasterizes printable ASCII (regular, bold, italic, every subpixel offset) into the atlas. `new` already does
-    /// this during GPU setup; call it again after a font change, when idle, to keep the next frames upload-free.
-    /// Costs a few to ~20 ms of CPU depending on the font size.
+    /// Rasterizes printable ASCII (regular, bold, italic, every subpixel offset) into the atlas. `new` does as much
+    /// of this as the GPU setup leaves time for; call it after a font change, when idle, to keep the next frames
+    /// upload-free. Costs a few to ~25 ms of CPU depending on the font size.
     pub fn prewarm_ascii(&mut self) {
         let pre = self.fonts.prerender_ascii();
         self.atlas.insert_prerendered(&pre, &self.queue);
@@ -815,9 +879,11 @@ fn with_fonts_in_parallel(
     gpu: impl FnOnce() -> Result<Gpu, Error>,
 ) -> Result<Renderer, Error> {
     let t = Instant::now();
+    // glyphs are rasterized for as long as the GPU takes, not longer
+    let gpu_done = AtomicBool::new(false);
     let load = |font: FontConfig| {
         let mut fonts = Fonts::new(font, scale);
-        let pre = fonts.prerender_ascii();
+        let pre = fonts.prerender_ascii_until(&gpu_done);
         (fonts, pre)
     };
     let (gpu, (fonts, prerendered)) = std::thread::scope(|s| {
@@ -826,6 +892,7 @@ fn with_fonts_in_parallel(
             move || load(font)
         });
         let gpu = gpu();
+        gpu_done.store(true, Ordering::Relaxed);
         let fonts = match spawned {
             Ok(h) => h.join().unwrap_or_else(|p| std::panic::resume_unwind(p)),
             Err(_) => load(font),

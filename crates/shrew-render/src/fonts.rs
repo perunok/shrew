@@ -183,15 +183,24 @@ impl Fonts {
     }
 
     /// Rasterizes printable ASCII in the regular, bold and italic styles at all four subpixel x offsets: everything
-    /// a typical first screen of code needs. Runs while the GPU initializes, so the first frame rasterizes nothing.
+    /// a typical first screen of code needs.
     pub fn prerender_ascii(&mut self) -> Vec<(CacheKey, SwashImage)> {
+        self.prerender_ascii_until(&AtomicBool::new(false))
+    }
+
+    /// [`Fonts::prerender_ascii`] until `stop` is set (regular first, then italic, then bold). It runs while the GPU
+    /// initializes and stops when that is done, so it never delays the first frame, which rasterizes what is missing.
+    pub fn prerender_ascii_until(&mut self, stop: &AtomicBool) -> Vec<(CacheKey, SwashImage)> {
         let ascii: String = (b' '..=b'~').map(char::from).collect();
         let px = self.metrics.font_size;
         let mut out = Vec::with_capacity(ascii.len() * 12);
-        for bits in [0, 1, 2] {
+        for bits in [0, 2, 1] {
             let attrs = AttrsList::new(&self.attrs(bits));
             let line = ShapeLine::new(&mut self.system, &ascii, &attrs, Shaping::Advanced, 1);
             for g in line.spans.iter().flat_map(|s| &s.words).flat_map(|w| &w.glyphs) {
+                if stop.load(Ordering::Relaxed) {
+                    return out;
+                }
                 for bin in 0..4 {
                     let (key, _, _) = CacheKey::new(
                         g.font_id,

@@ -47,7 +47,7 @@ mod scene;
 pub use color::Color;
 pub use fonts::{DEFAULT_FAMILY, FontConfig, Metrics, WakeFn};
 pub use layout::{char_columns, columns};
-pub use renderer::{Error, FrameStats, Renderer};
+pub use renderer::{Error, FrameStats, Renderer, Warmup};
 pub use scene::{Rect, Scene, TextStyle};
 
 pub use wgpu;

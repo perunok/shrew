@@ -11,7 +11,7 @@ use crate::keys::{self, RawKey};
 use crate::layout::{Layout, Scroll};
 use crate::state::{State, Waker};
 use shrew_core::{KeyPress, Mode, Mods, text};
-use shrew_render::{FontConfig, Rect, Renderer, Scene};
+use shrew_render::{FontConfig, Rect, Renderer, Scene, Warmup};
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
@@ -80,6 +80,8 @@ pub struct App {
     started: Instant,
     window: Option<Arc<Window>>,
     renderer: Option<Renderer>,
+    /// The GPU being opened in the background until the window exists (see [`Warmup`]).
+    warmup: Option<Warmup>,
     scene: Scene,
     ui: Ui,
     lay: Option<Layout>,
@@ -115,6 +117,8 @@ pub fn run(
     server: Option<ipc::Server>,
 ) -> Result<(), String> {
     let started = Instant::now();
+    // Vulkan comes up while the config is read and the window is created
+    let warmup = Warmup::start();
     // config files (and vimrc/Sublime imports) are read while the event loop connects to the display
     let config =
         std::thread::Builder::new().name("shrew-config".into()).spawn(shrew_config::load).map_err(|e| e.to_string())?;
@@ -179,6 +183,7 @@ pub fn run(
         started,
         window: None,
         renderer: None,
+        warmup,
         scene: Scene::new(),
         ui: Ui::new(),
         lay: None,
@@ -233,9 +238,11 @@ impl ApplicationHandler<UserEvent> for App {
             Ok(w) => Arc::new(w),
             Err(e) => return fatal(el, format!("cannot create a window: {e}")),
         };
+        log::debug!("window created at {:?}", self.started.elapsed());
         let size = window.inner_size();
         let t = Instant::now();
-        let renderer = Renderer::new(
+        let renderer = Renderer::with_warmup(
+            self.warmup.take(),
             window.clone(),
             Some(Box::new(el.owned_display_handle())),
             size.width,

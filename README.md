@@ -2,105 +2,77 @@
   <img src="assets/shrew.svg" width="96" height="96" alt="shrew logo">
 </p>
 
-<h1 align="center">shrew</h1>
+# shrew
 
-<p align="center">
-  A tiny, fast, keyboard-first text editor. Vim's modal editing and Sublime Text's multi-cursor chords, drawn on the GPU, in pure Rust.
-</p>
+[![CI](https://github.com/perunok/shrew/actions/workflows/ci.yml/badge.svg)](https://github.com/perunok/shrew/actions/workflows/ci.yml)
+[![latest release](https://img.shields.io/github/v/release/perunok/shrew?sort=semver)](https://github.com/perunok/shrew/releases/latest)
+[![MIT license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-<p align="center">
-  <a href="https://github.com/perunok/shrew/actions/workflows/ci.yml"><img src="https://github.com/perunok/shrew/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/perunok/shrew/releases/latest"><img src="https://img.shields.io/github/v/release/perunok/shrew?sort=semver" alt="latest release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
-</p>
+A tiny, fast, keyboard-first text editor in pure Rust, drawn on the GPU. Vim's modal editing and Sublime Text's
+multi-cursor chords work side by side, your `.vimrc` and Sublime settings come along, and the mouse works when you
+reach for it. A shrew is small, quick and eats a lot for its size: shrew opens in a blink, answers every key within
+a frame, uses no CPU while it waits, and every feature beyond plain editing can be switched off, at which point it
+is never started. No account, no telemetry, nothing to install but one binary.
 
-![shrew editing Rust in normal mode (shrew dark theme)](docs/screenshot.png)
+Small, quick, yours: read [the Shrew Manifesto](#manifesto).
 
-A shrew is small, quick, and eats a lot for its size. The editor works the same way: one small binary that opens
-instantly, stays out of your way and responds to every key at once. Latency and memory come first; every feature
-beyond plain editing can be switched off, and when it is off it is never started.
+![shrew editing Rust in vim normal mode (Catppuccin Mocha theme): three files open in tabs, syntax highlighting, indent guides, the cursor on an opening brace with its matching brace highlighted, and the NORMAL badge in the status bar](docs/screenshot.png)
 
-- **Snappy.** It redraws only when something changes, never on a timer. Glyphs are rasterised once into a GPU atlas,
-  laid-out lines are cached, and syntax highlighting runs on a background thread, so typing never waits on it.
-- **Two keymaps.** Vim (normal, insert, visual, visual line and visual block, with operators, text objects, counts,
-  registers, macros, marks and dot-repeat) and Sublime Text (Ctrl+D, Ctrl+Shift+L, multiple cursors, Ctrl+P,
-  Ctrl+Shift+P) work together. Turn vim off and shrew is an always-typing, Sublime-style editor.
-- **Brings your config along.** It reads your `~/.vimrc` / `init.vim` and Sublime Text's user settings and key
-  bindings at startup, and you can add or override anything in `config.toml`.
-- **Themes.** 33 built in (Dracula, Nord, Gruvbox, Catppuccin, Tokyo Night, Solarized, One Dark, high contrast...),
-  18 accents over any of them, following the desktop's light/dark setting, your own TOML themes and imported Sublime
-  or TextMate color schemes. Pick themes, accents and fonts with live preview. See
-  **[docs/THEMES.md](docs/THEMES.md)**.
-- **Pure Rust.** It builds with `cargo` alone: no C compiler, no system `-dev` packages. GPU drivers, Wayland and X11
-  are loaded at runtime.
-- **AI-ready, opt-in.** A built-in [MCP](https://modelcontextprotocol.io) server lets Claude Code, Claude Desktop or
-  Cursor read and edit your open buffers. Every edit is one undo step, and nothing is saved without you. It is off by
-  default.
-- **Updates itself.** shrew checks GitHub Releases once a day and shows an update button in the status bar. The
-  download is verified against its sha256 before it replaces the binary.
+## Screenshots
 
-## Install
-
-**Linux and macOS.** This installs the `srw` command (and a `shrew` symlink to it) to `~/.local/bin`, verifies the
-checksum, and on Linux adds shrew to the application menu:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/perunok/shrew/main/scripts/install.sh | sh
-```
-
-Options: `sh -s -- --version 0.2.0`, `--dir /some/bin`, `--no-desktop`, `--uninstall`.
-
-**Windows.** Download `shrew-x86_64-pc-windows-msvc.exe` (or the `.zip`) from the
-[latest release](https://github.com/perunok/shrew/releases/latest), rename it to `srw.exe` and put it on your `PATH`.
-
-**By hand.** Every [release](https://github.com/perunok/shrew/releases) has these files:
-
-| Platform | Raw binary | Archive |
-| --- | --- | --- |
-| Linux x86_64 | `shrew-x86_64-unknown-linux-gnu` | `shrew-v<version>-x86_64-unknown-linux-gnu.tar.gz` |
-| Linux ARM64 | `shrew-aarch64-unknown-linux-gnu` | `shrew-v<version>-aarch64-unknown-linux-gnu.tar.gz` |
-| macOS Apple silicon | `shrew-aarch64-apple-darwin` | `shrew-v<version>-aarch64-apple-darwin.tar.gz` |
-| macOS Intel | `shrew-x86_64-apple-darwin` | `shrew-v<version>-x86_64-apple-darwin.tar.gz` |
-| Windows x86_64 | `shrew-x86_64-pc-windows-msvc.exe` | `shrew-v<version>-x86_64-pc-windows-msvc.zip` |
-
-Each raw binary has a `.sha256` file next to it (check it with `sha256sum -c`). The Linux archives also contain
-`shrew.desktop` and the icon. The builds are not signed yet. On macOS, run `xattr -d com.apple.quarantine srw` if
-Gatekeeper refuses to open it. On Windows, choose SmartScreen > More info > Run anyway.
-
-**From source.** See [Building from source](#building-from-source).
-
-## Quick start
-
-```sh
-srw                    # a scratch buffer; Ctrl+P finds files under the current directory
-srw src/main.rs:42     # open files (at a line); the prompt comes back at once
-srw .                  # this folder as the project: the file picker opens in it
-git config --global core.editor "srw -w"   # commit messages in shrew
-```
-
-Like Sublime's `subl`, `srw` hands the files to the shrew that is already running and brings its window to the
-front, or starts one in the background. `shrew` is the same command under its longer name. See
-[docs/CLI.md](docs/CLI.md) for every option.
-
-shrew starts in vim's normal mode. If you do not use vim, run `:set novim` or toggle **Vim** in the Features list
-(palette, *Features: List and Toggle*). From then on shrew always types, and the familiar shortcuts work: Ctrl+S,
-Ctrl+Z, Ctrl+C/X/V, Ctrl+F, Ctrl+D.
+Every shot is the real editor, rendered headless from shrew's own source code. Regenerate them with
+`scripts/screenshots.sh`.
 
 | | |
-| --- | --- |
-| Find a file | Ctrl+P |
-| Run any command | Ctrl+Shift+P (command palette) |
-| Switch buffer | Ctrl+Shift+B, Ctrl+Tab |
-| Save / quit | Ctrl+S / Ctrl+Q (or `:w`, `:q`, `:wq`) |
-| Add a cursor at the next match | Ctrl+D (insert) / Ctrl+N (normal) |
-| See and toggle features | `:features` |
-| Edit your config | palette: *Shrew: Open Config File* (`:config`) |
+|---|---|
+| ![Normal mode](docs/screenshots/normal.png)<br>**Vim normal mode** with syntax highlighting, indent guides and `*` search | ![Multiple cursors](docs/screenshots/multi-cursor.png)<br>**Ctrl+N** adds a cursor at each next match, as in vim-visual-multi |
+| ![Sublime mode](docs/screenshots/sublime.png)<br>**Sublime mode** (`:set novim`): Ctrl+D five times, then type | ![File picker](docs/screenshots/file-picker.png)<br>**Ctrl+P** fuzzy-finds files, respecting `.gitignore` |
+| ![Command palette](docs/screenshots/palette.png)<br>**Ctrl+Shift+P** runs any command by its name | ![Features](docs/screenshots/features.png)<br>**Every feature is optional**: `:features` lists and toggles them |
+| ![Theme picker](docs/screenshots/theme-picker.png)<br>**33 themes** with a live preview as you move through them | ![Light theme](docs/screenshots/light.png)<br>**Light themes** too, here One Light in visual line mode |
+| ![High contrast](docs/screenshots/contrast.png)<br>**High Contrast** (WCAG AAA); every theme passes a contrast audit | ![Substitute](docs/screenshots/substitute.png)<br>**`:%s` substitution**, with the last search highlighted |
+| ![About](docs/screenshots/about.png)<br>**About shrew** and the Shrew Manifesto (`:about`) | ![Huge file](docs/screenshots/huge-file.png)<br>**A 50 MB, million-line file**, searched at line 500,000 |
 
 ## Features
 
-Plain editing is always there: rope buffers, unlimited undo/redo with grouped edits, multiple cursors, regex
-search and `:s` replace, and the vim and Sublime keymaps. Everything else is an optional feature. Every optional
-feature:
+- **Snappy by design.** shrew redraws only when something changes, never on a timer, so an idle shrew uses no CPU.
+  Glyphs are rasterised once into a GPU atlas, shaped lines are cached, and syntax highlighting runs on a
+  background thread, so typing never waits on it. See [Performance](#performance) for measured numbers.
+- **Vim, for real.** Normal, insert, visual, visual line and visual block modes, with motions, operators, text
+  objects, counts, registers, macros, marks, dot-repeat, `:s`, `:g`, ranges and more. 839 differential test cases
+  check shrew against Vim 9.1 itself (`crates/shrew-core/tests/vim_diff.rs`).
+- **Sublime Text chords.** Ctrl+D, Ctrl+Shift+L, Ctrl+Alt+Up/Down, Ctrl+P, Ctrl+Shift+P, move, duplicate and
+  delete lines, toggle comments. They work in every mode. Turn vim off (`:set novim`) and shrew is an
+  always-typing, Sublime-style editor with Ctrl+S, Ctrl+Z, Ctrl+C/X/V and Ctrl+F.
+- **Multiple cursors** everywhere: Ctrl+D and Ctrl+N add the next occurrence, Alt+F3 selects them all, Ctrl+click
+  adds one, and vim commands run at every cursor.
+- **Brings your config along.** At startup shrew reads your `~/.vimrc` / `init.vim` (options, leader, the whole
+  `map` / `noremap` family) and Sublime Text's user settings and key bindings. You add or override anything in
+  `config.toml`, and shrew's own changes to it (`:set`, theme and font pickers) keep your comments.
+- **Pickers.** A fuzzy file finder (Ctrl+P) that walks the project in the background and respects `.gitignore`, a
+  command palette (Ctrl+Shift+P), a buffer list (Ctrl+Shift+B) and the Features list.
+- **Themes.** 33 built in (Dracula, Nord, Gruvbox, Catppuccin, Tokyo Night, Solarized, One Dark, two high-contrast
+  ones and more), 18 accents over any of them, following the desktop's light/dark setting, your own TOML themes,
+  and imported Sublime or TextMate color schemes. Theme, accent and font pickers preview live. See
+  **[docs/THEMES.md](docs/THEMES.md)**.
+- **Syntax highlighting** with Sublime Text grammars (syntect on fancy-regex, pure Rust), incremental: after an
+  edit it restarts at the edited line and stops as soon as the result matches the previous run.
+- **The `srw` command.** Like Sublime's `subl`: `srw file.rs:42` hands files to the running shrew and brings it to
+  the front, or starts one detached from the terminal, and returns at once. `srw -w` makes shrew your `$EDITOR`.
+  See **[docs/CLI.md](docs/CLI.md)**.
+- **Huge files.** A rope keeps edits O(log n), files over 1 MB load on a background thread, and only visible lines
+  are drawn, so a 50 MB, million-line file stays interactive.
+- **AI-ready, opt-in.** A built-in [MCP](https://modelcontextprotocol.io) server lets Claude Code, Claude Desktop
+  or Cursor read and edit your open buffers. Every edit is one undo step and nothing is saved without you. Off by
+  default.
+- **Updates itself.** shrew checks GitHub Releases once a day and shows an update button in the status bar. The
+  download is verified against its sha256 before it replaces the binary.
+- **Pure Rust.** It builds with `cargo` alone: no C compiler, no system `-dev` packages. GPU drivers, Wayland and
+  X11 are loaded at runtime.
+
+### Switchable features
+
+Plain editing is always there: rope buffers, unlimited undo/redo with grouped edits, multiple cursors, regex search
+and `:s` replace, and the vim and Sublime keymaps. Everything else is an optional feature. Every optional feature:
 
 - shows up in the **Features** list (`:features`, or palette *Features: List and Toggle*), where Enter toggles it;
 - can be switched **at runtime** with `:set <key>`, `:set no<key>` or `:set <key>!` (toggle). Changes made this way
@@ -109,7 +81,8 @@ feature:
 - and, where a cargo feature is listed, can be **compiled out** entirely. That removes its code and dependencies and
   makes the binary smaller.
 
-A feature that is off is never started: no thread, no file watcher, no socket, no memory.
+A feature that is off is never started: no thread, no file watcher, no socket, no memory. `srw --features` prints
+the table below for your build and config.
 
 | Key | What it does | Default | Cargo feature |
 | --- | --- | :---: | --- |
@@ -147,8 +120,8 @@ smooth_scroll = false
 mcp = true
 ```
 
-**Compile-time.** The `shrew` package's (the `srw` binary's) default cargo features are `syntax`, `picker`, `clipboard`, `mcp`, `update`
-and `embed-font`. A minimal build:
+**Compile-time.** The `shrew` package's (the `srw` binary's) default cargo features are `syntax`, `picker`,
+`clipboard`, `mcp`, `update` and `embed-font`. A minimal build:
 
 ```sh
 cargo build --release -p shrew --no-default-features                     # just the editor
@@ -161,9 +134,74 @@ A feature that is compiled out shows as unavailable in the Features list, and `:
 `Packages/User`. Color schemes (`.sublime-color-scheme`, `.tmTheme`) are always readable: see
 [docs/THEMES.md](docs/THEMES.md).
 
+## Requirements
+
+- **To run:** Linux with a Vulkan or OpenGL (EGL) driver and a Wayland or X11 session, macOS (Metal), or Windows
+  (DX12 or Vulkan). On Linux those libraries are loaded with `dlopen` at startup, so nothing else is needed.
+- **To build:** a stable Rust toolchain that supports edition 2024, and nothing else. There is no C compiler,
+  `pkg-config` or `-dev` package to install on any platform.
+
+## Install
+
+**Linux and macOS.** This installs the `srw` command (and a `shrew` symlink to it) to `~/.local/bin`, verifies the
+checksum, and on Linux adds shrew to the application menu:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/perunok/shrew/master/scripts/install.sh | sh
+```
+
+Options: `sh -s -- --version 0.2.0`, `--dir /some/bin`, `--no-desktop`, `--uninstall`.
+
+**Windows.** Download `shrew-x86_64-pc-windows-msvc.exe` (or the `.zip`) from the
+[latest release](https://github.com/perunok/shrew/releases/latest), rename it to `srw.exe` and put it on your `PATH`.
+
+**By hand.** Every [release](https://github.com/perunok/shrew/releases) has these files:
+
+| Platform | Raw binary | Archive |
+| --- | --- | --- |
+| Linux x86_64 | `shrew-x86_64-unknown-linux-gnu` | `shrew-v<version>-x86_64-unknown-linux-gnu.tar.gz` |
+| Linux ARM64 | `shrew-aarch64-unknown-linux-gnu` | `shrew-v<version>-aarch64-unknown-linux-gnu.tar.gz` |
+| macOS Apple silicon | `shrew-aarch64-apple-darwin` | `shrew-v<version>-aarch64-apple-darwin.tar.gz` |
+| macOS Intel | `shrew-x86_64-apple-darwin` | `shrew-v<version>-x86_64-apple-darwin.tar.gz` |
+| Windows x86_64 | `shrew-x86_64-pc-windows-msvc.exe` | `shrew-v<version>-x86_64-pc-windows-msvc.zip` |
+
+Each raw binary has a `.sha256` file next to it (check it with `sha256sum -c`). The Linux archives also contain
+`shrew.desktop` and the icon. The builds are not signed yet. On macOS, run `xattr -d com.apple.quarantine srw` if
+Gatekeeper refuses to open it. On Windows, choose SmartScreen > More info > Run anyway.
+
+**From source.** See [Development](#development).
+
+## Quick start
+
+```sh
+srw                    # a scratch buffer; Ctrl+P finds files under the current directory
+srw src/main.rs:42     # open files (at a line); the prompt comes back at once
+srw .                  # this folder as the project: the file picker opens in it
+git config --global core.editor "srw -w"   # commit messages in shrew
+```
+
+Like Sublime's `subl`, `srw` hands the files to the shrew that is already running and brings its window to the
+front, or starts one in the background. `shrew` is the same command under its longer name. See
+[docs/CLI.md](docs/CLI.md) for every option.
+
+shrew starts in vim's normal mode. If you do not use vim, run `:set novim` or toggle **Vim** in the Features list
+(palette, *Features: List and Toggle*). From then on shrew always types, and the familiar shortcuts work: Ctrl+S,
+Ctrl+Z, Ctrl+C/X/V, Ctrl+F, Ctrl+D.
+
+| | |
+| --- | --- |
+| Find a file | Ctrl+P |
+| Run any command | Ctrl+Shift+P (command palette) |
+| Switch buffer | Ctrl+Shift+B, Ctrl+Tab |
+| Save / quit | Ctrl+S / Ctrl+Q (or `:w`, `:q`, `:wq`) |
+| Add a cursor at the next match | Ctrl+D (insert) / Ctrl+N (normal) |
+| See and toggle features | `:features` |
+| Edit your config | palette: *Shrew: Open Config File* (`:config`) |
+| Version, manifesto, credits | palette: *About shrew* (`:about`) |
+
 ## Keybindings
 
-These are the most useful ones. The full reference, generated from the code, is in
+These are the most useful ones. The full reference, written from the code, is in
 **[docs/KEYBINDINGS.md](docs/KEYBINDINGS.md)**. "Ctrl" means ⌘ Cmd on macOS as well.
 
 **Everywhere (Sublime-style chords)**
@@ -267,6 +305,16 @@ and summarised in one status-line message. Nothing in an imported file can stop 
 
 The full reference is in **[docs/CONFIG.md](docs/CONFIG.md)**.
 
+## Themes
+
+33 built-in themes, light and dark, including two high-contrast ones; 18 accents to lay over any of them; or
+`theme = "system"` to follow the desktop's light/dark setting with a theme of your choice for each. Pick with
+palette *Theme: Select…* (`:theme`), *Accent: Select…* (`:accent`) and *Font: Select…* (`:font`): moving through a
+list previews it live, Esc puts the old one back and Enter saves it to `config.toml`. Write your own themes as TOML
+files (reloaded when saved), or convert a Sublime `.sublime-color-scheme` or TextMate `.tmTheme` with
+`:theme import <file>`. Every built-in theme passes a WCAG contrast audit with every accent. See
+**[docs/THEMES.md](docs/THEMES.md)**.
+
 ## AI assistants (MCP)
 
 shrew can expose its open buffers to AI assistants over the
@@ -282,7 +330,7 @@ the cursor.
 **Claude Code:**
 
 ```sh
-claude mcp add shrew -- shrew --mcp-stdio
+claude mcp add shrew -- srw --mcp-stdio
 ```
 
 **Claude Desktop, Cursor and other clients.** Add this to the client's MCP config and restart the client. For Claude
@@ -293,12 +341,12 @@ Desktop that is `~/.config/Claude/claude_desktop_config.json` on Linux,
 ```json
 {
   "mcpServers": {
-    "shrew": { "command": "shrew", "args": ["--mcp-stdio"] }
+    "shrew": { "command": "srw", "args": ["--mcp-stdio"] }
   }
 }
 ```
 
-The client starts `shrew --mcp-stdio`, a small bridge that connects to the running editor and starts shrew if it is
+The client starts `srw --mcp-stdio`, a small bridge that connects to the running editor and starts shrew if it is
 closed (only while MCP is on). To cut off access at any time, run `:set nomcp`.
 
 ## Updates
@@ -317,25 +365,35 @@ closed (only while MCP is on). To cut off access at any time, run `:set nomcp`.
   release with the raw binaries, their `.sha256` files and the archives. Once the draft is published, running shrews
   offer the update.
 
-## Architecture
+## Performance
 
-shrew is a Cargo workspace of small crates. Only the app crate knows about windows.
+Latency comes first. These are measured on a Linux desktop with a release build (`srw --stats`, the headless
+`--screenshot --stats` frame benchmark, and the tests below):
 
-| Crate | Role |
+| What | Measured |
 | --- | --- |
-| [`shrew-core`](crates/shrew-core) | The editing engine: rope buffers (ropey), multi-cursor selections, undo history, vim and Sublime keymaps, user mappings, search, ex commands, pickers. No GPU, no windowing, fully unit-tested. |
-| [`shrew-render`](crates/shrew-render) | GPU renderer on wgpu (Vulkan, Metal, DX12, GL): cosmic-text shaping, a cached glyph atlas, instanced quads. Can render headless to PNG. |
-| [`shrew-syntax`](crates/shrew-syntax) | Incremental syntax highlighting with Sublime grammars (syntect, fancy-regex) on one worker thread. |
-| [`shrew-theme`](crates/shrew-theme) | Themes as data: 33 built-in UI + syntax palettes, 18 accents, custom themes, Sublime/TextMate scheme import, WCAG contrast audit. |
-| [`shrew-config`](crates/shrew-config) | `config.toml` (comment-preserving writes), and the vimrc and Sublime Text importers. |
-| [`shrew-mcp`](crates/shrew-mcp) | MCP server: a loopback Streamable-HTTP endpoint inside the app and the `--mcp-stdio` bridge. |
-| [`shrew-update`](crates/shrew-update) | Self-update from GitHub Releases: pure-Rust TLS (rustls + RustCrypto), sha256 check, atomic swap. |
-| [`shrew`](crates/shrew) | The app: winit window and event loop, wiring the crates together. |
+| Start to first frame | about 55-70 ms, most of it Vulkan initialisation |
+| CPU while idle | 0: no render loop, no timers, nothing polls |
+| Redrawing an unchanged frame at 1080p | about 0.1 ms |
+| A frame where every visible line is shaped anew (scrolling a page at 1080p) | about 0.9 ms |
+| A 50 MB, 1,000,000-line buffer | every interactive operation far below one 16 ms frame (`crates/shrew-core/tests/perf.rs`) |
+| Vim compatibility | 839 differential cases agree with Vim 9.1 (`crates/shrew-core/tests/vim_diff.rs`) |
 
-## Building from source
+How:
 
-You need a stable Rust toolchain (edition 2024) and nothing else. There is no C compiler, `pkg-config` or `-dev`
-package to install on any platform.
+- **Redraw on demand.** A frame is drawn only after input, a background result (syntax, file list, MCP edit) or an
+  animation step, and animations stop as soon as they settle.
+- **Glyph atlas.** Each glyph is rasterised once into a GPU texture atlas (etagere packing). A frame is a single
+  instanced draw of quads, with no per-frame text rasterisation or texture uploads.
+- **Line layout cache.** Shaped lines are cached and reused until their text or style changes, so scrolling and
+  cursor movement do not re-shape text.
+- **Background syntax.** Grammars load lazily on a worker thread. Highlighting is incremental, and lines that are
+  not highlighted yet are drawn plain instead of blocking the frame.
+- **Cheap edits.** A rope makes edits O(log n) even in very large files. Undo stores change sets, not snapshots.
+- **Fast start.** The font is embedded, so the first frame never waits for a font scan. Optional features are not
+  initialised when off. The release profile uses thin LTO, one codegen unit, `panic = "abort"` and stripped symbols.
+
+## Development
 
 ```sh
 git clone https://github.com/perunok/shrew
@@ -344,31 +402,74 @@ cargo build --release -p shrew
 ./target/release/srw
 ```
 
-```sh
-cargo test --workspace                 # unit tests
-cargo clippy --workspace --all-targets
-scripts/check-pure-rust.sh             # fails if any dependency compiles or links C
-```
+| Command | Purpose |
+| --- | --- |
+| `cargo run --release -p shrew -- [files]` | Run the editor (the binary is `srw`) |
+| `cargo test --workspace` | Unit and integration tests; `vim_diff` runs against `vim` (or `nvim`) when one is on `PATH` |
+| `cargo test --release -p shrew-core --test perf -- --ignored --nocapture` | Latency checks on a 50 MB buffer |
+| `cargo clippy --workspace --all-targets` | Lints |
+| `cargo fmt --all` | Format (`rustfmt.toml`: 120 columns) |
+| `scripts/check-pure-rust.sh` | Fails if any dependency compiles or links C |
+| `scripts/screenshots.sh [name]` | Regenerate the README and THEMES.md screenshots in `docs/` |
+| `srw --screenshot out.png --size 1200x800 --keys "<C-p>main" [files]` | Render one frame headless after typing keys (vim notation), for visual checks |
+| `srw -f --stats [files]` | Run in the terminal with startup and frame timings on stderr |
+| `scripts/release.sh X.Y.Z` | Bump the version, move the changelog notes and tag a release |
 
-At runtime, Linux needs a Vulkan or OpenGL (EGL) driver and a Wayland or X11 session. Those libraries are loaded
-with `dlopen` when shrew starts, so they are not needed to build it.
+### Architecture
 
-## Performance notes
+shrew is a Cargo workspace of small crates. Only the app crate knows about windows.
 
-- **Redraw on demand.** There is no render loop. A frame is drawn only after input, a background result (syntax, file
-  list, MCP edit) or an animation step, and animations stop as soon as they settle. An idle shrew uses no CPU.
-- **Glyph atlas.** Each glyph is rasterised once into a GPU texture atlas (etagere packing). A frame is a single
-  instanced draw of quads, with no per-frame text rasterisation or texture uploads.
-- **Line layout cache.** Shaped lines are cached and reused until their text or style changes, so scrolling and
-  cursor movement do not re-shape text.
-- **Background syntax.** Grammars load lazily on a worker thread. Highlighting is incremental: after an edit it
-  restarts at the edited line and stops as soon as the parser state matches the previous run. Lines that are not
-  highlighted yet are drawn plain instead of blocking the frame.
-- **Cheap edits.** A rope makes edits O(log n) even in very large files. Undo stores change sets, not snapshots.
-- **Fast start.** The font is embedded, so the first frame never waits for a font scan. Optional features are not
-  initialised when off. The release profile uses thin LTO, one codegen unit, `panic = "abort"` and stripped symbols.
+| Crate | Role |
+| --- | --- |
+| [`shrew-core`](crates/shrew-core) | The editing engine: rope buffers (ropey), multi-cursor selections, undo history, vim and Sublime keymaps, user mappings, search, ex commands, pickers, the features registry. No GPU, no windowing, fully unit-tested. |
+| [`shrew-render`](crates/shrew-render) | GPU renderer on wgpu (Vulkan, Metal, DX12, GL): cosmic-text shaping, a cached glyph atlas, instanced quads. Can render headless to PNG. |
+| [`shrew-syntax`](crates/shrew-syntax) | Incremental syntax highlighting with Sublime grammars (syntect, fancy-regex) on one worker thread. |
+| [`shrew-theme`](crates/shrew-theme) | Themes as data: 33 built-in UI + syntax palettes, 18 accents, custom themes, Sublime/TextMate scheme import, WCAG contrast audit. |
+| [`shrew-config`](crates/shrew-config) | `config.toml` (comment-preserving writes), and the vimrc and Sublime Text importers. |
+| [`shrew-mcp`](crates/shrew-mcp) | MCP server: a loopback Streamable-HTTP endpoint inside the app and the `--mcp-stdio` bridge. |
+| [`shrew-update`](crates/shrew-update) | Self-update from GitHub Releases: pure-Rust TLS (rustls + RustCrypto), sha256 check, atomic swap. |
+| [`shrew`](crates/shrew) | The app (`srw`): winit window and event loop, the single-instance `srw` command, drawing, wiring the crates together. |
+
+## Documentation
+
+- [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md): every key, ex command and named command.
+- [docs/CONFIG.md](docs/CONFIG.md): every `config.toml` setting, and the vimrc and Sublime import.
+- [docs/THEMES.md](docs/THEMES.md): themes, accents, custom themes, importing color schemes, fonts.
+- [docs/CLI.md](docs/CLI.md): the `srw` command, single instance, `$EDITOR`.
+- [CHANGELOG.md](CHANGELOG.md): what changed in each release.
+
+All of them are listed in [docs/README.md](docs/README.md).
+
+## Manifesto
+
+**The Shrew Manifesto**
+
+1. **Small is a superpower.** One binary, a few megabytes, no runtime. Open before you finish blinking.
+2. **A heart at a thousand beats.** Every keystroke answered within a frame. Latency is a bug.
+3. **Keys first, paws welcome.** Your Vim and Sublime muscle memory just works; the mouse is there when you reach for it.
+4. **Forage only what you need.** Every feature is optional. Switch off what you don't use and it costs nothing.
+5. **The burrow is yours.** No account, no telemetry, no cloud. Bring your `.vimrc` and Sublime settings; they're welcome here.
+6. **Rust to the bone.** Pure Rust, top to bottom. No hidden C, nothing you can't read.
+7. **Sharp senses.** Syntax, search, brackets and multi-cursors: precise tools, never noise.
+8. **Never stop moving.** Open source, MIT licensed, built in the open, one click to the latest version.
+
+*Stay small. Stay quick. Shrew on.*
+
+The same text is in the app (palette *About shrew*, or `:about`); it lives in `crates/shrew/src/about.rs`, so keep
+the two in step. A test (`readme_has_the_same_manifesto`) fails when they drift apart.
+
+## Contributing
+
+Work on a branch, and keep `cargo test --workspace`, `cargo clippy --workspace --all-targets` and
+`scripts/check-pure-rust.sh` green; run `cargo fmt --all` before committing. Add tests next to the code you change
+(`tests.rs` beside each crate's modules, `crates/shrew-core/tests/vim_diff.rs` for a vim behaviour, which compares
+against real Vim). shrew stays pure Rust: no dependency may compile or link C at build time (loading a system library
+at runtime is fine). Latency is a feature: a change that makes typing, scrolling or startup slower needs a very good
+reason. If you change a key binding, update [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md); if you change what the
+editor looks like, rerun `scripts/screenshots.sh` and look at the result.
 
 ## License
 
-[MIT](LICENSE) © 2026 perunok. The bundled JetBrains Mono font is under the
-[SIL Open Font License](crates/shrew-render/assets/OFL.txt).
+Released under the [MIT License](LICENSE) © 2026 perunok. The bundled JetBrains Mono font is under the
+[SIL Open Font License](crates/shrew-render/assets/OFL.txt). The open-source projects shrew builds on are thanked in
+the app (*About shrew*).

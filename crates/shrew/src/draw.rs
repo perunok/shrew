@@ -2,7 +2,7 @@
 //! touched, so a frame costs the same in a 10-line file and a 10-million-line one.
 //!
 //! Layers: 0 = editor (backgrounds, selections, text) and bars; 1 = cursors and the scrollbar (above text);
-//! 2 = the picker overlay.
+//! 2 = the picker and About overlays.
 
 use crate::anim::{Anim, Target};
 use crate::colors::{Colors, mix};
@@ -24,6 +24,7 @@ pub struct Hits {
     pub picker: Option<Rect>,
     /// Picker rows and the index into `matches` each shows.
     pub picker_rows: Vec<(Rect, usize)>,
+    pub about: Option<Rect>,
     /// The scrollbar track and the line count it maps to.
     pub scrollbar: Option<(Rect, usize)>,
 }
@@ -121,6 +122,9 @@ pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: 
     if st.ed.picker.is_some() {
         picker(scene, &st.ed, ui, lay, &c);
     }
+    if st.ed.about.is_some() {
+        about(scene, &mut st.ed, ui, lay, &c);
+    }
     animating
 }
 
@@ -145,7 +149,7 @@ fn editor(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors, 
     let head = b.sel.primary().head.min(rope.len_chars());
     let cur_line = text::line_of(rope, head);
     let insert_like = ed.mode == Mode::Insert || !ed.vim();
-    let overlay = ed.prompt.is_some() || ed.picker.is_some();
+    let overlay = ed.prompt.is_some() || ed.picker.is_some() || ed.about.is_some();
 
     scene.push_clip(lay.text);
     // current line
@@ -591,7 +595,7 @@ fn cursors(
     let rope = &b.doc.rope;
     let tw = ed.settings.tab_width.max(1);
     let shape = ed.cursor_shape();
-    let hollow = !ui.focused || ed.prompt.is_some() || ed.picker.is_some();
+    let hollow = !ui.focused || ed.prompt.is_some() || ed.picker.is_some() || ed.about.is_some();
     if ui.blink_off && !hollow {
         return;
     }
@@ -898,19 +902,7 @@ fn picker(scene: &mut Scene, ed: &Editor, ui: &mut Ui, lay: &Layout, c: &Colors)
     let x = ((lay.width - w) / 2.0).round();
     let y = (lay.text.y + 3.0 * pad).round();
     let panel = Rect::new(x, y, w, h);
-    let radius = (8.0 * lay.scale).round();
-    // soft shadow
-    for i in 1..=4 {
-        let s = i as f32 * 2.0 * lay.scale;
-        let a = if c.dark { 34 } else { 14 };
-        scene.rounded_rect(
-            Rect::new(x - s, y - s + 2.0 * s, w + 2.0 * s, h + 2.0 * s),
-            radius + s,
-            Color::rgba(0, 0, 0, a),
-            None,
-        );
-    }
-    scene.rounded_rect(panel, radius, c.popup, Some((lay.scale.round().max(1.0), c.popup_border)));
+    popup(scene, panel, lay, c);
     ui.hits.picker = Some(panel);
     let inner = Rect::new(x + 2.0 * pad, y, w - 4.0 * pad, h);
     scene.push_clip(inner);
@@ -990,6 +982,91 @@ fn picker(scene: &mut Scene, ed: &Editor, ui: &mut Ui, lay: &Layout, c: &Colors)
         }
     }
     scene.pop_clip();
+    scene.layer(0);
+}
+
+/// A floating panel with a soft shadow, as the picker and the About panel use.
+fn popup(scene: &mut Scene, panel: Rect, lay: &Layout, c: &Colors) {
+    let Rect { x, y, w, h } = panel;
+    let radius = (8.0 * lay.scale).round();
+    for i in 1..=4 {
+        let s = i as f32 * 2.0 * lay.scale;
+        let a = if c.dark { 34 } else { 14 };
+        scene.rounded_rect(
+            Rect::new(x - s, y - s + 2.0 * s, w + 2.0 * s, h + 2.0 * s),
+            radius + s,
+            Color::rgba(0, 0, 0, a),
+            None,
+        );
+    }
+    scene.rounded_rect(panel, radius, c.popup, Some((lay.scale.round().max(1.0), c.popup_border)));
+}
+
+// ----- about -----
+
+/// The About panel: version, manifesto, license, credits (see [`crate::about`]), centred over the text and scrolled
+/// by `ed.about`.
+fn about(scene: &mut Scene, ed: &mut Editor, ui: &mut Ui, lay: &Layout, c: &Colors) {
+    let Some(top) = ed.about else { return };
+    scene.layer(2);
+    let (cw, ch, pad) = (lay.cw, lay.ch, lay.pad);
+    let w = ((76.0 * cw).min(lay.width - 2.0 * cw)).round().max(10.0 * cw);
+    let cols = ((w - 7.0 * cw) / cw).floor().max(1.0) as usize;
+    let lines = crate::about::lines(cols);
+    let footer_h = ch + 3.0 * pad;
+    let room = ((lay.text.h - 4.0 * pad - footer_h - 2.0 * ch) / ch).floor().max(1.0) as usize;
+    let shown = lines.len().min(room);
+    let top = top.min(lines.len() - shown);
+    ed.about = Some(top);
+    let h = (shown as f32 * ch + 2.0 * ch + footer_h).round();
+    let x = ((lay.width - w) / 2.0).round();
+    let y = (lay.text.y + ((lay.text.h - h) / 2.0).max(2.0 * pad)).round();
+    let panel = Rect::new(x, y, w, h);
+    popup(scene, panel, lay, c);
+    ui.hits.about = Some(panel);
+
+    let ink = |i: crate::about::Ink| {
+        use crate::about::Ink;
+        match i {
+            Ink::Text => TextStyle::new(c.panel_foreground),
+            Ink::Muted => TextStyle::new(c.panel_muted),
+            Ink::Strong => TextStyle::new(c.panel_foreground).bold(),
+            Ink::Accent => TextStyle::new(c.accent).bold(),
+        }
+    };
+    let tx = x + 3.0 * cw;
+    let body = Rect::new(x, y + ch, w, shown as f32 * ch);
+    scene.push_clip(body);
+    let mut spans = Vec::new();
+    for (i, l) in lines.iter().skip(top).take(shown).enumerate() {
+        let Some(base) = l.ink else { continue };
+        spans.clear();
+        spans.extend(l.spans.iter().map(|(r, k)| (r.clone(), ink(*k))));
+        scene.text(tx, (body.y + i as f32 * ch).round(), &l.text, ink(base), &spans);
+    }
+    scene.pop_clip();
+    // a thin scrollbar when it does not all fit
+    if shown < lines.len() {
+        let bw = (3.0 * lay.scale).round().max(2.0);
+        let th = (body.h * shown as f32 / lines.len() as f32).max(ch);
+        let ty = body.y + (body.h - th) * top as f32 / (lines.len() - shown) as f32;
+        scene.rounded_rect(
+            Rect::new(panel.right() - 2.0 * cw, ty.round(), bw, th.round()),
+            bw / 2.0,
+            c.scrollbar,
+            None,
+        );
+    }
+    let sep_y = (body.bottom() + ch).round();
+    scene.rect(Rect::new(x, sep_y, w, lay.scale.round().max(1.0)), c.panel_border);
+    let hint = if shown < lines.len() { "j/k scroll   Esc close" } else { "Esc close" };
+    let fy = lay.centered(sep_y, footer_h);
+    let hx = panel.right() - 3.0 * cw - columns(hint) as f32 * cw;
+    let repo = crate::about::LINKS[0].1;
+    if tx + (columns(repo) + 2) as f32 * cw < hx {
+        scene.text(tx, fy, repo, TextStyle::new(c.panel_muted), &[]);
+    }
+    scene.text(hx.round(), fy, hint, TextStyle::new(c.panel_muted), &[]);
     scene.layer(0);
 }
 

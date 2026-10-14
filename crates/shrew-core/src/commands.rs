@@ -62,6 +62,7 @@ pub enum Command {
     InstallUpdate,
     OpenConfig,
     McpSetup,
+    About,
 }
 
 use Command::*;
@@ -128,6 +129,7 @@ pub static COMMANDS: &[(Command, &str, &str)] = &[
     (InstallUpdate, "update", "Shrew: Install Update and Restart"),
     (OpenConfig, "config", "Shrew: Open Config File"),
     (McpSetup, "mcp", "Shrew: AI Assistants (MCP) Setup"),
+    (About, "about", "About shrew"),
 ];
 
 impl Command {

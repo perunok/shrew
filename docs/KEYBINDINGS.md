@@ -10,7 +10,8 @@ motion, character or register name. "Ctrl" also means ⌘ Cmd on macOS. Vim keys
 
 **Order of precedence** for a key press:
 
-1. An open picker (file finder, palette, buffers, features) or prompt (`:`, `/`, `?`) takes every key.
+1. An open picker (file finder, palette, buffers, features), the About panel or a prompt (`:`, `/`, `?`) takes
+   every key.
 2. Your mappings (`[keys.*]` in `config.toml`, imported vimrc and Sublime bindings) come next. See
    [CONFIG.md](CONFIG.md#keys).
 3. Then the global chords below, unless a vim command is half-typed (after `d`, `"a` or `f`, the next key belongs
@@ -18,7 +19,8 @@ motion, character or register name. "Ctrl" also means ⌘ Cmd on macOS. Vim keys
 4. Last comes the mode: vim normal or visual, or insert. With the `vim` feature off, shrew is always in insert mode.
 
 **Contents:** [Global chords](#global-chords) · [Insert mode](#insert-mode) · [Normal mode](#normal-mode) ·
-[Visual mode](#visual-mode) · [Prompts](#prompts--and-) · [Pickers](#pickers) · [Ex commands](#ex-commands) ·
+[Visual mode](#visual-mode) · [Prompts](#prompts--and-) · [Pickers](#pickers) · [About panel](#about-panel) ·
+[Ex commands](#ex-commands) ·
 [Named commands](#named-commands) · [Mouse](#mouse)
 
 ## Global chords
@@ -311,6 +313,18 @@ These are the file finder (Ctrl+P), command palette (Ctrl+Shift+P), buffer list 
 | Ctrl+Backspace, Ctrl+U, Ctrl+W | Clear the filter |
 | Esc, Ctrl+C, Ctrl+[ | Close |
 
+## About panel
+
+*About shrew* in the palette, or `:about`, shows the version, the Shrew Manifesto, the license, credits and links. It is
+read-only.
+
+| Keys | Action |
+| --- | --- |
+| `j` / `k`, Down / Up, the wheel | Scroll a line (the wheel: three) |
+| Space, PageDown, Ctrl+D / PageUp, Ctrl+U | Scroll ten lines |
+| `g`, Home / `G`, End | Top / bottom |
+| Esc, Enter, `q`, Ctrl+C, Ctrl+[, a click outside | Close |
+
 ## Ex commands
 
 Type them at the `:` prompt. Every [named command](#named-commands) also works as `:name`, for example `:palette`
@@ -342,6 +356,7 @@ or `:duplicate_line`.
 | `:cd [dir]` / `:pwd` | Change / show the working directory (for `:e` and Ctrl+P) |
 | `:update` | Install the available update and restart |
 | `:version` | Show shrew's version |
+| `:about` | The About panel: version, manifesto, license, credits |
 | `:theme` / `:theme {id}`, `:colorscheme`, `:colo` | Theme picker (live preview) / switch to a theme and save it ([THEMES.md](THEMES.md)) |
 | `:theme import {file}` | Convert a `.sublime-color-scheme` or `.tmTheme` into a custom theme and switch to it |
 | `:accent` / `:accent {id}` | Accent picker / switch to an accent (`theme` for the theme's own) and save it |
@@ -430,6 +445,7 @@ command palette by its title.
 | `update` | Shrew: Install Update and Restart | `:update`, the status-bar button |
 | `config` | Shrew: Open Config File | |
 | `mcp` | Shrew: AI Assistants (MCP) Setup | |
+| `about` | About shrew | `:about` |
 
 ## Mouse
 

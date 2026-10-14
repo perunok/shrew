@@ -6,6 +6,8 @@ new version when it tags a release.
 
 ## [Unreleased]
 
+Nothing has been released yet: the first release, 0.1.0, will be everything below.
+
 ### Added
 
 - Editing engine: rope buffers, multiple cursors, undo/redo with grouped edits, search and replace.
@@ -13,6 +15,12 @@ new version when it tags a release.
   registers, macros, marks, dot-repeat, ex commands. Can be switched off for Sublime-style always-insert editing.
 - Sublime Text chords: multi-cursor (Ctrl+D, Ctrl+Shift+L, Ctrl+Alt+Up/Down), move/duplicate/delete lines, toggle
   comment, go to file (Ctrl+P), command palette (Ctrl+Shift+P).
+- Differential tests against real Vim: 839 cases where shrew must leave the same text and cursor as Vim 9.1
+  (`crates/shrew-core/tests/vim_diff.rs`), and latency tests on a 50 MB, million-line buffer.
+- Mouse: click, double/triple-click, drag to select, Shift+click to extend, Ctrl/Alt+click for another cursor, the
+  wheel and the scrollbar.
+- `config.toml` with comment-preserving writes: `:set`, the Features list and the pickers save their changes and keep
+  your comments.
 - User key mappings from `config.toml`, an existing `~/.vimrc` / `init.vim` and Sublime Text's user key bindings.
 - GPU renderer (wgpu) with a cached glyph atlas and an embedded JetBrains Mono font.
 - Syntax highlighting with Sublime grammars (syntect, pure Rust) on a background thread.
@@ -33,10 +41,16 @@ new version when it tags a release.
   (stdin), `-w/--wait` for `EDITOR="srw -w"`, `-n/--new-window`, `-f/--foreground`. See docs/CLI.md.
 - Files over 1 MB open on a background thread from everywhere (`:e`, the file picker, `srw`, drag and drop).
 - Files dropped on the window open.
+- An About panel (palette *About shrew*, `:about`): the version, the Shrew Manifesto, the license, credits and links,
+  in a read-only overlay (`j`/`k` and the wheel scroll it, Esc closes it).
+- `srw --screenshot out.png --keys ...` renders a frame headless after typing keys, and `scripts/screenshots.sh`
+  regenerates every screenshot in the docs with it.
+- `scripts/check-pure-rust.sh` fails the build when a dependency compiles or links C.
+- README in a new shape: screenshots gallery, features, performance numbers, the Shrew Manifesto.
 
 ### Changed
 
 - Picker rows: every detail (description, path, command name) starts at one column after the labels; long labels
   and details are cut with an ellipsis.
 
-[Unreleased]: https://github.com/perunok/shrew/commits/main
+[Unreleased]: https://github.com/perunok/shrew/commits/master

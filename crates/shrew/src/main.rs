@@ -7,8 +7,10 @@
 //! - [`state`]: the editor plus config, syntax, background loads, updates and MCP (no window).
 //! - [`app`]: the winit event loop, input and the renderer.
 //! - [`draw`] / [`layout`] / [`anim`]: building a frame from the state, and the geometry hit testing shares.
+//! - [`about`]: the About panel's text (version, the Shrew Manifesto, credits).
 //! - [`headless`]: `--screenshot`, a frame rendered without a window.
 
+mod about;
 mod anim;
 mod app;
 mod cli;

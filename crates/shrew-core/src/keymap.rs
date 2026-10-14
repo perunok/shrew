@@ -489,10 +489,10 @@ impl Editor {
         }
     }
 
-    /// Which mapping table applies to `k` right now; `None` while a prompt, picker or a vim command that takes a
+    /// Which mapping table applies to `k` right now; `None` while a prompt, picker, the About panel or a vim command that takes a
     /// character argument (`f`, `r`, `"`, `m`, ...) is waiting.
     fn map_mode(&self, k: KeyPress) -> Option<MapMode> {
-        if self.picker.is_some() || self.prompt.is_some() {
+        if self.picker.is_some() || self.prompt.is_some() || self.about.is_some() {
             return None;
         }
         if self.mode == Mode::Insert || !self.vim() {
@@ -637,7 +637,12 @@ impl Editor {
     /// Would the vim layer reject `k` as an unknown command? Built-in bindings (Ctrl chords with nothing pending)
     /// are given the benefit of the doubt.
     fn vim_rejects(&self, k: KeyPress) -> Reject {
-        if self.picker.is_some() || self.prompt.is_some() || self.mode == Mode::Insert || !self.vim() {
+        if self.picker.is_some()
+            || self.prompt.is_some()
+            || self.about.is_some()
+            || self.mode == Mode::Insert
+            || !self.vim()
+        {
             return Reject::No;
         }
         let mut keys = self.pending.clone();

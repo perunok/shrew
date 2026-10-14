@@ -662,6 +662,13 @@ impl App {
     fn left_press(&mut self, x: f32, y: f32, now: Instant) {
         let Some(lay) = self.lay else { return };
         let hits = &self.ui.hits;
+        // the About panel is modal too: a click outside closes it
+        if self.st.ed.about.is_some() {
+            if !hits.about.is_some_and(|r| r.contains(x, y)) {
+                self.st.key(KeyPress::plain(shrew_core::Key::Esc));
+            }
+            return self.input(now);
+        }
         // the picker is modal: a click picks a row or closes it
         if self.st.ed.picker.is_some() {
             let row = hits.picker_rows.iter().find(|(r, _)| r.contains(x, y)).map(|h| h.1);
@@ -748,6 +755,7 @@ impl App {
             Drag::None => {}
         }
         let icon = if self.st.ed.picker.is_none()
+            && self.st.ed.about.is_none()
             && lay.text_rect().contains(x, y)
             && !self.ui.hits.scrollbar.is_some_and(|(t, _)| t.contains(x, y))
         {
@@ -805,6 +813,17 @@ impl App {
             };
             if dy.abs() >= 0.5 {
                 p.move_by(dy.round() as isize);
+                self.redraw();
+            }
+            return;
+        }
+        if let Some(top) = &mut self.st.ed.about {
+            let dy = match delta {
+                MouseScrollDelta::LineDelta(_, y) => -y * WHEEL_LINES,
+                MouseScrollDelta::PixelDelta(d) => -(d.y as f32) / lay.ch,
+            };
+            if dy.abs() >= 0.5 {
+                *top = top.saturating_add_signed(dy.round() as isize);
                 self.redraw();
             }
             return;

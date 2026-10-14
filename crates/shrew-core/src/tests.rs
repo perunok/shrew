@@ -477,3 +477,23 @@ fn marks_follow_edits() {
     check("a\nb|c\nd", "maggdd`ax", "|b\nd");
     check("|a\nb\nc", "jmaggyyP'ax", "a\na\n|\nc");
 }
+
+#[test]
+fn about_panel_is_modal_and_read_only() {
+    let mut e = ed("|abc");
+    keys(&mut e, ":about<CR>");
+    assert_eq!(e.about, Some(0));
+    // keys scroll the panel instead of editing
+    keys(&mut e, "jjxdd<PageDown>k");
+    assert_eq!(e.about, Some(11));
+    assert_eq!(show(&e), "|abc");
+    e.insert_text("typed");
+    assert_eq!(show(&e), "|abc");
+    keys(&mut e, "gq");
+    assert_eq!(e.about, None);
+    // the palette finds it too
+    keys(&mut e, "<C-S-p>about shrew<CR>");
+    assert!(e.about.is_some() && e.picker.is_none());
+    keys(&mut e, "<Esc>");
+    assert_eq!(e.about, None);
+}

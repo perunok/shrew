@@ -168,6 +168,8 @@ pub struct Editor {
     pub clipboard: Box<dyn Clipboard>,
     pub prompt: Option<Prompt>,
     pub picker: Option<Picker>,
+    /// The About panel is open, scrolled down this many lines (the app clamps it to the text it draws).
+    pub about: Option<usize>,
     /// Status-line message and whether it is an error.
     pub message: Option<(String, bool)>,
     pub search: Option<Regex>,
@@ -222,6 +224,7 @@ impl Editor {
             clipboard: Box::new(MemoryClipboard::default()),
             prompt: None,
             picker: None,
+            about: None,
             message: None,
             search: None,
             search_text: String::new(),
@@ -630,6 +633,10 @@ impl Editor {
             self.picker_key(k);
             return;
         }
+        if self.about.is_some() {
+            self.about_key(k);
+            return;
+        }
         if self.prompt.is_some() {
             self.prompt_key(k);
             self.after_key();
@@ -655,6 +662,9 @@ impl Editor {
 
     /// Typed text that did not come as a key press (IME commits, paste from the app).
     pub fn insert_text(&mut self, s: &str) {
+        if self.about.is_some() {
+            return;
+        }
         if self.prompt.is_some() || self.picker.is_some() {
             for c in s.chars() {
                 self.handle_key(KeyPress::ch(c));
@@ -931,6 +941,11 @@ impl Editor {
             InstallUpdate => self.events.push(Event::InstallUpdate),
             OpenConfig => self.events.push(Event::OpenConfig),
             McpSetup => self.events.push(Event::McpSetup),
+            About => {
+                self.picker = None;
+                self.prompt = None;
+                self.about = Some(0);
+            }
         }
     }
 
@@ -1440,7 +1455,7 @@ impl Editor {
     /// Mouse press at char position `pos`. `clicks` is 1, 2 (word) or 3 (line). Ctrl/Alt adds a cursor.
     pub fn mouse_down(&mut self, pos: usize, clicks: u8, mods: Mods) {
         self.pending.clear();
-        if self.picker.is_some() {
+        if self.picker.is_some() || self.about.is_some() {
             return;
         }
         self.commit();
@@ -2533,6 +2548,25 @@ impl Editor {
                     p.refilter();
                 }
             }
+        }
+    }
+
+    /// The About panel is read-only: keys scroll it or close it.
+    fn about_key(&mut self, k: KeyPress) {
+        let Some(top) = self.about.as_mut() else { return };
+        let m = k.mods;
+        match k.key {
+            Key::Esc | Key::Enter | Key::Char('q') => self.about = None,
+            Key::Char('c' | '[') if m.ctrl => self.about = None,
+            Key::Down | Key::Char('j') => *top += 1,
+            Key::Up | Key::Char('k') => *top = top.saturating_sub(1),
+            Key::Char('d') if m.ctrl => *top += 10,
+            Key::Char('u') if m.ctrl => *top = top.saturating_sub(10),
+            Key::PageDown | Key::Char(' ') => *top += 10,
+            Key::PageUp => *top = top.saturating_sub(10),
+            Key::Home | Key::Char('g') => *top = 0,
+            Key::End | Key::Char('G') => *top = usize::MAX / 2,
+            _ => {}
         }
     }
 

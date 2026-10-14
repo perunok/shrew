@@ -140,5 +140,19 @@ fn custom_theme_reloads_when_saved_and_imports_work() {
     assert_eq!(st.look.theme.id, "tiny-tm", "{:?}", st.ed.message);
     assert!(themes.join("tiny-tm.toml").is_file());
     assert_eq!(config(&dir).editor.theme(), "tiny-tm");
+
+    // schemes found in Sublime's folder are listed, previewed, and imported when picked
+    std::fs::write(
+        dir.join("Picked.sublime-color-scheme"),
+        r##"{ "name": "Picked", "globals": { "background": "#101820", "foreground": "#e0e0e0" } }"##,
+    )
+    .unwrap();
+    st.look.lib.scheme_dirs = vec![dir.clone()];
+    keys(&mut st, ":select_theme<CR>Picked");
+    assert_eq!(st.colors.background, shrew_render::Color::from_u32(0x101820), "previewed");
+    keys(&mut st, "<CR>");
+    assert_eq!(st.look.theme.id, "picked", "{:?}", st.ed.message);
+    assert!(themes.join("picked.toml").is_file());
+    assert_eq!(config(&dir).editor.theme(), "picked");
     let _ = std::fs::remove_dir_all(&dir);
 }

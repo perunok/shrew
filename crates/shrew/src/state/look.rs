@@ -303,6 +303,11 @@ impl State {
         let value = value.trim().to_string();
         match choice {
             Choice::Theme => {
+                // a Sublime/TextMate scheme from the picker becomes a custom theme first
+                let scheme = std::path::Path::new(&value);
+                if shrew_theme::import::is_importable(scheme) && self.look.lib.dir.is_some() {
+                    return self.import_theme(&value);
+                }
                 let accent = self.look.cfg.accent.clone();
                 if let Err(e) = self.show_theme(&value, &accent) {
                     let accent = self.look.cfg.accent.clone();
@@ -310,7 +315,9 @@ impl State {
                     let _ = self.show_theme(&name, &accent);
                     return self.ed.error(e);
                 }
-                if value == shrew_theme::SYSTEM && self.look.watcher.is_none() && !self.headless {
+                if value != shrew_theme::SYSTEM {
+                    self.look.watcher = None;
+                } else if self.look.watcher.is_none() && !self.headless {
                     self.look.os_dark = self.look.os_dark.or_else(os_theme::guess_dark);
                     let wake = self.wake.clone();
                     self.look.watcher = os_theme::watch(move || wake());
@@ -375,7 +382,7 @@ impl State {
         if path.is_empty() {
             return self.ed.error("usage: :theme import <file.sublime-color-scheme | file.tmTheme>");
         }
-        match self.look.lib.import(&PathBuf::from(path)) {
+        match self.look.lib.import(&self.ed.absolute(std::path::Path::new(path))) {
             Ok((id, file, warnings)) => {
                 self.choose(Choice::Theme, id.clone());
                 let mut msg = format!("imported as theme {id} ({})", file.display());
@@ -405,7 +412,8 @@ impl State {
                 _ => {}
             }
         }
-        if saved {
+        // only the theme on screen matters (its base chain may be any custom file)
+        if saved && self.look.lib.custom_path(&self.look.theme.id).is_some() {
             let (name, accent) = (self.look.cfg.name.clone(), self.look.cfg.accent.clone());
             match self.show_theme(&name, &accent) {
                 Ok(()) => self.ed.info(format!("theme {} reloaded", self.look.theme.name)),

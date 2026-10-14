@@ -99,28 +99,6 @@ pub fn resolve(path: &str, cwd: &Path) -> Option<PathBuf> {
     p.is_file().then_some(p)
 }
 
-/// Opens a URL with the desktop's handler, detached.
-pub fn open_url(url: &str) -> std::io::Result<()> {
-    let mut cmd = if cfg!(target_os = "macos") {
-        std::process::Command::new("open")
-    } else if cfg!(windows) {
-        let mut c = std::process::Command::new("cmd");
-        c.args(["/C", "start", ""]);
-        c
-    } else {
-        std::process::Command::new("xdg-open")
-    };
-    let mut child = cmd
-        .arg(url)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()?;
-    // reap it without blocking the UI
-    std::thread::spawn(move || child.wait());
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

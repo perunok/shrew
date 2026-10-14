@@ -737,9 +737,13 @@ impl App {
             return self.input(now);
         }
         let hits = &self.ui.hits;
-        // the About panel is modal too: a click outside closes it
+        // the About panel is modal too: a click on a link opens it, a click outside closes the panel
         if self.st.ed.about.is_some() {
-            if !hits.about.is_some_and(|r| r.contains(x, y)) {
+            if let Some((_, url)) = hits.about_links.iter().find(|(r, _)| r.contains(x, y)) {
+                if let Err(e) = crate::open::url(url) {
+                    self.st.ed.error(format!("cannot open {url}: {e}"));
+                }
+            } else if !hits.about.is_some_and(|r| r.contains(x, y)) {
                 self.st.key(KeyPress::plain(shrew_core::Key::Esc));
             }
             return self.input(now);
@@ -875,8 +879,11 @@ impl App {
             self.redraw();
         }
         let on_edge = self.st.ed.picker.is_none() && self.ui.hits.sidebar.edge.is_some_and(|r| r.contains(x, y));
+        let on_link = self.st.ed.about.is_some() && self.ui.hits.about_links.iter().any(|(r, _)| r.contains(x, y));
         let icon = if let Some(icon) = bar_icon {
             icon
+        } else if on_link {
+            CursorIcon::Pointer
         } else if on_edge || self.drag == Drag::Sidebar {
             CursorIcon::ColResize
         } else if self.st.ed.picker.is_none()

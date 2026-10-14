@@ -27,6 +27,8 @@ pub struct Hits {
     /// Picker rows and the index into `matches` each shows.
     pub picker_rows: Vec<(Rect, usize)>,
     pub about: Option<Rect>,
+    /// The About panel's links and the URL each opens.
+    pub about_links: Vec<(Rect, &'static str)>,
     /// The Settings gear in the status bar.
     pub gear: Option<Rect>,
     /// The scrollbar track and the line count it maps to.
@@ -1201,7 +1203,11 @@ fn about(scene: &mut Scene, ed: &mut Editor, ui: &mut Ui, lay: &Layout, c: &Colo
             Ink::Muted => TextStyle::new(c.panel_muted),
             Ink::Strong => TextStyle::new(c.panel_foreground).bold(),
             Ink::Accent => TextStyle::new(c.accent).bold(),
+            Ink::Link => TextStyle::new(c.accent).underline(c.accent),
         }
+    };
+    let link = |ui: &mut Ui, x: f32, y: f32, url: &'static str| {
+        ui.hits.about_links.push((Rect::new(x, y, columns(url) as f32 * cw, ch), url));
     };
     let tx = x + 3.0 * cw;
     let body = Rect::new(x, y + ch, w, shown as f32 * ch);
@@ -1211,7 +1217,11 @@ fn about(scene: &mut Scene, ed: &mut Editor, ui: &mut Ui, lay: &Layout, c: &Colo
         let Some(base) = l.ink else { continue };
         spans.clear();
         spans.extend(l.spans.iter().map(|(r, k)| (r.clone(), ink(*k))));
-        scene.text(tx, (body.y + i as f32 * ch).round(), &l.text, ink(base), &spans);
+        let ly = (body.y + i as f32 * ch).round();
+        scene.text(tx, ly, &l.text, ink(base), &spans);
+        for (r, url) in &l.links {
+            link(ui, tx + columns(&l.text[..r.start]) as f32 * cw, ly, url);
+        }
     }
     scene.pop_clip();
     // a thin scrollbar when it does not all fit
@@ -1233,7 +1243,8 @@ fn about(scene: &mut Scene, ed: &mut Editor, ui: &mut Ui, lay: &Layout, c: &Colo
     let hx = panel.right() - 3.0 * cw - columns(hint) as f32 * cw;
     let repo = crate::about::LINKS[0].1;
     if tx + (columns(repo) + 2) as f32 * cw < hx {
-        scene.text(tx, fy, repo, TextStyle::new(c.panel_muted), &[]);
+        scene.text(tx, fy, repo, TextStyle::new(c.panel_muted).underline(c.panel_border), &[]);
+        link(ui, tx, fy, repo);
     }
     scene.text(hx.round(), fy, hint, TextStyle::new(c.panel_muted), &[]);
     scene.layer(0);

@@ -814,7 +814,7 @@ impl State {
                 self.after_input();
             }
             Link::Url(url) => {
-                if let Err(e) = paths::open_url(&url) {
+                if let Err(e) = crate::open::url(&url) {
                     self.ed.error(format!("cannot open {url}: {e}"));
                 }
             }

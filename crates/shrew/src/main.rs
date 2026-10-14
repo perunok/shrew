@@ -8,7 +8,7 @@
 //! - [`app`]: the winit event loop, input and the renderer.
 //! - [`draw`] / [`layout`] / [`anim`]: building a frame from the state, and the geometry hit testing shares.
 //! - [`minimap`]: the Sublime-style overview column at the right of the editor.
-//! - [`about`]: the About panel's text (version, the Shrew Manifesto, credits).
+//! - [`about`]: the About panel's text (version, the Shrew Manifesto, credits); [`open`] opens its links.
 //! - [`sidebar`] / [`recent`] / `symbols`: project navigation (the file tree, recent files and projects, the symbol
 //!   provider behind go to symbol).
 //! - `terminal`: the built-in terminal panel (cargo feature `terminal`).
@@ -30,6 +30,7 @@ mod keys;
 mod launch;
 mod layout;
 mod minimap;
+mod open;
 mod recent;
 mod remote;
 mod settings;

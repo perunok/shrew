@@ -36,11 +36,12 @@ pub const CREDITS: &[(&str, &str)] = &[
     ("JetBrains Mono", "the bundled font, by JetBrains (SIL Open Font License 1.1)"),
     ("syntect", "highlighting with Sublime Text's grammars, on fancy-regex"),
     ("wgpu", "drawing on Vulkan, Metal, DX12 and GL"),
-    ("cosmic-text", "shaping text and rasterising glyphs (swash, rustybuzz)"),
+    ("cosmic-text", "shaping text and rasterising glyphs (swash, harfrust)"),
     ("winit", "windows, keys and the mouse"),
     ("ropey", "the rope behind every buffer"),
     ("regex", "search and :s"),
-    ("ignore", "the file picker's .gitignore-aware walk"),
+    ("ignore", "the .gitignore-aware walk behind Ctrl+P, the sidebar and find in project"),
+    ("alacritty_terminal", "the terminal panel's emulator and PTY"),
     ("toml_edit", "config writes that keep your comments"),
     ("rustls + RustCrypto", "pure-Rust TLS for updates"),
     ("arboard", "the system clipboard"),
@@ -66,19 +67,23 @@ pub enum Ink {
     Strong,
     /// The accent color, bold.
     Accent,
+    /// A link: the accent color, underlined, opened by a click.
+    Link,
 }
 
-/// One line of the panel: its text, the ink of the whole line and spans drawn differently.
+/// One line of the panel: its text, the ink of the whole line, spans drawn differently and the links in it.
 #[derive(Clone, Debug, Default)]
 pub struct Line {
     pub text: String,
     pub ink: Option<Ink>,
     pub spans: Vec<(Range<usize>, Ink)>,
+    /// (bytes of `text`, the URL a click opens)
+    pub links: Vec<(Range<usize>, &'static str)>,
 }
 
 impl Line {
     fn new(text: impl Into<String>, ink: Ink) -> Line {
-        Line { text: text.into(), ink: Some(ink), spans: Vec::new() }
+        Line { text: text.into(), ink: Some(ink), ..Line::default() }
     }
     fn blank() -> Line {
         Line::default()
@@ -136,6 +141,11 @@ pub fn lines(cols: usize) -> Vec<Line> {
         let text = format!("{label}{}{url}", " ".repeat(label_w - columns(label)));
         wrap_into(&mut out, &text, &" ".repeat(label_w), cols, Ink::Muted);
         out[start].spans.push((0..label.len(), Ink::Text));
+        // the URL is one word, so it is on one line (cut short when the panel is very narrow)
+        if let Some((l, at)) = out[start..].iter_mut().find_map(|l| l.text.find(url).map(|at| (l, at))) {
+            l.spans.push((at..at + url.len(), Ink::Link));
+            l.links.push((at..at + url.len(), url));
+        }
     }
     out
 }
@@ -179,6 +189,47 @@ mod tests {
                     assert!(r.end <= l.text.len() && l.text.is_char_boundary(r.start), "{cols}: {:?}", l.text);
                 }
             }
+        }
+    }
+
+    #[test]
+    fn links_are_clickable() {
+        let lines = lines(72);
+        let links: Vec<&str> = lines.iter().flat_map(|l| l.links.iter().map(|(_, u)| *u)).collect();
+        assert_eq!(links, LINKS.iter().map(|l| l.1).collect::<Vec<_>>());
+        for l in &lines {
+            for (r, url) in &l.links {
+                assert_eq!(&l.text[r.clone()], *url);
+            }
+        }
+    }
+
+    #[test]
+    fn drawn_links_are_hit_targets() {
+        use crate::{draw, layout::Layout, state::State};
+        let mut st = State::new(shrew_config::Loaded::default(), std::sync::Arc::new(|| {}), true);
+        st.ed.about = Some(usize::MAX); // scrolled to the end, where the links are
+        let m = shrew_render::Metrics {
+            font_size: 15.0,
+            cell_width: 9.0,
+            cell_height: 21.0,
+            baseline: 16.0,
+            ascent: 14.0,
+            descent: 4.0,
+            underline_offset: 18.0,
+            underline_thickness: 1.0,
+        };
+        let lay = Layout::new(&m, (1280, 800), 1.0, 1, true, false);
+        let (mut scene, mut ui) = (shrew_render::Scene::new(), draw::Ui::new());
+        draw::build(&mut scene, &mut st, &mut ui, &lay, std::time::Instant::now());
+        let panel = ui.hits.about.expect("the panel is drawn");
+        let urls: Vec<&str> = ui.hits.about_links.iter().map(|l| l.1).collect();
+        // the three links, then the repository again in the footer
+        assert_eq!(urls[..3], LINKS.iter().map(|l| l.1).collect::<Vec<_>>()[..]);
+        assert_eq!(urls.get(3), Some(&LINKS[0].1));
+        for (r, url) in &ui.hits.about_links {
+            assert!(panel.contains(r.x, r.y) && panel.contains(r.right() - 1.0, r.bottom() - 1.0), "{url}");
+            assert_eq!(r.w, columns(url) as f32 * 9.0);
         }
     }
 

@@ -32,8 +32,9 @@ Every shot is the real editor, rendered headless from shrew's own source code. R
 | ![High contrast](docs/screenshots/contrast.png)<br>**High Contrast** (WCAG AAA); every theme passes a contrast audit | ![Substitute](docs/screenshots/substitute.png)<br>**`:%s` substitution**, with the last search highlighted |
 | ![About](docs/screenshots/about.png)<br>**About shrew** and the Shrew Manifesto (`:about`) | ![Huge file](docs/screenshots/huge-file.png)<br>**A 50 MB, million-line file**, searched at line 500,000 |
 | ![Sidebar](docs/screenshots/sidebar.png)<br>**The sidebar** (Ctrl+B): the project's tree, following the active file | ![Find in project](docs/screenshots/find-in-project.png)<br>**Find in project** (Ctrl+Shift+F), grouped by file as results stream in |
-| ![Symbols](docs/screenshots/symbols.png)<br>**Go to symbol** (`@` in Ctrl+P, Ctrl+R) from the grammar's scopes | |
-| ![Terminal](docs/screenshots/terminal.png)<br>**The built-in terminal** (Ctrl+\`): colors from the theme, Ctrl+click opens `file:line` | ![Vim in the terminal](docs/screenshots/terminal-vim.png)<br>**Full-screen programs** work: vim inside shrew's terminal, One Light |
+| ![Symbols](docs/screenshots/symbols.png)<br>**Go to symbol** (`@` in Ctrl+P, Ctrl+R) from the grammar's scopes | ![Terminal](docs/screenshots/terminal.png)<br>**The built-in terminal** (Ctrl+\`): colors from the theme, Ctrl+click opens `file:line` |
+| ![Vim in the terminal](docs/screenshots/terminal-vim.png)<br>**Full-screen programs** work: vim inside shrew's terminal, One Light | ![Settings](docs/screenshots/settings.png)<br>**Settings** (Ctrl+,): every setting by section, saved to `config.toml` |
+| ![Settings in a light theme](docs/screenshots/settings-light.png)<br>**Keys or mouse**: switches, sliders, `/` to search, `r` to reset | ![Everything at once](docs/screenshots/workspace.png)<br>**Everything at once**: title bar, sidebar, minimap and terminal |
 
 ## Features
 
@@ -51,6 +52,9 @@ Every shot is the real editor, rendered headless from shrew's own source code. R
 - **Brings your config along.** At startup shrew reads your `~/.vimrc` / `init.vim` (options, leader, the whole
   `map` / `noremap` family) and Sublime Text's user settings and key bindings. You add or override anything in
   `config.toml`, and shrew's own changes to it (`:set`, theme and font pickers) keep your comments.
+- **Settings panel.** Ctrl+, (or `:settings`, or the gear in the status bar) shows every setting by section:
+  appearance, editor, features, keybindings, imports, AI assistants, updates. Keys or mouse, `/` searches them all,
+  `r` resets one, and every change is saved to `config.toml` with your comments kept.
 - **Pickers.** A fuzzy file finder (Ctrl+P) that walks the project in the background and respects `.gitignore`, a
   command palette (Ctrl+Shift+P), a buffer list (Ctrl+Shift+B) and the Features list.
 - **A title bar of its own.** The tabs, the menus (F10, Alt+F) and the window buttons share the top row, arranged
@@ -89,7 +93,8 @@ Every shot is the real editor, rendered headless from shrew's own source code. R
 Plain editing is always there: rope buffers, unlimited undo/redo with grouped edits, multiple cursors, regex search
 and `:s` replace, and the vim and Sublime keymaps. Everything else is an optional feature. Every optional feature:
 
-- shows up in the **Features** list (`:features`, or palette *Features: List and Toggle*), where Enter toggles it;
+- shows up in the **Features** list (`:features`, or palette *Features: List and Toggle*), where Enter toggles it, and
+  in the Settings panel (Ctrl+,);
 - can be switched **at runtime** with `:set <key>`, `:set no<key>` or `:set <key>!` (toggle). Changes made this way
   are written back to `config.toml`, and your comments in the file are kept;
 - can be set **in the config** under `[features]`, as `<key> = true|false`;
@@ -129,6 +134,7 @@ the table below for your build and config.
 | `recent` | Remember recent files and projects (Open Recent, Ctrl+Alt+P) in the cache dir | on | |
 | `minimap` | Sublime-style minimap at the right of the editor: click or drag to scroll (see `[minimap]`) | on | |
 | `terminal` | Built-in terminal panel (Ctrl+\`), started on first use (see `[terminal]`) | on | `terminal` |
+| `settings` | Settings panel (Ctrl+,, `:settings`) and the gear in the status bar | on | |
 
 Keys also work without the underscore (`:set nolinenumbers`). The usual vim spellings work too: `:set nu`, `rnu`,
 `hls`, `list`, `et`, `ts=2`, `so=8`.

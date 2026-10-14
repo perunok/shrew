@@ -34,6 +34,7 @@ pub enum Feature {
     Recent,
     Minimap,
     Terminal,
+    Settings,
 }
 
 pub struct FeatureInfo {
@@ -99,6 +100,7 @@ pub static FEATURES: &[FeatureInfo] = &[
     f(Feature::Recent, "recent", true, "Remember recent files and projects (Open Recent, Ctrl+Alt+P) in the cache dir"),
     f(Feature::Minimap, "minimap", true, "Sublime-style minimap at the right edge of the editor (see [minimap])"),
     f(Feature::Terminal, "terminal", true, "Built-in terminal panel (Ctrl+`), started on first use"),
+    f(Feature::Settings, "settings", true, "Settings panel (Ctrl+,, :settings) and the gear in the status bar"),
 ];
 
 pub fn info(feature: Feature) -> &'static FeatureInfo {

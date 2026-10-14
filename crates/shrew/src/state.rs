@@ -91,6 +91,13 @@ pub struct State {
     /// The terminal panel (empty, no threads, until one is opened).
     #[cfg(feature = "terminal")]
     pub terminals: crate::terminal::Terminals,
+    // ----- settings -----
+    /// The Settings panel (empty until it is first opened).
+    pub settings: crate::settings::Settings,
+    /// What the vimrc and Sublime imports read, for the Settings panel.
+    pub imports: Vec<shrew_config::ImportReport>,
+    /// `[mcp] port` from config.toml, when set: the MCP server listens there.
+    pub mcp_port: Option<u16>,
 }
 
 impl State {
@@ -143,6 +150,9 @@ impl State {
             recent_saved: 0,
             #[cfg(feature = "terminal")]
             terminals: crate::terminal::Terminals::new(loaded.config.terminal.clone()),
+            settings: Default::default(),
+            imports: loaded.imports.clone(),
+            mcp_port: loaded.config.mcp_port,
         };
         st.titlebar.configure(&loaded.config.titlebar);
         #[cfg(feature = "syntax")]
@@ -198,10 +208,15 @@ impl State {
 
     /// A key from the keyboard (or `--keys`).
     pub fn key(&mut self, k: KeyPress) {
-        // an open menu takes every key; then a focused terminal (Alt+F, F10 belong to the program in it); then the
-        // keys that open a menu (F10, Alt+F)
+        let menu = self.titlebar.menu.is_some();
+        // the Settings panel takes the keys, unless one of its pickers or a title bar menu is open over it
+        if !menu && self.settings.is_open() && self.ed.picker.is_none() {
+            self.settings_key(k);
+            return self.after_input();
+        }
+        // a focused terminal (Alt+F, F10 belong to the program in it); then an open menu or a key that opens one
         #[cfg(feature = "terminal")]
-        if self.titlebar.menu.is_none() && self.terminal_key(k) {
+        if !menu && self.terminal_key(k) {
             return;
         }
         if crate::titlebar::key(self, k) {
@@ -213,6 +228,9 @@ impl State {
 
     /// Text typed through an input method.
     pub fn text(&mut self, s: &str) {
+        if self.settings.is_open() && self.ed.picker.is_none() {
+            return s.chars().for_each(|c| self.key(KeyPress::ch(c)));
+        }
         #[cfg(feature = "terminal")]
         if self.terminal_text(s) {
             return;
@@ -227,6 +245,11 @@ impl State {
     /// After anything changed the editor: run its events, reload the config if it was just saved.
     pub fn after_input(&mut self) {
         self.process_events();
+        // the sidebar just took the keys (Ctrl+Shift+E, :Ex, the palette): a focused terminal gives them up
+        #[cfg(feature = "terminal")]
+        if self.ed.sidebar_focus && self.terminals.focused {
+            self.terminals.set_focus(false);
+        }
         self.check_config_saved();
         self.check_waits();
         self.check_theme_saved();
@@ -289,6 +312,7 @@ impl State {
             Event::Terminal(cmd, line) => self.terminal_command(cmd, line),
             #[cfg(not(feature = "terminal"))]
             Event::Terminal(..) => self.ed.error("the terminal is not compiled into this build"),
+            Event::OpenSettings(section) => self.open_settings(&section),
         }
     }
 
@@ -303,6 +327,7 @@ impl State {
             Feature::Sidebar => self.ed.sync_tree(),
             #[cfg(feature = "terminal")]
             Feature::Terminal if !on => self.terminals.close_all(),
+            Feature::Settings if !on => self.settings.close(),
             _ => {}
         }
     }
@@ -635,6 +660,8 @@ impl State {
         self.cursor_blink = cfg.cursor_blink();
         self.titlebar.configure(&loaded.config.titlebar);
         self.minimap_width = cfg.minimap_width() as f32;
+        self.imports = loaded.imports.clone();
+        self.mcp_port = loaded.config.mcp_port;
         let look = ThemeCfg::from(cfg);
         if look != self.look.cfg {
             self.apply_theme_config(look);
@@ -652,7 +679,7 @@ impl State {
 
     // ----- MCP -----
 
-    fn set_mcp(&mut self, on: bool) {
+    pub(crate) fn set_mcp(&mut self, on: bool) {
         #[cfg(feature = "mcp")]
         {
             let Some(dir) = shrew_mcp::files::mcp_dir() else { return };
@@ -661,6 +688,14 @@ impl State {
                     return;
                 }
                 let Some(host) = self.mcp_host.clone() else { return };
+                // `[mcp] port` in config.toml (the Settings panel writes it) wins over the one saved with the token
+                if let Some(port) = self.mcp_port {
+                    let mut s = shrew_mcp::files::load_settings(&dir);
+                    if s.port != port {
+                        s.port = port;
+                        let _ = shrew_mcp::files::save_settings(&dir, &s);
+                    }
+                }
                 match shrew_mcp::McpServer::start(&dir, host) {
                     Ok(s) => {
                         log::info!("MCP endpoint at {}", s.url());

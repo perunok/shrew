@@ -198,7 +198,8 @@ fn a_shell_that_exits_closes_its_tab() {
 #[test]
 fn mouse_links_selection_and_history() {
     let mut st = state();
-    st.ed.cwd = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    // the shell starts in the project folder
+    st.ed.set_project(&PathBuf::from(env!("CARGO_MANIFEST_DIR")));
     st.terminal_command(Command::NewTerminal, Some("seq 1 40; printf 'error at src/main.rs:3:5 here'; sleep 5".into()));
     assert!(wait(&mut st, |st| screen_row(st, st.terminals.geom.map_or(0, |g| g.rows - 1)).contains("here")));
     let g = st.terminals.geom.unwrap();

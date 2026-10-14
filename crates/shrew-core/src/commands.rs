@@ -93,6 +93,7 @@ pub enum Command {
     FocusTerminal,
     FocusEditor,
     TerminalNormalMode,
+    Settings,
 }
 
 use Command::*;
@@ -167,7 +168,7 @@ pub static COMMANDS: &[(Command, &str, &str)] = &[
     (MinimizeWindow, "minimize", "Window: Minimize"),
     (ToggleMaximize, "maximize", "Window: Maximize / Restore"),
     // ----- project navigation -----
-    (ToggleSidebar, "sidebar", "View: Toggle Sidebar"),
+    (ToggleSidebar, "toggle_sidebar", "View: Toggle Sidebar"),
     (FocusSidebar, "focus_sidebar", "View: Focus Sidebar"),
     (RefreshSidebar, "refresh_sidebar", "View: Refresh Sidebar"),
     (FindInProject, "find_in_project", "Find in Project…"),
@@ -189,6 +190,7 @@ pub static COMMANDS: &[(Command, &str, &str)] = &[
     (FocusTerminal, "focus_terminal", "Terminal: Focus Terminal"),
     (FocusEditor, "focus_editor", "Terminal: Focus Editor"),
     (TerminalNormalMode, "terminal_normal_mode", "Terminal: Normal Mode (scroll, select, search)"),
+    (Settings, "settings", "Preferences: Settings"),
 ];
 
 impl Command {

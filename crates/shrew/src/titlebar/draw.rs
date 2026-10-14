@@ -83,7 +83,7 @@ pub fn draw(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, c: &Co
     st.titlebar.placed = placed;
     // without the system's frame (and its shadow) a hairline marks the window's edge, over everything but the menus
     if own_window_buttons() && !st.titlebar.maximized {
-        scene.layer(3);
+        scene.layer(4);
         let edge = Rect::new(0.0, 0.0, lay.width, lay.height);
         scene.rounded_rect(edge, 0.0, Color::TRANSPARENT, Some((lay.scale.round().max(1.0), c.panel_border)));
         scene.layer(0);
@@ -199,7 +199,7 @@ fn icon(scene: &mut Scene, item: Item, r: Rect, lay: &Layout, ink: Color, maximi
 /// The open menu bar or right-click menu, above everything else.
 pub fn draw_menus(scene: &mut Scene, st: &mut State, lay: &Layout, c: &Colors) {
     let Some(m) = &mut st.titlebar.menu else { return };
-    scene.layer(3);
+    scene.layer(4);
     let (cw, pad) = (lay.cw, lay.pad);
     let row_h = (lay.ch + 1.5 * pad).round();
     let sep_h = (2.0 * pad + 1.0).round();

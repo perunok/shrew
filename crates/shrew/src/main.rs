@@ -12,6 +12,7 @@
 //! - [`sidebar`] / [`recent`] / `symbols`: project navigation (the file tree, recent files and projects, the symbol
 //!   provider behind go to symbol).
 //! - `terminal`: the built-in terminal panel (cargo feature `terminal`).
+//! - [`settings`]: the Settings panel (Ctrl+,): sections of setting rows, saved to config.toml.
 //! - [`headless`]: `--screenshot`, a frame rendered without a window.
 //! - [`titlebar`]: the custom title bar (tabs, menus, window buttons) and its window behaviour.
 
@@ -31,6 +32,7 @@ mod layout;
 mod minimap;
 mod recent;
 mod remote;
+mod settings;
 mod sidebar;
 mod state;
 #[cfg(feature = "syntax")]

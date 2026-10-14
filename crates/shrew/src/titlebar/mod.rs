@@ -87,8 +87,12 @@ pub fn layout(lay: Layout, ed: &Editor) -> Layout {
     }
 }
 
-/// The project: the working directory's name (none for the home directory or `/`).
+/// The project: the project root's name (see `Editor::project_root`), else the working directory's (none for the
+/// home directory or `/`).
 pub fn project_name(ed: &Editor) -> Option<String> {
+    if let Some(root) = ed.project_root() {
+        return root.file_name().map(|n| n.to_string_lossy().into_owned());
+    }
     let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"));
     if home.is_some_and(|h| ed.cwd == std::path::Path::new(&h)) {
         return None;
@@ -185,12 +189,16 @@ pub fn app_command(st: &mut State, cmd: Command) {
     }
 }
 
-/// Settings, where this build has them; else config.toml at `[titlebar]`.
+/// The Settings panel at Layout & window, when it is on; else config.toml at `[titlebar]`.
 fn customize(st: &mut State) {
-    if let Some(settings) = Command::from_name("settings") {
-        st.ed.run(settings);
-        return;
+    if st.ed.features.on(Feature::Settings) {
+        return st.open_settings("layout");
     }
+    edit_config(st);
+}
+
+/// Opens config.toml with the cursor on `[titlebar]`.
+fn edit_config(st: &mut State) {
     st.ed.run(Command::OpenConfig);
     st.process_events();
     let b = st.ed.buf();
@@ -300,7 +308,10 @@ mod tests {
         let path = dir.join("config.toml");
         let mut st = state();
         st.config_path = Some(path.clone());
+        // with the Settings panel on, it opens there, at Layout & window
         keys(&mut st, ":customize_titlebar<CR>");
+        assert!(st.settings.is_open());
+        keys(&mut st, "<Esc>:set nosettings<CR>:customize_titlebar<CR>");
         let b = st.ed.buf();
         assert_eq!(b.doc.path.as_deref(), Some(path.as_path()));
         let line = shrew_core::text::line_of(b.rope(), b.sel.primary().head);
@@ -315,9 +326,13 @@ mod tests {
 
     #[test]
     fn title_names_file_project_and_app() {
+        // a folder with no project markers is its own project
+        let dir = std::env::temp_dir().join(format!("shrew-title-{}", std::process::id())).join("burrow");
+        std::fs::create_dir_all(&dir).unwrap();
         let mut ed = Editor::new();
-        ed.cwd = std::path::PathBuf::from("/work/burrow");
+        ed.cwd = dir.clone();
         assert_eq!(window_title(&ed), format!("{} — burrow — shrew", ed.buf().doc.display_name()));
+        std::fs::remove_dir_all(dir.parent().unwrap()).ok();
         ed.cwd = std::path::PathBuf::from("/");
         assert_eq!(window_title(&ed), format!("{} — shrew", ed.buf().doc.display_name()));
     }

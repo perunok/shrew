@@ -652,6 +652,10 @@ impl State {
             }
             _ => {}
         }
+        // one place has the keys: a focused terminal takes them from the sidebar
+        if self.terminals.has_focus() {
+            self.ed.sidebar_focus = false;
+        }
     }
 
     /// Shows the panel and focuses it, starting a shell if there is none.
@@ -673,7 +677,7 @@ impl State {
         let spawn = Spawn {
             command: command.filter(|c| !c.trim().is_empty()),
             shell: t.cfg.shell.clone(),
-            cwd: self.ed.cwd.clone(),
+            cwd: self.ed.work_dir(),
             scrollback: t.cfg.scrollback(),
             env,
         };
@@ -787,6 +791,9 @@ impl State {
         }
         let t = &mut self.terminals;
         let press = t.press(&g, x, y, button, mods);
+        if t.has_focus() {
+            self.ed.sidebar_focus = false;
+        }
         match press {
             Press::Nothing => {}
             Press::Run(cmd) => {

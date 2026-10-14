@@ -53,6 +53,8 @@ shot $out/terminal.png "${term}ls --color=always -F crates/shrew/src<CR>git log 
   crates/shrew/src/terminal/mod.rs:182
 shot $out/terminal-vim.png ":theme one-light<CR>:term vim -Nu NONE +'syntax on' +'set nu' crates/shrew/src/layout.rs<CR>:30<CR>" \
   crates/shrew/src/terminal/mod.rs
+shot $out/settings.png "<C-,>l" "$core/motion.rs"
+shot $out/settings-light.png ":theme one-light<CR>:settings editor<CR>ljjj" "$core/motion.rs"
 
 # a 50 MB, one-million-line file, at line 500,000 with a search
 tmp=$(mktemp -d)

@@ -64,6 +64,8 @@ enum Drag {
     /// The sidebar's right edge (resizing it).
     Sidebar,
     Minimap,
+    /// A slider in the Settings panel.
+    Settings,
 }
 
 #[derive(Default)]
@@ -682,6 +684,9 @@ impl App {
                 }
             }
             (ElementState::Released, MouseButton::Left) => {
+                if self.drag == Drag::Settings {
+                    self.st.settings_release();
+                }
                 if self.drag == Drag::Text {
                     self.st.ed.mouse_up();
                     self.st.after_input();
@@ -714,7 +719,10 @@ impl App {
             self.st.terminal_release(button, mods);
             return false;
         }
-        let modal = self.st.ed.picker.is_some() || self.st.ed.about.is_some();
+        let modal = self.st.ed.picker.is_some()
+            || self.st.ed.about.is_some()
+            || self.st.settings.is_open()
+            || self.st.titlebar.menu.is_some();
         if modal || !self.st.terminal_press(x, y, button, mods) {
             return false;
         }
@@ -748,6 +756,19 @@ impl App {
             } else if !inside {
                 self.st.key(KeyPress::plain(shrew_core::Key::Esc));
             }
+            return self.input(now);
+        }
+        // the Settings panel is modal: a click outside closes it
+        if self.st.settings.is_open() {
+            if self.st.settings_click(x, y) {
+                self.drag = Drag::Settings;
+            }
+            self.st.after_input();
+            return self.input(now);
+        }
+        if hits.gear.is_some_and(|r| r.contains(x, y)) {
+            self.st.ed.run(shrew_core::Command::Settings);
+            self.st.after_input();
             return self.input(now);
         }
         if hits.update.is_some_and(|r| r.contains(x, y)) {
@@ -840,6 +861,11 @@ impl App {
                     self.redraw();
                 }
             }
+            Drag::Settings => {
+                self.st.settings_drag(x);
+                self.st.after_input();
+                self.redraw();
+            }
             Drag::None => {}
         }
         let (redraw, bar_icon) =
@@ -855,6 +881,7 @@ impl App {
             CursorIcon::ColResize
         } else if self.st.ed.picker.is_none()
             && self.st.ed.about.is_none()
+            && !self.st.settings.is_open()
             && lay.text_rect().contains(x, y)
             && !self.ui.hits.scrollbar.is_some_and(|(t, _)| t.contains(x, y))
         {
@@ -928,6 +955,15 @@ impl App {
                 p.move_by(dy.round() as isize);
                 self.redraw();
             }
+            return;
+        }
+        if self.st.settings.is_open() {
+            let dy = match delta {
+                MouseScrollDelta::LineDelta(_, y) => -y * WHEEL_LINES * lay.ch,
+                MouseScrollDelta::PixelDelta(d) => -(d.y as f32),
+            };
+            self.st.settings_wheel(dy);
+            self.redraw();
             return;
         }
         if let Some(top) = &mut self.st.ed.about {

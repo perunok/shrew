@@ -10,8 +10,10 @@ motion, character or register name. "Ctrl" also means ⌘ Cmd on macOS. Vim keys
 
 **Order of precedence** for a key press:
 
-1. An open menu (the title bar's), then an open picker (file finder, palette, buffers, features), the About panel
-   or a prompt (`:`, `/`, `?`) takes every key. F10 and Alt+F/E/V/G/H open the menus unless you mapped them.
+1. An open menu (the title bar's), then an open picker (file finder, palette, buffers, features), the Settings or
+   About panel or a prompt (`:`, `/`, `?`) takes every key. Then a focused terminal or the sidebar takes the keys
+   they use (see [Terminal](#terminal), [Sidebar](#sidebar)). F10 and Alt+F/E/V/G/H open the menus unless you
+   mapped them or a terminal has the focus.
 2. Your mappings (`[keys.*]` in `config.toml`, imported vimrc and Sublime bindings) come next. See
    [CONFIG.md](CONFIG.md#keys).
 3. Then the global chords below, unless a vim command is half-typed (after `d`, `"a` or `f`, the next key belongs
@@ -20,8 +22,9 @@ motion, character or register name. "Ctrl" also means ⌘ Cmd on macOS. Vim keys
 
 **Contents:** [Global chords](#global-chords) · [Insert mode](#insert-mode) · [Normal mode](#normal-mode) ·
 [Visual mode](#visual-mode) · [Prompts](#prompts--and-) · [Pickers](#pickers) · [Sidebar](#sidebar) ·
-[Find in project](#find-in-project) · [About panel](#about-panel) · [Menus](#menus) · [Ex commands](#ex-commands) ·
-[Named commands](#named-commands) · [Mouse](#mouse) · [Title bar](#title-bar) · [Terminal](#terminal)
+[Find in project](#find-in-project) · [Settings](#settings-panel) · [About panel](#about-panel) · [Menus](#menus) ·
+[Ex commands](#ex-commands) · [Named commands](#named-commands) · [Mouse](#mouse) · [Title bar](#title-bar) ·
+[Terminal](#terminal)
 
 ## Global chords
 
@@ -44,6 +47,7 @@ turned off, and "normal" means vim normal mode.
 | Ctrl+Shift+Tab, Ctrl+PageUp | Previous buffer | always |
 | Ctrl+Shift+P | Command palette | always |
 | Ctrl+Shift+U | Check for updates | always |
+| Ctrl+, | Settings panel (Cmd+, on macOS) | always |
 
 ### Editing
 
@@ -384,6 +388,26 @@ matches.
 | Up / Down, Ctrl+P / Ctrl+N, PageUp / PageDown | Move through the matches (file headers are skipped) |
 | Enter | Go to the match (Ctrl+O comes back) |
 | Esc | Close |
+## Settings panel
+
+Ctrl+, (Cmd+, on macOS), palette *Preferences: Settings*, `:settings [section]` or the gear at the right end of the
+status bar. Sections on the left (Appearance, Editor, Features, Layout & window, Keybindings, Import, AI assistants,
+Updates, About), their settings on the right. Every change applies at once and is saved to `config.toml` (comments
+kept), exactly like `:set`, the pickers and the Features list.
+
+| Keys | Action |
+| --- | --- |
+| `j` / `k`, Down / Up, Ctrl+N / Ctrl+P | Next / previous section or setting |
+| Tab, `h` / `l`, Left / Right | Between the sections and the settings |
+| Enter, Space | Toggle a switch, open a list or a picker (theme, accent and font preview as you move), press a button |
+| Left / Right, `-` / `+` on a number | Smaller / bigger (`<` / `>`: ten steps) |
+| `r` / `R` | Reset the setting / the whole section to its default |
+| `/` | Search every setting (Enter goes to the results, Esc ends the search) |
+| `g`, Home / `G`, End, Ctrl+D / Ctrl+U, PageDown / PageUp | First / last, eight down / up |
+| Esc, `q`, Ctrl+C, Ctrl+[, Ctrl+, , a click outside | Close (Esc first ends a search or closes an open list) |
+
+The mouse works too: click a section, a switch, a list or a button, drag a slider, use the steppers, scroll with the
+wheel. The `settings` feature switches the panel and the gear off (`:set nosettings`).
 
 ## About panel
 
@@ -449,6 +473,7 @@ or `:duplicate_line`.
 | `:update` | Install the available update and restart |
 | `:version` | Show shrew's version |
 | `:about` | The About panel: version, manifesto, license, credits |
+| `:settings [section]`, `:preferences`, `:prefs` | The Settings panel, on a section when one is named (`:settings ai`) |
 | `:theme` / `:theme {id}`, `:colorscheme`, `:colo` | Theme picker (live preview) / switch to a theme and save it ([THEMES.md](THEMES.md)) |
 | `:theme import {file}` | Convert a `.sublime-color-scheme` or `.tmTheme` into a custom theme and switch to it |
 | `:accent` / `:accent {id}` | Accent picker / switch to an accent (`theme` for the theme's own) and save it |
@@ -544,7 +569,7 @@ command palette by its title.
 | `customize_titlebar` | View: Customize Title Bar… | right-click the title bar |
 | `minimize` | Window: Minimize | the title bar's button |
 | `maximize` | Window: Maximize / Restore | double-click the title bar |
-| `sidebar` | View: Toggle Sidebar | Ctrl+B (insert) |
+| `toggle_sidebar` | View: Toggle Sidebar | Ctrl+B (insert or vim off), the title bar button |
 | `focus_sidebar` | View: Focus Sidebar | Ctrl+Shift+E |
 | `refresh_sidebar` | View: Refresh Sidebar | `R` in the sidebar |
 | `find_in_project` | Find in Project… | Ctrl+Shift+F |
@@ -566,6 +591,7 @@ command palette by its title.
 | `focus_terminal` | Terminal: Focus Terminal | |
 | `focus_editor` | Terminal: Focus Editor | Ctrl+W k (in a terminal, vim keys) |
 | `terminal_normal_mode` | Terminal: Normal Mode (scroll, select, search) | Ctrl+\\ Ctrl+N (in a terminal) |
+| `settings` | Preferences: Settings | Ctrl+,, `:settings`, the status-bar gear |
 
 ## Mouse
 

@@ -325,3 +325,32 @@ fn terminal_section() {
     assert_eq!(c.terminal.height(), 9);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn every_setting_round_trips_through_the_file() {
+    let dir = temp_dir("every-setting");
+    let path = dir.join("config.toml");
+    std::fs::write(&path, default_config_text()).unwrap();
+    persist_setting(&path, Setting::SystemLight, "github-light").unwrap();
+    persist_setting(&path, Setting::SystemDark, "nord").unwrap();
+    persist_setting(&path, Setting::TabWidth, 2).unwrap();
+    persist_setting(&path, Setting::ExpandTab, false).unwrap();
+    persist_setting(&path, Setting::Scrolloff, 8).unwrap();
+    persist_setting(&path, Setting::CursorBlink, true).unwrap();
+    persist_setting(&path, Setting::Leader, ",").unwrap();
+    persist_setting(&path, Setting::MappingTimeout, 500).unwrap();
+    persist_setting(&path, Setting::McpPort, 9100).unwrap();
+    let text = std::fs::read_to_string(&path).unwrap();
+    // the commented defaults were uncommented in place: the explanations above them stay
+    assert!(text.contains("# Columns per indent level, and how wide a tab is drawn.\ntab_width = 2\n"), "{text}");
+    assert!(!text.contains("# scrolloff = 4"));
+    let (c, w) = parse(&text, "c");
+    assert!(w.is_empty(), "{w:?}");
+    let e = &c.editor;
+    assert_eq!((e.system_light(), e.system_dark()), ("github-light", "nord"));
+    assert_eq!((e.tab_width, e.expand_tab, e.scrolloff), (Some(2), Some(false), Some(8)));
+    assert!(e.cursor_blink());
+    assert_eq!((e.leader.as_deref(), e.mapping_timeout_ms()), (Some(","), 500));
+    assert_eq!(c.mcp_port(), 9100);
+    let _ = std::fs::remove_dir_all(&dir);
+}

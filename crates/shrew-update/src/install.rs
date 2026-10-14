@@ -208,5 +208,9 @@ fn replace(new: &Path, target: &Path) -> io::Result<()> {
         if moved {
             let _ = fs::rename(&old, target);
         }
-    })
+    })?;
+    // succeeds when the old binary is not running (e.g. updating another install); otherwise cleanup() removes it
+    // at the next start
+    let _ = fs::remove_file(&old);
+    Ok(())
 }

@@ -277,11 +277,74 @@ fn nothing_starts_outside_a_repository_or_with_the_feature_off() {
 fn ages_read_naturally() {
     let now = 1_000_000_000;
     assert_eq!(ago_at(now - 5, now), "just now");
-    assert_eq!(ago_at(now - 120, now), "2 min ago");
+    assert_eq!(ago_at(now - 120, now), "2 minutes ago");
     assert_eq!(ago_at(now - 3600, now), "1 hour ago");
     assert_eq!(ago_at(now - 3 * 86_400, now), "3 days ago");
     assert_eq!(ago_at(now - 15 * 86_400, now), "2 weeks ago");
     assert_eq!(ago_at(now - 400 * 86_400, now), "1 year ago");
     assert_eq!(ago_short(now - 90 * 86_400, now), "3mo");
     assert_eq!(ago_at(now + 50, now), "just now", "a clock ahead of ours");
+}
+
+/// The whole flow across the parts: an edit shows in the gutter, `ghs` stages it, the panel lists it as staged,
+/// Enter opens it in the diff view, the panel commits it, the log shows the commit and `d` opens its diff.
+#[test]
+fn edit_stage_review_commit_and_log() {
+    let Some(r) = repo("flow") else { return };
+    let mut st = state(&r.dir);
+    st.open_at(&r.dir.join("a.txt"), None, None);
+    keys(&mut st, "jciwTWO<Esc>:w<CR>");
+    assert_eq!(st.ed.hunks().len(), 1, "the gutter marks the changed line");
+
+    keys(&mut st, "ghs");
+    assert_eq!(porcelain(&r.dir), "M  a.txt\n");
+    assert!(st.ed.hunks().is_empty(), "staged: nothing left against the index");
+
+    keys(&mut st, "<C-S-g>");
+    assert_eq!(st.git.panel.files[1].len(), 1, "Staged Changes holds it");
+    select(&mut st, "a.txt", crate::git::panel::Section::Staged);
+    keys(&mut st, "<CR>");
+    assert!(crate::git::diffview::is_active(&st), "Enter opened the diff view");
+    assert_eq!(st.ed.buf().doc.display_name(), "diff: a.txt (HEAD ↔ index)");
+    assert_eq!(diff_changes(&mut st), 1);
+
+    keys(&mut st, "<C-S-g>c");
+    assert_eq!(st.git.panel.focus, crate::git::panel::Focus::Message);
+    keys(&mut st, "Shout two<C-CR>");
+    assert_eq!(git(&r.dir, &["log", "-1", "--format=%s"]).trim(), "Shout two");
+    assert_eq!(porcelain(&r.dir), "");
+
+    keys(&mut st, "<Esc>:git_log<CR>");
+    let v = crate::git::log::active(&st).expect("the log tab");
+    assert_eq!(v.rows.len(), 2);
+    assert_eq!(v.rows[0].commit.summary, "Shout two");
+    assert!(v.rows.iter().all(|r| r.graph.is_some()), "every row has its graph");
+    keys(&mut st, "d");
+    assert!(crate::git::diffview::is_active(&st), "d opened the commit's diff");
+    assert!(st.ed.buf().doc.display_name().starts_with("commit "), "{}", st.ed.buf().doc.display_name());
+}
+
+/// A click on the blame column (here: Enter on a blamed line) opens what that commit did to the file.
+#[test]
+fn blame_opens_the_commit_diff() {
+    let Some(r) = repo("blamediff") else { return };
+    std::fs::write(r.dir.join("a.txt"), "one\n2\nthree\n").unwrap();
+    git(&r.dir, &["commit", "-q", "-am", "second"]);
+    let mut st = state(&r.dir);
+    st.open_at(&r.dir.join("a.txt"), None, None);
+    keys(&mut st, ":git_blame<CR>j<CR>");
+    assert!(crate::git::diffview::is_active(&st));
+    let name = st.ed.buf().doc.display_name();
+    assert!(name.starts_with("diff: a.txt"), "{name}");
+    assert_eq!(diff_changes(&mut st), 1, "the commit changed one line of it");
+}
+
+/// The changes the active diff tab shows (its rows are laid out as it would be drawn).
+fn diff_changes(st: &mut State) -> usize {
+    let buf = st.ed.buf().id;
+    let v = st.git.diff.views.get_mut(&buf).expect("a diff tab");
+    if v.stale {
+        v.rebuild();
+    }
+    v.rows.starts.len()
 }

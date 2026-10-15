@@ -1128,16 +1128,7 @@ fn now_secs() -> i64 {
 
 /// "3 days ago".
 fn ago(secs: i64) -> String {
-    let s = secs.max(0);
-    let (n, unit) = match s {
-        0..60 => return "just now".into(),
-        60..3600 => (s / 60, "minute"),
-        3600..86_400 => (s / 3600, "hour"),
-        86_400..2_592_000 => (s / 86_400, "day"),
-        2_592_000..31_536_000 => (s / 2_592_000, "month"),
-        _ => (s / 31_536_000, "year"),
-    };
-    format!("{n} {unit}{} ago", if n == 1 { "" } else { "s" })
+    super::blame_inline::ago(secs)
 }
 
 // ----- actions -----

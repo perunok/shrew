@@ -65,6 +65,8 @@ impl Buf {
 pub enum PeekButton {
     Stage,
     Revert,
+    /// The whole file in the diff view, against the markers' base.
+    Diff,
     Close,
 }
 
@@ -579,6 +581,11 @@ pub fn press(st: &mut State, hits: &Hits, lay: &Layout, scroll: Scroll, x: f32, 
         match b {
             PeekButton::Stage => start(st, Act::Stage),
             PeekButton::Revert => revert(st),
+            PeekButton::Diff => {
+                st.git.gutter.peek = None;
+                let cmd = if st.git.head_base { Command::GitDiffFileHead } else { Command::GitDiffFile };
+                super::command(st, cmd, None);
+            }
             PeekButton::Close => st.git.gutter.peek = None,
         }
         st.after_input();
@@ -839,7 +846,13 @@ pub fn draw_peek(scene: &mut Scene, st: &State, hits: &mut Hits, lay: &Layout, c
     let bh = (ch + pad).round();
     let by = (y + (head_h - bh) / 2.0).round();
     let against = if res.base.as_ref().is_some_and(|b| b.against == GutterBase::Head) { "HEAD" } else { "index" };
-    for (label, button) in [("×", PeekButton::Close), ("Revert", PeekButton::Revert), ("Stage", PeekButton::Stage)] {
+    let buttons = [
+        ("×", PeekButton::Close),
+        ("Diff", PeekButton::Diff),
+        ("Revert", PeekButton::Revert),
+        ("Stage", PeekButton::Stage),
+    ];
+    for (label, button) in buttons {
         let bw = ((columns(label) + 2) as f32 * cw).round();
         bx -= bw;
         let r = Rect::new(bx, by, bw, bh);

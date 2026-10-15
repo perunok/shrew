@@ -368,7 +368,14 @@ pub fn poll(st: &mut State) -> bool {
             }
             Reply::Gutter(r) => gutter::on_gutter(st, ev.ticket, r),
             Reply::FileDiff(r) => gutter::on_file_diff(st, ev.ticket, r),
-            Reply::OpDone(r) => gutter::on_op_done(st, ev.ticket, r),
+            Reply::OpDone(r) => {
+                // any write may have moved the index or HEAD: the markers re-diff now rather than at the
+                // service's next look
+                if let Some(r) = &repo {
+                    st.git.gutter.repo_changed(r, true);
+                }
+                gutter::on_op_done(st, ev.ticket, r)
+            }
             Reply::Blame(hunks) => st.git.blame.on_hunks(ev.ticket, hunks),
             Reply::BlameDone(r) => st.git.blame.on_done(ev.ticket, r),
             _ => {}

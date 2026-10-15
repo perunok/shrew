@@ -35,8 +35,7 @@ pub struct Blame {
 #[derive(Default)]
 pub struct Blames {
     list: Vec<Blame>,
-    /// Runs drawn in the last frame: rect and commit.
-    /// Each run's area, its commit and the file's path in that commit.
+    /// Runs drawn in the last frame: each run's area, its commit and the file's path in that commit.
     pub hits: Vec<(Rect, Oid, String)>,
 }
 

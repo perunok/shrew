@@ -887,18 +887,7 @@ pub fn ago(time: i64) -> String {
 }
 
 pub fn ago_at(time: i64, now: i64) -> String {
-    let s = (now - time).max(0);
-    let (n, unit) = match s {
-        s if s < 60 => return "just now".into(),
-        s if s < 3600 => (s / 60, "min"),
-        s if s < 86_400 => (s / 3600, "hour"),
-        s if s < 7 * 86_400 => (s / 86_400, "day"),
-        s if s < 30 * 86_400 => (s / (7 * 86_400), "week"),
-        s if s < 365 * 86_400 => (s / (30 * 86_400), "month"),
-        s => (s / (365 * 86_400), "year"),
-    };
-    let plural = if n == 1 || unit == "min" { "" } else { "s" };
-    format!("{n} {unit}{plural} ago")
+    super::blame_inline::ago(now - time)
 }
 
 /// "3mo", "2y": the blame column's short age.

@@ -186,12 +186,13 @@ impl Panel {
                 letter,
                 mark: e.mark(),
             };
+            // git's letters, as the sidebar shows them: U unmerged, ? untracked
             if e.conflict.is_some() {
-                groups[0].push(file(Section::Merge, '!'));
+                groups[0].push(file(Section::Merge, 'U'));
                 continue;
             }
             if e.untracked {
-                groups[3].push(File { mark: Mark::Untracked, ..file(Section::Untracked, 'U') });
+                groups[3].push(File { mark: Mark::Untracked, ..file(Section::Untracked, '?') });
                 continue;
             }
             if let Some(s) = e.staged {

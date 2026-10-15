@@ -41,6 +41,7 @@ const PASS: &[Command] = &[
     Command::Settings,
     Command::CheckForUpdates,
     Command::CloseBuffer,
+    Command::GitPanel,
 ];
 
 const DOUBLE_CLICK: Duration = Duration::from_millis(400);

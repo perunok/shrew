@@ -741,7 +741,7 @@ scrollbar. They follow your typing a moment after each pause.
 | Keys | Action |
 | --- | --- |
 | `]c` / `[c` (also `]h` / `[h`), Ctrl+. / Ctrl+Shift+. | Next / previous change. A count works (`3]c`), it wraps around the file, and it is a jump (Ctrl+O comes back). With an operator, the lines up to it (`d]c`) |
-| `ghp`, a click on a marker | Peek at the change: its old and new lines under it, the changed words marked, with Stage and Revert buttons. It follows `]c` / `[c`; Esc closes it |
+| `ghp`, a click on a marker | Peek at the change: its old and new lines under it, the changed words marked, with Stage, Revert and Diff (the whole file in the [diff view](#diff-view)) buttons. It follows `]c` / `[c`; Esc closes it |
 | `ghs` | Stage the change at the cursor. In visual mode: just the selected lines (a changed line takes its old line with it) |
 | `ghu` | Unstage the change at the cursor, or the selected lines |
 | `ghr` | Revert the change at the cursor, or the selected lines, to the marked version: an ordinary edit, so `u` undoes it |

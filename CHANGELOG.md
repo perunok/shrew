@@ -8,14 +8,27 @@ new version when it tags a release.
 
 ### Added
 
+- Git integration (cargo feature `git`, on by default; pure Rust reads through gix, writes through the `git`
+  program; nothing runs outside a repository or before it is needed). The parts below share one background service.
+- Change markers (feature `git_gutter`): added, changed and deleted lines against the index (or HEAD, `[git]
+  gutter_base`) in the gutter, the minimap and the scrollbar, following each keystroke. `]c` / `[c` (Ctrl+. /
+  Ctrl+Shift+.) move between changes; `ghp` peeks at a change with its changed words marked and Stage, Revert and
+  Diff buttons; `ghs` / `ghu` / `ghr` stage, unstage and revert the change or the selected lines.
+- Inline blame (feature `git_blame_inline`): the cursor line's author, age and summary at its end after a pause.
+- Git status in the chrome (feature `git_status`): the branch with `*` and ahead / behind in the status bar and the
+  title bar (a click lists branches), and file states coloured with git's letters in the sidebar.
+- The diff view: a tab for a file, the unstaged or staged changes, a commit or two revisions, side by side or
+  unified, with syntax colours, changed words, folded context, live edits, and staging, unstaging and reverting
+  changes or selected lines (`:Gdiff`, `git_diff_*`, `[git] diff_layout / diff_context / diff_ignore_whitespace`).
 - Source Control (feature `git_panel`, cargo feature `git`, both on by default; nothing runs until it is used): the
   sidebar's Git tab (Ctrl+Shift+G, also with the sidebar off) with the branch, its upstream and a sync button, a
   commit message box (Ctrl+Enter commits, Ctrl+Shift+Enter amends, a 50/72 subject hint), and Merge Changes /
   Staged / Changes / Untracked to stage, unstage and discard by key or mouse; branch, stash and changed-file lists;
   fetch, pull and push with a progress toast and cancel; the log tab with the commit graph, ref labels, paging,
   search and author / path filters, and commit details; blame as a column left of the text; merge conflicts tinted
-  with *Accept Current / Incoming / Both / Compare*, `]x` / `[x`, and mark resolved. A Git menu and a Git section in
-  Settings.
+  with *Accept Current / Incoming / Both / Compare*, `]x` / `[x`, and mark resolved. Enter on a change, a file of a
+  commit in the log (or `d` for the whole commit) and a click on the blame column open the diff view.
+- A Git menu, a Git section in Settings and git colour tokens (`git-added` ... `diff-del-word`) for every theme.
 
 ## [0.1.0] - 2026-10-15
 

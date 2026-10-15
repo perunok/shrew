@@ -48,7 +48,7 @@ fn sections_in_order_with_letters() {
         labels(&p),
         vec![
             "MERGE CHANGES 1",
-            "  ! both.rs",
+            "  U both.rs",
             "STAGED CHANGES 3",
             "  M src/staged.rs",
             "  A src/partly.rs",
@@ -57,7 +57,7 @@ fn sections_in_order_with_letters() {
             "  M src/partly.rs",
             "  D gone.txt",
             "UNTRACKED 1",
-            "  U notes/",
+            "  ? notes/",
         ]
     );
     assert_eq!(p.total(), 7, "ignored files are not listed");

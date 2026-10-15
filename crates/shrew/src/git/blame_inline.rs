@@ -150,7 +150,9 @@ pub fn sync(st: &mut State, now: Instant) {
         && b.sel.len() == 1
         && ed.prompt.is_none()
         && ed.picker.is_none()
-        && !st.settings.is_open();
+        && !st.settings.is_open()
+        // the blame column already says it (and the two would cancel each other's blame of the file)
+        && st.git.blame_view.get(b.id).is_none();
     let place = b.doc.path.clone().filter(|_| quiet).map(|p| st.git.place(&p));
     let Some(Place::In { repo, rel }) = place else {
         st.git.blame.rest = None;
@@ -202,7 +204,7 @@ fn blame_if_needed(st: &mut State, repo: &Path, rel: &str) {
     st.git.blame.files.insert(id, f);
 }
 
-/// "3 days ago".
+/// "3 days ago", "yesterday": the one way git ages read everywhere.
 pub fn ago(secs: i64) -> String {
     let s = secs.max(0);
     let (n, unit) = match s {
@@ -232,12 +234,16 @@ pub fn label(c: &BlameCommit, user: Option<&str>, now: i64) -> String {
 /// The cursor line's blame at its end, faint, clipped to the text area.
 pub fn draw(scene: &mut Scene, st: &State, lay: &Layout, c: &Colors, scroll: Scroll, first: usize, end: usize) {
     let ed = &st.ed;
-    if (ed.mode == Mode::Insert && ed.vim()) || st.git.gutter.peek.is_some() {
-        return; // typing, or looking at a change: no distraction
+    if (ed.mode == Mode::Insert && ed.vim()) || st.git.gutter.peek.is_some() || super::has_focus(st) {
+        return; // typing, looking at a change, or the keys are in Source Control: no distraction
     }
     let b = ed.buf();
     let line = b.cursor_line();
     if !(first..end).contains(&line) {
+        return;
+    }
+    // a conflict's first line carries its actions there
+    if b.rope().line(line).chars().take(7).eq("<<<<<<<".chars()) {
         return;
     }
     let Some(commit) = st.git.blame.current(b.id, b.doc.version, line) else { return };

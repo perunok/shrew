@@ -6,6 +6,8 @@ new version when it tags a release.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-15
+
 ### Added
 
 - Compact folders in the sidebar (feature `compact_folders`, on by default): a folder whose only entry is another
@@ -92,4 +94,5 @@ new version when it tags a release.
 - The workspace is clippy-clean, and CI now fails on any clippy warning, with every cargo feature and with none.
   Builds without default features pass their tests too.
 
-[Unreleased]: https://github.com/perunok/shrew/commits/master
+[Unreleased]: https://github.com/perunok/shrew/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/perunok/shrew/releases/tag/v0.1.0

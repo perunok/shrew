@@ -133,6 +133,7 @@ the table below for your build and config.
 | `sublime_import` | Read Sublime Text's user settings and key bindings at startup (see `[import]`) | on | |
 | `custom_titlebar` | shrew's own title bar: tabs, menus (F10) and window buttons in one row. Off: the system title bar | on | |
 | `sidebar` | File tree of the project on the left (Ctrl+B, Ctrl+Shift+E) | off | `project` |
+| `compact_folders` | Sidebar: a folder holding only one folder shares its row with it (`src/main/java`) | on | `project` |
 | `project_search` | Find in project (Ctrl+Shift+F, `:grep`), respects `.gitignore` | on | `project` |
 | `symbols` | Go to symbol in the file (Ctrl+R, `@` in Ctrl+P) and the project (Ctrl+Shift+R) | on | `syntax` |
 | `recent` | Remember recent files and projects (Open Recent, Ctrl+Alt+P) in the cache dir | on | |

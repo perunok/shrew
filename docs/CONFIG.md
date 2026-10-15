@@ -105,7 +105,7 @@ README has [the full table with defaults](../README.md#features). The keys are:
 `vim`, `syntax`, `bracket_match`, `auto_pairs`, `auto_indent`, `line_numbers`, `relative_numbers`, `current_line`,
 `indent_guides`, `whitespace`, `search_highlight`, `word_highlight`, `smooth_scroll`, `cursor_animation`, `picker`,
 `palette`, `clipboard`, `mcp`, `update_check`, `vimrc`, `sublime_import`, `custom_titlebar`, `sidebar`,
-`project_search`, `symbols`, `recent`, `minimap`, `terminal`, `settings`.
+`compact_folders`, `project_search`, `symbols`, `recent`, `minimap`, `terminal`, `settings`.
 
 ```toml
 [features]
@@ -304,7 +304,9 @@ left = ["close", "minimize", "maximize", "menu", "project", "tabs"]
 | --- | --- | --- | --- |
 | `width` | number 80–2000 | `250` | Width of the file tree in logical pixels. Dragging the sidebar's edge saves it here |
 
-Whether the sidebar shows is the `sidebar` feature (Ctrl+B toggles it and saves that too). Recent files and projects
+Whether the sidebar shows is the `sidebar` feature (Ctrl+B toggles it and saves that too). With `compact_folders`
+(on by default) a chain of folders that each hold only one folder, like `src/main/java/com`, is one row; turn it off
+for one row per folder. Recent files and projects
 are kept outside this file, in `<cache dir>/shrew/recent` (`~/.cache/shrew/recent` on Linux); turn the `recent`
 feature off to stop that.
 

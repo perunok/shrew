@@ -4,6 +4,10 @@
 //!
 //! Nothing watches the disk: folders are read again on `R`, when the window gets the focus back, and after the tree's
 //! own file operations. That costs nothing while you type.
+//!
+//! Compact folders (feature `compact_folders`, like VS Code's): a folder whose only entry is another folder shares
+//! its row with it, so `src/main/java/com` is one row instead of four nested ones. The row stands for the deepest
+//! folder: opening, new files, rename and delete act on that one.
 
 use crate::editor::{Editor, Mode, PromptKind};
 use crate::features::Feature;
@@ -64,6 +68,10 @@ pub struct Tree {
     revealed: Option<PathBuf>,
     /// What the open sidebar prompt acts on.
     target: Option<(Ask, PathBuf)>,
+    /// Merge chains of single-folder folders into one row.
+    pub compact: bool,
+    /// For folders not listed yet: their only entry when that is a folder (one cheap `read_dir` each).
+    probes: HashMap<PathBuf, Option<(String, PathBuf)>>,
 }
 
 impl Tree {
@@ -81,6 +89,8 @@ impl Tree {
             filtering: false,
             revealed: None,
             target: None,
+            compact: true,
+            probes: HashMap::new(),
         };
         t.rebuild();
         t
@@ -93,6 +103,7 @@ impl Tree {
     /// Reads the expanded folders again (files made or removed outside shrew show up).
     pub fn refresh(&mut self) {
         self.listings.clear();
+        self.probes.clear();
         self.expanded.retain(|p| p.is_dir());
         self.rebuild();
     }
@@ -124,18 +135,24 @@ impl Tree {
             } else {
                 crate::picker::fuzzy_match(filter, &e.name).map(|m| m.1)
             };
-            let open = e.dir && self.expanded.contains(&e.path);
+            let (name, path) = if e.dir && self.compact { self.chain(e) } else { (e.name.clone(), e.path.clone()) };
+            let hl = if filter.is_empty() || name == e.name {
+                hl
+            } else {
+                crate::picker::fuzzy_match(filter, &name).map(|m| m.1)
+            };
+            let open = e.dir && self.expanded.contains(&path);
             let at = rows.len();
             rows.push(Row {
-                path: e.path.clone(),
-                name: e.name.clone(),
+                path: path.clone(),
+                name,
                 depth,
                 dir: e.dir,
                 open,
                 ignored: e.ignored,
                 hl: hl.clone().unwrap_or_default(),
             });
-            let inner = open && self.push_rows(&e.path, depth + 1, filter, rows);
+            let inner = open && self.push_rows(&path, depth + 1, filter, rows);
             if filter.is_empty() || hl.is_some() || inner {
                 any = true;
             } else {
@@ -144,6 +161,30 @@ impl Tree {
         }
         self.listings.insert(dir.to_path_buf(), entries);
         any
+    }
+
+    /// `dir`'s row: its name joined with the folders below it while each holds exactly one entry, a folder.
+    fn chain(&mut self, e: &Entry) -> (String, PathBuf) {
+        let (mut name, mut path) = (e.name.clone(), e.path.clone());
+        // a symlink loop cannot go on for ever
+        for _ in 0..64 {
+            let Some((n, p)) = self.only_subdir(&path) else { break };
+            name.push('/');
+            name.push_str(&n);
+            path = p;
+        }
+        (name, path)
+    }
+
+    /// The only entry of `dir` when it is a folder.
+    fn only_subdir(&mut self, dir: &Path) -> Option<(String, PathBuf)> {
+        if let Some(entries) = self.listings.get(dir) {
+            return match entries.as_slice() {
+                [e] if e.dir => Some((e.name.clone(), e.path.clone())),
+                _ => None,
+            };
+        }
+        self.probes.entry(dir.to_path_buf()).or_insert_with(|| probe_only_subdir(dir)).clone()
     }
 
     pub fn set_open(&mut self, path: &Path, open: bool) {
@@ -221,6 +262,8 @@ impl Tree {
     /// Forgets the listing of `dir` (and makes sure the folders down to it are open).
     fn changed(&mut self, dir: &Path) {
         self.listings.remove(dir);
+        // a chain splits (or joins) when one of its folders gains or loses an entry
+        self.probes.clear();
         if let Ok(rel) = dir.strip_prefix(&self.root) {
             let mut d = self.root.clone();
             for c in rel.components() {
@@ -229,6 +272,26 @@ impl Tree {
             }
         }
     }
+}
+
+/// Reads `dir` only as far as needed to tell whether its one entry is a folder.
+fn probe_only_subdir(dir: &Path) -> Option<(String, PathBuf)> {
+    let mut only = None;
+    for e in std::fs::read_dir(dir).ok()?.flatten() {
+        let name = e.file_name().to_string_lossy().into_owned();
+        if HIDDEN.contains(&name.as_str()) {
+            continue;
+        }
+        if only.is_some() {
+            return None;
+        }
+        let path = e.path();
+        if !e.file_type().is_ok_and(|t| t.is_dir() || (t.is_symlink() && path.is_dir())) {
+            return None;
+        }
+        only = Some((name, path));
+    }
+    only
 }
 
 fn list_dir(dir: &Path) -> Vec<Entry> {
@@ -333,6 +396,13 @@ impl Editor {
         if !self.sidebar_on() || self.buffers.is_empty() {
             return;
         }
+        let compact = self.features.on(Feature::CompactFolders);
+        if let Some(t) = self.tree.as_mut()
+            && t.compact != compact
+        {
+            t.compact = compact;
+            t.rebuild();
+        }
         let active = self.buf().doc.path.as_deref();
         if let Some(t) = &self.tree
             && (active.is_none() || t.revealed.as_deref() == active)
@@ -345,7 +415,12 @@ impl Editor {
             return;
         };
         if self.tree.as_ref().is_none_or(|t| t.root != root) {
-            self.tree = Some(Tree::new(root));
+            let mut t = Tree::new(root);
+            if !compact {
+                t.compact = false;
+                t.rebuild();
+            }
+            self.tree = Some(t);
         }
         let t = self.tree.as_mut().expect("just made");
         t.revealed = active.clone();
@@ -746,6 +821,39 @@ mod tests {
         t.filter = "deep".into();
         t.rebuild();
         assert_eq!(names(&t), ["src/", "  deep/"], "matches keep their folders");
+        std::fs::remove_dir_all(&d).ok();
+    }
+
+    #[test]
+    fn single_folder_chains_share_a_row() {
+        let d = temp("compact");
+        // a/ and b/ hold files; c/ holds only d/, which holds only e/
+        std::fs::create_dir_all(d.join("a")).unwrap();
+        std::fs::create_dir_all(d.join("b")).unwrap();
+        std::fs::create_dir_all(d.join("c/d/e")).unwrap();
+        for f in ["a/x.rs", "b/y.rs", "c/d/e/one.rs", "c/d/e/two.rs"] {
+            std::fs::write(d.join(f), "").unwrap();
+        }
+        let mut t = Tree::new(d.clone());
+        assert_eq!(names(&t), ["a/", "b/", "c/d/e/"]);
+        assert_eq!(t.rows[2].path, d.join("c/d/e"), "the row stands for the deepest folder");
+        t.set_open(&d.join("c/d/e"), true);
+        assert_eq!(names(&t), ["a/", "b/", "c/d/e/", "  one.rs", "  two.rs"]);
+        assert!(t.reveal(&d.join("c/d/e/two.rs")));
+        assert_eq!(t.current().unwrap().name, "two.rs");
+        // a second entry in c/d splits the chain there
+        std::fs::write(d.join("c/d/note.md"), "").unwrap();
+        t.refresh();
+        assert_eq!(names(&t), ["a/", "b/", "c/d/", "  e/", "    one.rs", "    two.rs", "  note.md"]);
+        // the filter matches the joined name
+        t.filter = "c/d".into();
+        t.rebuild();
+        assert_eq!(names(&t)[0], "c/d/");
+        // off: one row per folder
+        t.filter.clear();
+        t.compact = false;
+        t.rebuild();
+        assert_eq!(names(&t)[..3], ["a/", "b/", "c/"]);
         std::fs::remove_dir_all(&d).ok();
     }
 

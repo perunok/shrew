@@ -6,10 +6,10 @@ new version when it tags a release.
 
 ## [Unreleased]
 
-Nothing has been released yet: the first release, 0.1.0, will be everything below.
-
 ### Added
 
+- Compact folders in the sidebar (feature `compact_folders`, on by default): a folder whose only entry is another
+  folder shares its row with it, so `src/main/java/com` is one row, as in VS Code.
 - Project navigation: the project root is found from `.git` / `.hg` / `.jj` / `.svn` / `.shrew`, a Cargo workspace,
   `package.json`, `go.mod` or `pyproject.toml` (never `$HOME` or `/`); a file tree sidebar (Ctrl+B, Ctrl+Shift+E,
   `srw <folder>`) with lazy folders, `.gitignore`d entries dimmed, a filter and new / rename / trash; find in project

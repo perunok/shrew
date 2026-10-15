@@ -36,6 +36,7 @@ pub enum Feature {
     Minimap,
     Terminal,
     Settings,
+    CompactFolders,
 }
 
 pub struct FeatureInfo {
@@ -91,6 +92,12 @@ pub static FEATURES: &[FeatureInfo] = &[
     ),
     // ----- project navigation -----
     f(Feature::Sidebar, "sidebar", false, "File tree of the project on the left (Ctrl+B, Ctrl+Shift+E)"),
+    f(
+        Feature::CompactFolders,
+        "compact_folders",
+        true,
+        "Sidebar: a folder holding only one folder shares its row with it (src/main/java)",
+    ),
     f(Feature::ProjectSearch, "project_search", true, "Find in project (Ctrl+Shift+F, :grep), respects .gitignore"),
     f(
         Feature::Symbols,

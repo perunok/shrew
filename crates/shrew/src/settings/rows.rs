@@ -607,6 +607,7 @@ fn layout(rows: &mut Vec<Row>) {
 
     rows.push(heading(S, "Sidebar"));
     rows.push(feature(S, Feature::Sidebar, "Sidebar"));
+    rows.push(feature(S, Feature::CompactFolders, "Compact folders"));
     rows.push(with_unit(
         number(
             S,

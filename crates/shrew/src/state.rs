@@ -324,7 +324,7 @@ impl State {
             Feature::Mcp => self.set_mcp(on),
             Feature::UpdateCheck if on => self.auto_update_check(),
             Feature::Sidebar if !on => self.ed.sidebar_focus = false,
-            Feature::Sidebar => self.ed.sync_tree(),
+            Feature::Sidebar | Feature::CompactFolders => self.ed.sync_tree(),
             #[cfg(feature = "terminal")]
             Feature::Terminal if !on => self.terminals.close_all(),
             Feature::Settings if !on => self.settings.close(),
@@ -792,6 +792,7 @@ fn mark_unavailable(ed: &mut Editor) {
     }
     if !cfg!(feature = "project") {
         f.set_unavailable(Feature::Sidebar);
+        f.set_unavailable(Feature::CompactFolders);
         f.set_unavailable(Feature::ProjectSearch);
     }
     if !cfg!(feature = "syntax") {

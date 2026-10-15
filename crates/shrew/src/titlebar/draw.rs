@@ -31,9 +31,17 @@ pub fn draw(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, c: &Co
         bar
     };
     let project = project_label(&st.ed);
+    // ----- git: the branch (not shown outside a repository) -----
+    #[cfg(feature = "git")]
+    let branch = crate::git::status_ui::title_label(st);
+    #[cfg(not(feature = "git"))]
+    let branch: Option<String> = None;
+    let shown = |i: Item| shown(i) && (i != Item::Branch || branch.is_some());
     let button = bar.h.round();
     let width = |i: Item| match i {
         Item::Project => ((columns(&project) + 3) as f32 * lay.cw).round(),
+        #[cfg(feature = "git")]
+        Item::Branch => crate::git::status_ui::title_width(branch.as_deref().unwrap_or(""), lay),
         i if i.is_window_button() => (bar.h * 1.4).round(),
         _ => button,
     };
@@ -72,6 +80,9 @@ pub fn draw(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, c: &Co
         if item == Item::Project {
             let y = lay.centered(r.y, r.h);
             scene.text((r.x + 1.5 * lay.cw).round(), y, &project, TextStyle::new(c.panel_foreground).bold(), &[]);
+        } else if item == Item::Branch {
+            #[cfg(feature = "git")]
+            crate::git::status_ui::draw_title(scene, st, r, lay, c, ink);
         } else {
             icon(scene, item, r, lay, ink, false);
         }
@@ -192,7 +203,7 @@ fn icon(scene: &mut Scene, item: Item, r: Rect, lay: &Layout, ink: Color, maximi
             line(scene, (cx - h, cy - h), (cx + h, cy + h), 1.3 * s, ink);
             line(scene, (cx - h, cy + h), (cx + h, cy - h), 1.3 * s, ink);
         }
-        Item::Project | Item::Tabs => {}
+        Item::Project | Item::Tabs | Item::Branch => {}
     }
 }
 

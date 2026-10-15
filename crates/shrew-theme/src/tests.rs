@@ -193,3 +193,29 @@ fn ansi_colors_are_readable_and_on_hue() {
         }
     }
 }
+
+// ----- git: gutter -----
+/// Gutter marks and sidebar names: added, changed and deleted never look alike, and diff backgrounds are tints of
+/// their own color, the word marks stronger than the line's.
+#[test]
+fn git_colors_are_distinct() {
+    for b in BUILTIN {
+        let base = Theme::builtin(b.id).unwrap();
+        for a in std::iter::once(None).chain(ACCENTS.iter().map(Some)) {
+            let u = base.with_accent(a).ui;
+            let what = format!("{} + {}", b.id, a.map_or("theme", |a| a.id));
+            let distinct = |x: Rgb, y: Rgb| x.hue_distance(y) >= 25.0 || x.contrast(y) >= 1.5;
+            for (n, x, y) in [
+                ("added/deleted", u.git_added, u.git_deleted),
+                ("added/modified", u.git_added, u.git_modified),
+                ("modified/deleted", u.git_modified, u.git_deleted),
+            ] {
+                assert!(distinct(x, y), "{what}: {n} {x} {y}");
+            }
+            assert_ne!(u.diff_add_bg, u.bg, "{what}: added lines have a background");
+            assert_ne!(u.diff_del_bg, u.bg, "{what}: removed lines have a background");
+            assert!(u.diff_add_word.contrast(u.bg) > u.diff_add_bg.contrast(u.bg), "{what}: word marks are stronger");
+            assert!(u.diff_del_word.contrast(u.bg) > u.diff_del_bg.contrast(u.bg), "{what}: word marks are stronger");
+        }
+    }
+}

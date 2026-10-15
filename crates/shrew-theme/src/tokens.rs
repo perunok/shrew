@@ -121,6 +121,26 @@ ui_tokens! {
     popup_border = "popup-border",
     /// Drop shadow under popups (drawn translucent).
     shadow = "shadow",
+    // ----- git: gutter -----
+    // Git: gutter marks, file names in the sidebar, the status letters. Derived from the diff syntax roles.
+    /// Added lines and files (staged new files).
+    git_added = "git-added",
+    git_modified = "git-modified",
+    /// Deleted lines (the gutter's triangle) and files.
+    git_deleted = "git-deleted",
+    git_renamed = "git-renamed",
+    /// Files git does not track yet.
+    git_untracked = "git-untracked",
+    /// Files `.gitignore` leaves out (dim, like faint text).
+    git_ignored = "git-ignored",
+    /// Merge conflicts.
+    git_conflict = "git-conflict",
+    /// Behind added and removed lines in diffs (text stays readable on them).
+    diff_add_bg = "diff-add-bg",
+    diff_del_bg = "diff-del-bg",
+    /// Behind the words that changed inside a changed line (stronger than the line's background).
+    diff_add_word = "diff-add-word",
+    diff_del_word = "diff-del-word",
     // The terminal's 16 ANSI colors. Themes rarely set them: they are derived from the syntax and UI hues.
     ansi_black = "ansi-black",
     ansi_red = "ansi-red",

@@ -22,6 +22,8 @@ pub enum Section {
     Editor,
     Features,
     Layout,
+    // ----- git -----
+    Git,
     Keybindings,
     Import,
     Ai,
@@ -30,11 +32,12 @@ pub enum Section {
 }
 
 impl Section {
-    pub const ALL: [Section; 9] = [
+    pub const ALL: [Section; 10] = [
         Section::Appearance,
         Section::Editor,
         Section::Features,
         Section::Layout,
+        Section::Git,
         Section::Keybindings,
         Section::Import,
         Section::Ai,
@@ -48,6 +51,7 @@ impl Section {
             Section::Editor => "Editor",
             Section::Features => "Features",
             Section::Layout => "Layout & window",
+            Section::Git => "Git",
             Section::Keybindings => "Keybindings",
             Section::Import => "Import",
             Section::Ai => "AI assistants",
@@ -65,6 +69,9 @@ impl Section {
                  into this build."
             }
             Section::Layout => "The parts of the window around the text.",
+            Section::Git => {
+                "Change markers, staging hunks, inline blame and the branch. Nothing runs outside a git repository."
+            }
             Section::Keybindings => {
                 "The chords that work right now and your own mappings (config.toml [keys], your vimrc, Sublime). \
                  Vim's keys are in docs/KEYBINDINGS.md."
@@ -286,6 +293,7 @@ pub fn build(st: &State) -> Vec<Row> {
         rows.push(feature(Section::Features, i.feature, ""));
     }
     layout(&mut rows);
+    git(&mut rows);
     keybindings(&mut rows, st);
     import(&mut rows, st);
     ai(&mut rows);
@@ -648,6 +656,55 @@ fn layout(rows: &mut Vec<Row>) {
     rows.push(feature(S, Feature::Terminal, "Terminal panel"));
     #[cfg(feature = "terminal")]
     terminal(rows);
+}
+
+// ----- git -----
+/// The Git section: one group per part (markers, inline blame, status), each with its switch and its settings.
+fn git(rows: &mut Vec<Row>) {
+    use Section::Git as S;
+    rows.push(heading(S, "Change markers"));
+    rows.push(feature(S, Feature::GitGutter, "Change markers"));
+    #[cfg(feature = "git")]
+    rows.push(Row::new(
+        S,
+        "git.gutter_base",
+        "Compare with",
+        "The index: staged changes drop out of the markers (like VS Code). HEAD: everything since the last commit.",
+        Kind::Options {
+            options: Box::new(|_| vec![("index".into(), "The index".into()), ("head".into(), "HEAD".into())]),
+            get: Box::new(|st| if st.git.head_base { "head" } else { "index" }.into()),
+            show: Box::new(|st| if st.git.head_base { "HEAD" } else { "The index" }.into()),
+            set: Box::new(|st, v| {
+                if (v == "head") != st.git.head_base {
+                    st.git.head_base = v == "head";
+                    st.git.gutter.base_changed();
+                    save_with(st, |p| shrew_config::persist_value(p, "git", "gutter_base", v.as_str()));
+                }
+            }),
+            default: "index".into(),
+        },
+    ));
+    rows.push(heading(S, "Inline blame"));
+    rows.push(feature(S, Feature::GitBlameInline, "Inline blame"));
+    #[cfg(feature = "git")]
+    rows.push(with_unit(
+        number(
+            S,
+            "git.blame_delay",
+            "Pause before it shows",
+            "How long the cursor rests on a line before its blame appears.",
+            (0.0, 2000.0, 50.0),
+            shrew_config::DEFAULT_BLAME_DELAY_MS as f64,
+            |st| st.git.blame_delay.as_millis() as f64,
+            |st, v| {
+                st.git.blame_delay = std::time::Duration::from_millis(v as u64);
+                save_with(st, |p| shrew_config::persist_value(p, "git", "blame_delay", v as i64));
+            },
+        ),
+        "ms",
+    ));
+    rows.push(heading(S, "Status"));
+    rows.push(feature(S, Feature::GitStatus, "Branch and file states"));
 }
 
 /// The terminal panel's settings (`[terminal]`); they apply to the open terminals where they can.

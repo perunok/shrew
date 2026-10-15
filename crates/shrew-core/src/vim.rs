@@ -45,6 +45,8 @@ pub(crate) enum Motion {
     Mark(char, bool),
     /// `N%`: the line N percent into the file.
     LinePercent,
+    /// `]c` / `[c` (also `]h` / `[h`): the next / previous git change (see `git_hunks`).
+    Hunk(bool),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -59,7 +61,7 @@ impl Motion {
         use Motion::*;
         match self {
             Up | Down | NextLineStart | PrevLineStart | FileStart | FileEnd | ScreenTop | ScreenMiddle
-            | ScreenBottom | LinePercent => Kind::Linewise,
+            | ScreenBottom | LinePercent | Hunk(_) => Kind::Linewise,
             Mark(_, true) => Kind::Linewise,
             WordEnd(_) | WordEndBack(_) | LineEnd | LastNonBlank | MatchPair => Kind::Inclusive,
             Find { forward: true, .. } => Kind::Inclusive,
@@ -142,6 +144,8 @@ pub(crate) enum Cmd {
     Jump(bool),
     /// `gf`: the file named under the cursor.
     GotoFile,
+    /// A named command (`ghs` stages the hunk at the cursor).
+    Run(crate::commands::Command),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -232,6 +236,7 @@ fn is_jump(m: Motion) -> bool {
             | ScreenTop
             | ScreenMiddle
             | ScreenBottom
+            | Hunk(_)
     )
 }
 
@@ -339,6 +344,14 @@ fn parse_motion(keys: &[KeyPress], i: usize) -> MotionParse {
                     let Some(n) = next else { return MotionParse::Pending };
                     let Some(mark) = ch(n) else { return MotionParse::No };
                     return MotionParse::Done(Mark(mark, c == '\''));
+                }
+                // ----- git: gutter -----
+                ']' | '[' => {
+                    let Some(n) = next else { return MotionParse::Pending };
+                    return match ch(n) {
+                        Some('c' | 'h') => MotionParse::Done(Hunk(c == ']')),
+                        _ => MotionParse::No,
+                    };
                 }
                 _ => return MotionParse::No,
             }
@@ -572,6 +585,19 @@ pub(crate) fn parse(keys: &[KeyPress], mode: Mode, recording: bool) -> Parse {
             Some('N') => done(SelectMatch(false)),
             Some('&') => done(RepeatSubstitute(true)),
             Some('I') => done(Insert(InsertAt::LineStartCol0)),
+            // ----- git: gutter (gitsigns' hunk maps, on `gh` since there is no default leader) -----
+            Some('h') => {
+                use crate::commands::Command as C;
+                match keys.get(i + 2).map(ch) {
+                    None => Parse::Pending,
+                    Some(Some('s')) => done(Run(C::GitStageHunk)),
+                    Some(Some('u')) => done(Run(C::GitUnstageHunk)),
+                    Some(Some('r')) => done(Run(C::GitRevertHunk)),
+                    Some(Some('p')) => done(Run(C::GitPreviewHunk)),
+                    Some(Some('b')) => done(Run(C::GitToggleBlameInline)),
+                    _ => Parse::Invalid,
+                }
+            }
             _ => Parse::Invalid,
         },
         _ => Parse::Invalid,
@@ -1004,6 +1030,7 @@ impl Editor {
                 }
             }
             GotoFile => self.goto_file_under_cursor(),
+            Run(cmd) => self.run(cmd),
         }
     }
 
@@ -1147,6 +1174,7 @@ impl Editor {
                 }
                 p
             }
+            Hunk(forward) => text::first_non_blank(rope, self.hunk_target(line, n, forward)?),
             Mark(c, linewise) => {
                 let id = self.buf().id;
                 let p = match c {
@@ -1172,7 +1200,7 @@ impl Editor {
         Some((t, None))
     }
 
-    fn do_move(&mut self, m: Motion, count: Option<usize>) {
+    pub(crate) fn do_move(&mut self, m: Motion, count: Option<usize>) {
         let mode = self.mode;
         if mode == Mode::VisualBlock {
             let Some((anchor, head)) = self.block else { return };
@@ -1234,6 +1262,7 @@ impl Editor {
                     | Motion::Mark(..)
                     | Motion::MatchPair
                     | Motion::LinePercent
+                    | Motion::Hunk(_)
             ) {
                 let rows = self.buf().view.rows;
                 let line = self.buf().cursor_line();

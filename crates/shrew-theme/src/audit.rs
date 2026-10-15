@@ -52,6 +52,10 @@ const TEXT_ON: &[&str] = &[
     "danger-soft",
     "success-soft",
     "warning-soft",
+    "diff-add-bg",
+    "diff-del-bg",
+    "diff-add-word",
+    "diff-del-word",
 ];
 
 /// (fg token, bg tokens, level).
@@ -77,7 +81,17 @@ const UI_CHECKS: &[(&str, &[&str], Level)] = &[
     ("mode-normal-fg", &["mode-normal"], Level::Text),
     ("mode-insert-fg", &["mode-insert"], Level::Text),
     ("mode-visual-fg", &["mode-visual"], Level::Text),
+    // git colors are file names in the sidebar (and its selected row) as well as gutter marks
+    ("git-added", GIT_ON, Level::Text),
+    ("git-modified", GIT_ON, Level::Text),
+    ("git-deleted", GIT_ON, Level::Text),
+    ("git-renamed", GIT_ON, Level::Text),
+    ("git-untracked", GIT_ON, Level::Text),
+    ("git-conflict", GIT_ON, Level::Text),
+    ("git-ignored", &["bg", "surface"], Level::Ui),
 ];
+
+const GIT_ON: &[&str] = &["bg", "gutter", "surface", "surface-hover"];
 
 fn target(level: Level, hc: bool) -> f32 {
     match (level, hc) {

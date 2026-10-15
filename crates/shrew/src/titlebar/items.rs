@@ -9,6 +9,8 @@ pub enum Item {
     Menu,
     Sidebar,
     Project,
+    // ----- git: the branch -----
+    Branch,
     Tabs,
     Files,
     Terminal,
@@ -38,6 +40,8 @@ pub static ITEMS: &[ItemInfo] = &[
     i(Item::Sidebar, "sidebar", Some("toggle_sidebar")),
     // the recent projects picker when there is one, else the file picker (see `TitleBar::activate`)
     i(Item::Project, "project", None),
+    // the branch of the project or file (git): opens the branch picker, when this build has one
+    i(Item::Branch, "branch", None),
     i(Item::Tabs, "tabs", None),
     i(Item::Files, "files", Some("files")),
     i(Item::Terminal, "terminal", Some("toggle_terminal")),
@@ -87,7 +91,7 @@ impl Default for BarLayout {
     fn default() -> Self {
         use Item::*;
         BarLayout {
-            left: vec![Menu, Sidebar, Project, Tabs],
+            left: vec![Menu, Sidebar, Project, Branch, Tabs],
             right: vec![Files, Terminal, Settings, About, Minimize, Maximize, Close],
             hidden: Vec::new(),
         }
@@ -229,7 +233,7 @@ mod tests {
         ));
         assert_eq!(unknown, vec!["nope".to_string()]);
         // first place wins: menu stays left, close stays left
-        assert_eq!(l.left, vec![Close, Minimize, Maximize, Menu, Sidebar, Project]);
+        assert_eq!(l.left, vec![Close, Minimize, Maximize, Menu, Sidebar, Project, Branch]);
         // items nobody mentioned go to their default side, in default order
         assert_eq!(l.right, vec![Tabs, About, Files, Settings]);
         assert_eq!(l.hidden, vec![Terminal]);
@@ -258,7 +262,7 @@ mod tests {
         assert_eq!(at(Minimize).right(), at(Maximize).x);
         assert_eq!(at(About).right() + 4.0, at(Minimize).x);
         // the tabs fill the gap between the sides exactly
-        assert_eq!(at(Tabs).x, at(Project).right());
+        assert_eq!(at(Tabs).x, at(Branch).right());
         assert_eq!(at(Tabs).right(), at(Files).x);
         // no item overlaps another
         for (a, ra) in &p {

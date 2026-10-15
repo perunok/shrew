@@ -37,6 +37,10 @@ pub enum Feature {
     Terminal,
     Settings,
     CompactFolders,
+    // ----- git: gutter -----
+    GitGutter,
+    GitBlameInline,
+    GitStatus,
 }
 
 pub struct FeatureInfo {
@@ -110,6 +114,25 @@ pub static FEATURES: &[FeatureInfo] = &[
     f(Feature::Minimap, "minimap", true, "Sublime-style minimap at the right edge of the editor (see [minimap])"),
     f(Feature::Terminal, "terminal", true, "Built-in terminal panel (Ctrl+`), started on first use"),
     f(Feature::Settings, "settings", true, "Settings panel (Ctrl+,, :settings) and the gear in the status bar"),
+    // ----- git: gutter -----
+    f(
+        Feature::GitGutter,
+        "git_gutter",
+        true,
+        "Git change markers in the gutter, minimap and scrollbar; ]c / [c, preview, stage and revert changes",
+    ),
+    f(
+        Feature::GitBlameInline,
+        "git_blame_inline",
+        true,
+        "Git: who last changed the cursor line, shown faintly at its end after a short pause",
+    ),
+    f(
+        Feature::GitStatus,
+        "git_status",
+        true,
+        "Git: the branch in the status bar and title bar, file states in the sidebar (M, A, ?, U, !)",
+    ),
 ];
 
 pub fn info(feature: Feature) -> &'static FeatureInfo {

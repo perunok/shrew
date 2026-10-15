@@ -187,6 +187,11 @@ links). Keys may be written `surface-raised` or `surface_raised`.
 | `scrollbar` | the scrollbar thumb | `bg`, `text` |
 | `popup`, `popup-border` | pickers and the command palette | `surface-raised`, `border` |
 | `shadow` | the shadow under popups (drawn translucent) | black |
+| `git-added`, `git-modified`, `git-deleted` | change markers in the gutter, file names and letters in the sidebar | the `diff-added`, `diff-changed` (or `warning`, blue, yellow: whichever stands apart) and `diff-removed` syntax colors |
+| `git-renamed`, `git-untracked`, `git-conflict` | renamed, untracked and conflicted files | the theme's cyan, `git-added` towards cyan, the theme's magenta |
+| `git-ignored` | ignored files | `text-faint` |
+| `diff-add-bg`, `diff-del-bg` | behind added and removed lines (the hunk peek, diff views) | `git-added`, `git-deleted`, `bg` |
+| `diff-add-word`, `diff-del-word` | behind the words that changed inside a changed line | `git-added`, `git-deleted`, `bg` (stronger) |
 | `ansi-black`, `ansi-red`, `ansi-green`, `ansi-yellow`, `ansi-blue`, `ansi-magenta`, `ansi-cyan`, `ansi-white`, and `ansi-bright-*` for each | the terminal's 16 colors | the theme's own color nearest each hue (status colors, then syntax roles), readable on `bg`; greys from `bg` and `text` |
 
 Derived tints are kept readable: a derived selection, search highlight or soft background is made paler until text
@@ -258,7 +263,9 @@ Slinger's theme tests. The pairs and targets ([`audit.rs`](../crates/shrew-theme
 | `accent-fg` on `accent`, badge text on each mode badge, `cursor-fg` on `cursor`, status text on its fill | | 4.5:1 |
 | `accent-text` | `bg`, `surface`, `accent-soft`, `popup` | 4.5:1 |
 | `danger`, `success`, `warning` | `bg`, `surface`, their soft backgrounds | 4.5:1 |
-| `text-faint`, `line-number`, the cursor and accent fill against the background, matched letters on the selected picker row | | 3:1 |
+| `git-added`, `git-modified`, `git-deleted`, `git-renamed`, `git-untracked`, `git-conflict` | `bg`, `gutter`, `surface`, `surface-hover` | 4.5:1 |
+| `text` on `diff-add-bg`, `diff-del-bg`, `diff-add-word`, `diff-del-word` | | 4.5:1 |
+| `text-faint`, `git-ignored`, `line-number`, the cursor and accent fill against the background, matched letters on the selected picker row | | 3:1 |
 
 Comments are held to 3:1, not 4.5:1: they are meant to recede, nearly every classic palette puts them close to 3:1,
 and 3:1 is WCAG's minimum for large and non-text content. Syntax colors are not checked on the selection: it is a

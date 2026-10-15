@@ -6,6 +6,7 @@ pub mod commands;
 pub mod document;
 pub mod editor;
 pub mod features;
+pub mod git_hunks;
 pub mod grep;
 pub mod history;
 pub mod input;

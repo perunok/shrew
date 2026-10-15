@@ -234,6 +234,23 @@ pub fn parse(text: &str, source: &str) -> (Config, Vec<Warning>) {
                 let Some(t) = cx.table(item, key) else { continue };
                 terminal(&mut cx, t, &mut config.terminal);
             }
+            // ----- git: gutter -----
+            "git" => {
+                let Some(t) = cx.table(item, key) else { continue };
+                for (k, v) in t.iter() {
+                    match k {
+                        "gutter_base" => match cx.str(v, "git.gutter_base") {
+                            Some(b @ ("index" | "head")) => config.git.gutter_base = Some(b.to_string()),
+                            Some(_) => cx.warn(v, "git.gutter_base: expected \"index\" or \"head\"".into()),
+                            None => {}
+                        },
+                        "blame_delay" => {
+                            config.git.blame_delay = cx.int(v, "git.blame_delay", 0..=5000).map(|n| n as u64)
+                        }
+                        _ => cx.warn(v, format!("unknown key git.{k}")),
+                    }
+                }
+            }
             _ => cx.warn(item, format!("unknown section or key {key:?}")),
         }
     }
@@ -441,11 +458,11 @@ pub fn default_config_text() -> String {
 # check = true
 
 # The custom title bar (feature custom_titlebar): which items it shows on each side, in order. Items:
-# menu, sidebar, project, tabs, files, terminal, settings, about, minimize, maximize, close.
+# menu, sidebar, project, branch (git), tabs, files, terminal, settings, about, minimize, maximize, close.
 # An item left out goes where the default puts it. Tabs, settings and the window buttons can move
 # but not be hidden. Right-click an empty part of the bar for "Customize Title Bar…".
 [titlebar]
-# left = ["menu", "sidebar", "project", "tabs"]
+# left = ["menu", "sidebar", "project", "branch", "tabs"]
 # right = ["files", "terminal", "settings", "about", "minimize", "maximize", "close"]
 # hidden = []
 
@@ -475,6 +492,14 @@ pub fn default_config_text() -> String {
 [terminal.keys]
 # "<C-S-e>" = "focus_editor"
 # "<C-PageUp>" = ""
+
+# Git (features git_gutter and git_blame_inline). Nothing runs outside a git repository.
+[git]
+# What the gutter's change markers compare the buffer with: "index" (staged changes drop out, like
+# VS Code) or "head" (the last commit). Palette: Git: Compare Markers With HEAD / the Index.
+# gutter_base = "index"
+# Milliseconds the cursor rests on a line before its inline blame shows (0-5000).
+# blame_delay = 300
 "#;
     s
 }

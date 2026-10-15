@@ -147,6 +147,10 @@ pub enum Event {
     Terminal(Command, Option<String>),
     /// Open the Settings panel (Ctrl+,, `:settings [section]`), on a section when the name is not empty.
     OpenSettings(String),
+    // ----- git: gutter -----
+    /// A hunk command (preview, stage, unstage, revert, the gutter's base) for the app's git integration; the lines
+    /// it acts on are [`Editor::git_target_lines`].
+    Git(Command),
 }
 
 #[derive(Clone, Debug)]
@@ -236,6 +240,9 @@ pub struct Editor {
     pub(crate) grep_last: (String, crate::grep::GrepOptions),
     /// The last project root found (folder asked about, root).
     pub(crate) root_cache: std::sync::Mutex<Option<(PathBuf, Option<PathBuf>)>>,
+    // ----- git: gutter -----
+    /// Each buffer's git change hunks (by buffer id), set by the app's git integration (see `git_hunks`).
+    pub git_hunks: HashMap<u64, Vec<crate::git_hunks::Hunk>>,
 }
 
 impl Default for Editor {
@@ -295,6 +302,7 @@ impl Editor {
             symbols: None,
             grep_last: Default::default(),
             root_cache: Default::default(),
+            git_hunks: HashMap::new(),
         };
         e.add_buffer(Document::default());
         e
@@ -848,6 +856,9 @@ impl Editor {
             ('`', false) => ToggleTerminal,
             ('`', true) => NewTerminal,
             (',', false) => Command::Settings,
+            // ----- git: gutter (Sublime's Next Modification; Ctrl+, is Settings, so back is Ctrl+Shift+.) -----
+            ('.', false) => GitNextHunk,
+            ('.', true) => GitPrevHunk,
             _ => return None,
         })
     }
@@ -1100,6 +1111,11 @@ impl Editor {
                 self.prompt = None;
                 self.events.push(Event::OpenSettings(String::new()));
             }
+            // ----- git: gutter -----
+            GitNextHunk | GitPrevHunk => self.goto_hunk(cmd == GitNextHunk, 1),
+            GitPreviewHunk | GitStageHunk | GitUnstageHunk | GitRevertHunk | GitGutterBase => self.git_command(cmd),
+            GitToggleGutter => self.toggle_feature(Feature::GitGutter),
+            GitToggleBlameInline => self.toggle_feature(Feature::GitBlameInline),
         }
     }
 

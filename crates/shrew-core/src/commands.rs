@@ -96,6 +96,16 @@ pub enum Command {
     TerminalNormalMode,
     // ----- settings panel -----
     Settings,
+    // ----- git: gutter -----
+    GitNextHunk,
+    GitPrevHunk,
+    GitPreviewHunk,
+    GitStageHunk,
+    GitUnstageHunk,
+    GitRevertHunk,
+    GitGutterBase,
+    GitToggleGutter,
+    GitToggleBlameInline,
 }
 
 use Command::*;
@@ -193,6 +203,16 @@ pub static COMMANDS: &[(Command, &str, &str)] = &[
     (FocusEditor, "focus_editor", "Terminal: Focus Editor"),
     (TerminalNormalMode, "terminal_normal_mode", "Terminal: Normal Mode (scroll, select, search)"),
     (Settings, "settings", "Preferences: Settings"),
+    // ----- git: gutter -----
+    (GitNextHunk, "git_next_hunk", "Git: Next Change"),
+    (GitPrevHunk, "git_prev_hunk", "Git: Previous Change"),
+    (GitPreviewHunk, "git_preview_hunk", "Git: Preview Change"),
+    (GitStageHunk, "git_stage_hunk", "Git: Stage Change (or Selected Lines)"),
+    (GitUnstageHunk, "git_unstage_hunk", "Git: Unstage Change (or Selected Lines)"),
+    (GitRevertHunk, "git_revert_hunk", "Git: Revert Change (or Selected Lines)"),
+    (GitGutterBase, "git_gutter_base", "Git: Compare Markers With HEAD / the Index"),
+    (GitToggleGutter, "git_toggle_gutter", "Git: Toggle Change Markers"),
+    (GitToggleBlameInline, "git_toggle_blame_inline", "Git: Toggle Inline Blame"),
 ];
 
 impl Command {

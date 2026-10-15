@@ -17,6 +17,7 @@ pub mod navigate;
 pub mod ops;
 pub mod picker;
 pub mod project;
+pub mod scm;
 pub mod search;
 pub mod selection;
 pub mod text;

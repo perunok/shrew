@@ -53,6 +53,50 @@ pub struct Colors {
     /// The terminal's 16 ANSI colors (see [`shrew_theme::Ui::ansi`]).
     #[cfg_attr(not(feature = "terminal"), allow(dead_code))]
     pub ansi: [Color; 16],
+    // ----- git: panel (placeholder until shrew-theme has the git tokens: derived here from the status colors) -----
+    #[cfg_attr(not(feature = "git"), allow(dead_code))]
+    pub git: GitColors,
+}
+
+/// File states, diff backgrounds and word highlights, named as the theme's git tokens.
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(not(feature = "git"), allow(dead_code))]
+pub struct GitColors {
+    pub added: Color,
+    pub modified: Color,
+    pub deleted: Color,
+    pub renamed: Color,
+    pub untracked: Color,
+    pub ignored: Color,
+    pub conflict: Color,
+    pub diff_add_bg: Color,
+    /// The diff view's (not drawn by the panel).
+    #[allow(dead_code)]
+    pub diff_del_bg: Color,
+    #[allow(dead_code)]
+    pub diff_add_word: Color,
+    #[allow(dead_code)]
+    pub diff_del_word: Color,
+}
+
+impl GitColors {
+    fn derive(u: &shrew_theme::Ui) -> GitColors {
+        let k = |c: Rgb| Color::rgb(c.r, c.g, c.b);
+        let bg = k(u.bg);
+        GitColors {
+            added: k(u.success),
+            modified: k(u.warning),
+            deleted: k(u.danger),
+            renamed: k(u.info),
+            untracked: k(u.success),
+            ignored: k(u.text_muted),
+            conflict: mix(k(u.danger), k(u.warning), 0.6),
+            diff_add_bg: mix(k(u.success), bg, 0.16),
+            diff_del_bg: mix(k(u.danger), bg, 0.16),
+            diff_add_word: mix(k(u.success), bg, 0.34),
+            diff_del_word: mix(k(u.danger), bg, 0.34),
+        }
+    }
 }
 
 impl Colors {
@@ -102,6 +146,7 @@ impl Colors {
             mode_visual_fg: k(u.mode_visual_fg),
             scrollbar: k(u.scrollbar),
             ansi: u.ansi().map(k),
+            git: GitColors::derive(u),
         }
     }
 }

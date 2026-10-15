@@ -224,6 +224,8 @@ impl State {
                 }
                 (items, self.font_choice_value())
             }
+            // ----- git: panel ----- (filled by the git module, never through here)
+            Choice::GitBranches | Choice::GitStashes | Choice::GitChanges => return,
         };
         let selected = items.iter().position(|i| matches!(&i.data, PickerData::Value(v) if *v == current)).unwrap_or(0);
         self.ed.open_choice(choice, items, selected);
@@ -282,6 +284,8 @@ impl State {
                 self.set_font_family(value);
                 Ok(())
             }
+            // ----- git: panel -----
+            Choice::GitBranches | Choice::GitStashes | Choice::GitChanges => Ok(()),
         };
         if let Err(e) = r {
             self.ed.error(e);
@@ -340,6 +344,8 @@ impl State {
                 self.persist(Setting::FontFamily, &value);
                 self.ed.info(format!("font {value}"));
             }
+            // ----- git: panel ----- (answered by the git module)
+            Choice::GitBranches | Choice::GitStashes | Choice::GitChanges => {}
         }
     }
 

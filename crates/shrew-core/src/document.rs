@@ -28,6 +28,8 @@ pub struct Document {
     col_cache: std::cell::Cell<Option<ColCache>>,
     /// Change sets since the editor last moved its marks (`ma`, the insert start) along with the text.
     mark_log: Vec<ChangeSet>,
+    /// The tab's name for a buffer that is not a file (the app's views: a git log), shown instead of `[scratch]`.
+    pub title: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -60,6 +62,7 @@ impl Document {
             edits: Vec::new(),
             col_cache: std::cell::Cell::new(None),
             mark_log: Vec::new(),
+            title: None,
         }
     }
 
@@ -118,6 +121,7 @@ impl Document {
             .as_ref()
             .and_then(|p| p.file_name())
             .map(|n| n.to_string_lossy().into_owned())
+            .or_else(|| self.title.clone())
             .unwrap_or_else(|| "[scratch]".into())
     }
 

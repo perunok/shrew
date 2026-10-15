@@ -105,7 +105,7 @@ README has [the full table with defaults](../README.md#features). The keys are:
 `vim`, `syntax`, `bracket_match`, `auto_pairs`, `auto_indent`, `line_numbers`, `relative_numbers`, `current_line`,
 `indent_guides`, `whitespace`, `search_highlight`, `word_highlight`, `smooth_scroll`, `cursor_animation`, `picker`,
 `palette`, `clipboard`, `mcp`, `update_check`, `vimrc`, `sublime_import`, `custom_titlebar`, `sidebar`,
-`compact_folders`, `project_search`, `symbols`, `recent`, `minimap`, `terminal`, `settings`.
+`compact_folders`, `project_search`, `symbols`, `recent`, `minimap`, `terminal`, `settings`, `git_panel`.
 
 ```toml
 [features]

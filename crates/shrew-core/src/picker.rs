@@ -32,6 +32,10 @@ pub enum Choice {
     Theme,
     Accent,
     Font,
+    // ----- git: panel (the app's git module fills and answers these; no preview) -----
+    GitBranches,
+    GitStashes,
+    GitChanges,
 }
 
 impl Choice {
@@ -41,7 +45,15 @@ impl Choice {
             Choice::Theme => "themes",
             Choice::Accent => "accents",
             Choice::Font => "fonts",
+            Choice::GitBranches => "branches",
+            Choice::GitStashes => "stashes",
+            Choice::GitChanges => "changed files",
         }
+    }
+
+    /// A list of the git panel's (branches, stashes, changed files), not a setting.
+    pub fn is_git(self) -> bool {
+        matches!(self, Choice::GitBranches | Choice::GitStashes | Choice::GitChanges)
     }
 }
 

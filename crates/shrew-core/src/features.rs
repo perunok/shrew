@@ -37,6 +37,8 @@ pub enum Feature {
     Terminal,
     Settings,
     CompactFolders,
+    // ----- git: panel -----
+    GitPanel,
 }
 
 pub struct FeatureInfo {
@@ -110,6 +112,13 @@ pub static FEATURES: &[FeatureInfo] = &[
     f(Feature::Minimap, "minimap", true, "Sublime-style minimap at the right edge of the editor (see [minimap])"),
     f(Feature::Terminal, "terminal", true, "Built-in terminal panel (Ctrl+`), started on first use"),
     f(Feature::Settings, "settings", true, "Settings panel (Ctrl+,, :settings) and the gear in the status bar"),
+    // ----- git: panel -----
+    f(
+        Feature::GitPanel,
+        "git_panel",
+        true,
+        "Source Control (Ctrl+Shift+G): changes, commit, branches, stashes, log, blame and merge conflicts",
+    ),
 ];
 
 pub fn info(feature: Feature) -> &'static FeatureInfo {

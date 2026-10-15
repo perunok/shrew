@@ -346,6 +346,7 @@ impl Editor {
         self.push_jump();
         let reuse = self.buffers.len() == 1
             && self.buffers[0].doc.path.is_none()
+            && self.buffers[0].doc.title.is_none()
             && !self.buffers[0].doc.dirty
             && self.buffers[0].doc.is_empty();
         if reuse {
@@ -848,6 +849,8 @@ impl Editor {
             ('`', false) => ToggleTerminal,
             ('`', true) => NewTerminal,
             (',', false) => Command::Settings,
+            // ----- git: panel -----
+            ('g', true) => GitPanel,
             _ => return None,
         })
     }
@@ -1100,6 +1103,15 @@ impl Editor {
                 self.prompt = None;
                 self.events.push(Event::OpenSettings(String::new()));
             }
+            // ----- git: panel -----
+            GitNextConflict | GitPrevConflict | GitConflictOurs | GitConflictTheirs | GitConflictBoth => {
+                self.conflict_command(cmd)
+            }
+            GitPanel | GitRefresh | GitCommit | GitAmend | GitStage | GitUnstage | GitDiscard | GitStageAll
+            | GitUnstageAll | GitOpenChange | GitOpenFile | GitBranches | GitNewBranch | GitStash | GitStashes
+            | GitFetch | GitPull | GitPullRebase | GitPush | GitCancel | GitOutput | GitLog | GitLogAll
+            | GitFileHistory | GitBlame | GitChangedFiles | GitConflictCompare | GitMarkResolved | GitAbort
+            | GitContinue => self.git(cmd),
         }
     }
 

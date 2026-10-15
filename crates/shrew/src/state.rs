@@ -98,6 +98,10 @@ pub struct State {
     pub imports: Vec<shrew_config::ImportReport>,
     /// `[mcp] port` from config.toml, when set: the MCP server listens there.
     pub mcp_port: Option<u16>,
+    // ----- git -----
+    /// Git: the service, the repository, the Source Control panel, log and blame (idle until used).
+    #[cfg(feature = "git")]
+    pub git: crate::git::Git,
 }
 
 impl State {
@@ -127,6 +131,8 @@ impl State {
             colors: Colors::from_theme(&shrew_theme::Theme::default()),
             config_path: loaded.path.clone(),
             config_seen: None,
+            #[cfg(feature = "git")]
+            git: crate::git::Git::new(wake.clone()),
             wake,
             loading: Vec::new(),
             waits: Vec::new(),
@@ -155,6 +161,8 @@ impl State {
             mcp_port: loaded.config.mcp_port,
         };
         st.titlebar.configure(&loaded.config.titlebar);
+        #[cfg(feature = "git")]
+        crate::git::default_mappings(&mut st.ed);
         #[cfg(feature = "syntax")]
         {
             st.ed.symbols = Some(crate::symbols::provider(st.wake.clone()));
@@ -222,6 +230,11 @@ impl State {
         if crate::titlebar::key(self, k) {
             return;
         }
+        // ----- git ----- its prompt, its pickers' keys, the focused panel, a log tab
+        #[cfg(feature = "git")]
+        if crate::git::key(self, k) {
+            return self.after_input();
+        }
         self.ed.handle_key(k);
         self.after_input();
     }
@@ -234,6 +247,10 @@ impl State {
         #[cfg(feature = "terminal")]
         if self.terminal_text(s) {
             return;
+        }
+        #[cfg(feature = "git")]
+        if crate::git::text(self, s) {
+            return self.after_input();
         }
         if self.ed.mapping_pending() {
             self.ed.flush_pending_mappings();
@@ -255,6 +272,8 @@ impl State {
         self.check_theme_saved();
         self.sync_preview();
         self.ed.sync_tree();
+        #[cfg(feature = "git")]
+        crate::git::after_input(self);
         self.save_recent();
         if self.close_warned && self.ed.buffers.iter().all(|b| !b.doc.dirty) {
             self.close_warned = false;
@@ -289,6 +308,11 @@ impl State {
                 self.set_font_size(size);
             }
             Event::FontReset => self.set_font_size(shrew_config::DEFAULT_FONT_SIZE),
+            // ----- git ----- its lists and commands
+            #[cfg(feature = "git")]
+            Event::Choose(c, v) if c.is_git() => crate::git::choose(self, c, v),
+            #[cfg(feature = "git")]
+            Event::App(cmd) if cmd.is_git_panel() => crate::git::command(self, cmd),
             Event::OpenChoice(c) => self.open_choice(c),
             Event::Choose(c, v) => self.choose(c, v),
             Event::ThemeImport(p) => self.import_theme(&p),
@@ -328,6 +352,8 @@ impl State {
             #[cfg(feature = "terminal")]
             Feature::Terminal if !on => self.terminals.close_all(),
             Feature::Settings if !on => self.settings.close(),
+            #[cfg(feature = "git")]
+            Feature::GitPanel => crate::git::feature_changed(self),
             _ => {}
         }
     }
@@ -447,6 +473,10 @@ impl State {
         #[cfg(feature = "terminal")]
         {
             changed |= self.poll_terminals();
+        }
+        #[cfg(feature = "git")]
+        {
+            changed |= crate::git::poll(self);
         }
         changed
     }
@@ -800,6 +830,10 @@ fn mark_unavailable(ed: &mut Editor) {
     }
     if !cfg!(feature = "terminal") {
         f.set_unavailable(Feature::Terminal);
+    }
+    // ----- git -----
+    if !cfg!(feature = "git") {
+        f.set_unavailable(Feature::GitPanel);
     }
 }
 

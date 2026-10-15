@@ -22,6 +22,8 @@ pub enum Section {
     Editor,
     Features,
     Layout,
+    // ----- git -----
+    Git,
     Keybindings,
     Import,
     Ai,
@@ -30,11 +32,12 @@ pub enum Section {
 }
 
 impl Section {
-    pub const ALL: [Section; 9] = [
+    pub const ALL: [Section; 10] = [
         Section::Appearance,
         Section::Editor,
         Section::Features,
         Section::Layout,
+        Section::Git,
         Section::Keybindings,
         Section::Import,
         Section::Ai,
@@ -48,6 +51,7 @@ impl Section {
             Section::Editor => "Editor",
             Section::Features => "Features",
             Section::Layout => "Layout & window",
+            Section::Git => "Git",
             Section::Keybindings => "Keybindings",
             Section::Import => "Import",
             Section::Ai => "AI assistants",
@@ -65,6 +69,10 @@ impl Section {
                  into this build."
             }
             Section::Layout => "The parts of the window around the text.",
+            Section::Git => {
+                "Source Control (Ctrl+Shift+G): stage, commit, branches, stashes, fetch, pull and push; the log, \
+                 blame and merge conflicts. Reads run in shrew; writes and the network run the git program."
+            }
             Section::Keybindings => {
                 "The chords that work right now and your own mappings (config.toml [keys], your vimrc, Sublime). \
                  Vim's keys are in docs/KEYBINDINGS.md."
@@ -286,6 +294,7 @@ pub fn build(st: &State) -> Vec<Row> {
         rows.push(feature(Section::Features, i.feature, ""));
     }
     layout(&mut rows);
+    git(&mut rows);
     keybindings(&mut rows, st);
     import(&mut rows, st);
     ai(&mut rows);
@@ -648,6 +657,55 @@ fn layout(rows: &mut Vec<Row>) {
     rows.push(feature(S, Feature::Terminal, "Terminal panel"));
     #[cfg(feature = "terminal")]
     terminal(rows);
+}
+
+/// The git section: the panel's switch, where git is, and the ways in.
+fn git(rows: &mut Vec<Row>) {
+    use Section::Git as S;
+    use shrew_core::Command;
+    rows.push(heading(S, "Source Control"));
+    rows.push(feature(S, Feature::GitPanel, "Source Control panel"));
+    #[cfg(feature = "git")]
+    rows.push(info(S, "The git program", "Commits, branches, stashes and the network go through it (hooks, signing and credentials work as in a terminal).", |_| {
+        if shrew_git::git_available() { "found".into() } else { "not found: reading works, writing does not".into() }
+    }));
+    let run = |cmd: Command| {
+        move |st: &mut State| {
+            st.settings.close();
+            st.ed.run(cmd);
+            st.process_events();
+        }
+    };
+    rows.push(action(
+        S,
+        "git.panel",
+        "Changes and commit",
+        "The Git tab of the sidebar: stage, unstage, discard, commit (Ctrl+Enter, amend with Ctrl+Shift+Enter).",
+        "Open",
+        run(Command::GitPanel),
+    ));
+    rows.push(action(
+        S,
+        "git.branches",
+        "Branches",
+        "Check out, create (Ctrl+Enter) or delete (Delete) branches.",
+        "Open",
+        run(Command::GitBranches),
+    ));
+    rows.push(action(
+        S,
+        "git.log",
+        "History",
+        "The log with its commit graph; Enter shows a commit, / searches, a filters by author.",
+        "Open",
+        run(Command::GitLog),
+    ));
+    rows.push(text(
+        S,
+        "Conflicts",
+        "Inline actions on each conflict; git_conflict_ours / theirs / both from the palette.",
+        "]x and [x jump between them",
+    ));
 }
 
 /// The terminal panel's settings (`[terminal]`); they apply to the open terminals where they can.

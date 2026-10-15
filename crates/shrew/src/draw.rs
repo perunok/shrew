@@ -124,6 +124,8 @@ pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: 
     scene.background(c.background);
     ui.hits = Hits::default();
     ui.cursor_rect = None;
+    #[cfg(feature = "git")]
+    crate::git::begin_frame(st);
 
     if !crate::titlebar::draw(scene, st, ui, lay, &c) {
         tabs(scene, st, ui, lay, &c);
@@ -136,8 +138,25 @@ pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: 
     {
         ui.focused = window_focused && !st.terminals.has_focus();
     }
-    editor(scene, st, ui, lay, &c, scroll);
-    crate::minimap::draw(scene, st, ui, lay, &c, scroll);
+    // ----- git ----- a log tab draws itself instead of text; the panel's focus makes the text look unfocused
+    #[cfg(feature = "git")]
+    let (view, focused_before) = (crate::git::draw_view(scene, st, lay, &c), ui.focused);
+    #[cfg(feature = "git")]
+    {
+        ui.focused = ui.focused && !crate::git::has_focus(st);
+    }
+    #[cfg(not(feature = "git"))]
+    let view = false;
+    if !view {
+        editor(scene, st, ui, lay, &c, scroll);
+        #[cfg(feature = "git")]
+        crate::git::draw_decorations(scene, st, ui, lay, &c, scroll);
+        crate::minimap::draw(scene, st, ui, lay, &c, scroll);
+    }
+    #[cfg(feature = "git")]
+    {
+        ui.focused = focused_before;
+    }
     #[cfg(feature = "terminal")]
     {
         ui.focused = window_focused;
@@ -148,6 +167,8 @@ pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: 
     }
     status(scene, st, ui, lay, &c);
     cmdline(scene, &st.ed, st, lay, &c);
+    #[cfg(feature = "git")]
+    crate::git::draw_overlays(scene, st, lay, &c);
     crate::settings::draw(scene, st, lay, &c);
     if st.ed.picker.is_some() {
         picker(scene, &st.ed, ui, lay, &c);

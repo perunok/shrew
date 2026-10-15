@@ -87,6 +87,11 @@ Every shot is the real editor, rendered headless from shrew's own source code. R
   scrollback, vim, htop and less work, a vim-style normal mode to search and copy, and Ctrl+click on
   `src/main.rs:12:5` in the output opens it. Nothing runs until you open one. See
   **[docs/KEYBINDINGS.md](docs/KEYBINDINGS.md#terminal)**.
+- **Git.** Ctrl+Shift+G opens Source Control in the sidebar: stage, unstage and discard files, write the commit
+  message (Ctrl+Enter commits), switch, create and delete branches, stash, fetch, pull and push with progress and
+  cancel. The log tab draws the commit graph and loads as you scroll, blame shows who changed each line, and merge
+  conflicts get *Accept Current / Incoming / Both* on each one. Reads run inside shrew (gix, pure Rust); writes run
+  the `git` program, so your hooks and credentials just work. See [KEYBINDINGS.md](docs/KEYBINDINGS.md#git).
 - **Updates itself.** shrew checks GitHub Releases once a day and shows an update button in the status bar. The
   download is verified against its sha256 before it replaces the binary.
 - **Pure Rust.** It builds with `cargo` alone: no C compiler, no system `-dev` packages. GPU drivers, Wayland and
@@ -140,6 +145,7 @@ the table below for your build and config.
 | `minimap` | Sublime-style minimap at the right of the editor: click or drag to scroll (see `[minimap]`) | on | |
 | `terminal` | Built-in terminal panel (Ctrl+\`), started on first use (see `[terminal]`) | on | `terminal` |
 | `settings` | Settings panel (Ctrl+,, `:settings`) and the gear in the status bar | on | |
+| `git_panel` | Source Control (Ctrl+Shift+G): stage, commit, branches, stashes, fetch / pull / push, the log and its graph, blame, merge conflicts | on | `git` |
 
 Keys also work without the underscore (`:set nolinenumbers`). The usual vim spellings work too: `:set nu`, `rnu`,
 `hls`, `list`, `et`, `ts=2`, `so=8`.
@@ -154,7 +160,7 @@ mcp = true
 ```
 
 **Compile-time.** The `shrew` package's (the `srw` binary's) default cargo features are `syntax`, `picker`,
-`clipboard`, `mcp`, `update`, `embed-font`, `project` and `terminal`. A minimal build:
+`clipboard`, `mcp`, `update`, `embed-font`, `project`, `terminal` and `git`. A minimal build:
 
 ```sh
 cargo build --release -p shrew --no-default-features                     # just the editor
@@ -232,6 +238,7 @@ Ctrl+Z, Ctrl+C/X/V, Ctrl+F, Ctrl+D.
 | Show the file tree, find in project | Ctrl+B (Ctrl+Shift+E to give it the keys), Ctrl+Shift+F |
 | Go to symbol, in the project | Ctrl+R (`@` in Ctrl+P), Ctrl+Shift+R |
 | Open a terminal | Ctrl+\` |
+| Source Control (git) | Ctrl+Shift+G |
 | Settings | Ctrl+, (or the gear) |
 | The menus | F10, Alt+F |
 | Edit your config | palette: *Shrew: Open Config File* (`:config`) |

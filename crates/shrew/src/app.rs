@@ -380,6 +380,8 @@ impl ApplicationHandler<UserEvent> for App {
                 }
                 #[cfg(feature = "terminal")]
                 self.st.terminal_window_focus(f);
+                #[cfg(feature = "git")]
+                crate::git::window_focus(&mut self.st, f);
                 self.blink_epoch = Instant::now();
                 self.redraw();
             }
@@ -616,6 +618,8 @@ impl App {
         let allowed = typing || ed.prompt.is_some() || ed.picker.is_some();
         #[cfg(feature = "terminal")]
         let allowed = allowed || self.st.terminals.has_focus();
+        #[cfg(feature = "git")]
+        let allowed = allowed || crate::git::typing(&self.st);
         if allowed != self.ime_allowed
             && let Some(w) = &self.window
         {
@@ -686,6 +690,11 @@ impl App {
         match (state, button) {
             (ElementState::Pressed, MouseButton::Left) => self.left_press(x, y, now),
             (ElementState::Pressed, MouseButton::Right) => {
+                // ----- git ----- the Source Control panel's context menu
+                #[cfg(feature = "git")]
+                if crate::git::right_press(&mut self.st, x, y) {
+                    return self.input(now);
+                }
                 if crate::titlebar::right_press(&mut self.st, &self.ui.hits, x, y) {
                     self.input(now);
                 }
@@ -777,6 +786,13 @@ impl App {
             self.st.after_input();
             return self.input(now);
         }
+        // ----- git ----- its toast, the panel and its tabs, a log tab, blame and conflict actions
+        #[cfg(feature = "git")]
+        if crate::git::press(&mut self.st, x, y) {
+            self.st.after_input();
+            return self.input(now);
+        }
+        let hits = &self.ui.hits;
         if hits.gear.is_some_and(|r| r.contains(x, y)) {
             self.st.ed.run(shrew_core::Command::Settings);
             self.st.after_input();
@@ -882,14 +898,18 @@ impl App {
         let (redraw, bar_icon) =
             crate::titlebar::pointer_moved(&mut self.st, &self.ui.hits, &lay, self.window.as_deref(), x, y);
         let map = crate::minimap::hover(&mut self.ui, &lay, Some((x, y)));
-        if redraw || map {
+        #[cfg(feature = "git")]
+        let (git_redraw, on_git) = crate::git::hover(&mut self.st, x, y);
+        #[cfg(not(feature = "git"))]
+        let (git_redraw, on_git) = (false, false);
+        if redraw || map || git_redraw {
             self.redraw();
         }
         let on_edge = self.st.ed.picker.is_none() && self.ui.hits.sidebar.edge.is_some_and(|r| r.contains(x, y));
         let on_link = self.st.ed.about.is_some() && self.ui.hits.about_links.iter().any(|(r, _)| r.contains(x, y));
         let icon = if let Some(icon) = bar_icon {
             icon
-        } else if on_link {
+        } else if on_link || on_git {
             CursorIcon::Pointer
         } else if on_edge || self.drag == Drag::Sidebar {
             CursorIcon::ColResize
@@ -1007,6 +1027,11 @@ impl App {
             MouseScrollDelta::LineDelta(_, y) => -y * WHEEL_LINES,
             MouseScrollDelta::PixelDelta(d) => -(d.y as f32) / lay.ch,
         };
+        #[cfg(feature = "git")]
+        if crate::git::wheel(&mut self.st, px, py, lines) {
+            self.redraw();
+            return;
+        }
         if crate::sidebar::wheel(&mut self.st, &self.ui.hits.sidebar, px, py, lines) {
             self.redraw();
             return;

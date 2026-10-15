@@ -131,6 +131,39 @@ static MENUS: &[(&str, char, &[&str])] = &[
             "jump_forward|Forward",
         ],
     ),
+    // ----- git: panel -----
+    (
+        "Git",
+        'i',
+        &[
+            "git_panel|Source Control",
+            "-",
+            "git_commit|Commit",
+            "git_amend|Amend Last Commit",
+            "git_stage_all|Stage All Changes",
+            "git_unstage_all|Unstage All",
+            "-",
+            "git_branches|Checkout Branch…",
+            "git_new_branch|New Branch…",
+            "git_stash|Stash Changes…",
+            "git_stashes|Stashes…",
+            "-",
+            "git_fetch|Fetch",
+            "git_pull|Pull",
+            "git_push|Push",
+            "-",
+            "git_log|Log",
+            "git_log_all|Log of All Branches",
+            "git_file_history|File History",
+            "git_blame|Blame",
+            "git_changed_files|Changed Files…",
+            "-",
+            "git_next_conflict|Next Conflict",
+            "git_prev_conflict|Previous Conflict",
+            "git_mark_resolved|Mark Resolved",
+            "git_abort|Abort Merge or Rebase",
+        ],
+    ),
     (
         "Terminal",
         't',
@@ -437,6 +470,8 @@ pub fn build(ed: &Editor) -> Vec<Menu> {
         .iter()
         .map(|&(title, mnemonic, names)| Menu { title, mnemonic, entries: entries_of(ed, names) })
         .filter(|m| !m.entries.is_empty())
+        // ----- git: panel ----- not in a build without git
+        .filter(|m| m.title != "Git" || ed.features.available(Feature::GitPanel))
         .collect()
 }
 

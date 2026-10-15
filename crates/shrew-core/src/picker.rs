@@ -38,6 +38,10 @@ pub enum Choice {
     /// A branch, tag or commit to compare (picked twice: the old side, then the new one).
     GitRef,
     // -----
+    // ----- git: panel (the app's git module fills and answers these; no preview) -----
+    GitBranches,
+    GitStashes,
+    GitChanges,
 }
 
 impl Choice {
@@ -49,7 +53,15 @@ impl Choice {
             Choice::Font => "fonts",
             Choice::GitCommit => "commits",
             Choice::GitRef => "refs",
+            Choice::GitBranches => "branches",
+            Choice::GitStashes => "stashes",
+            Choice::GitChanges => "changed files",
         }
+    }
+
+    /// A list of the git panel's (branches, stashes, changed files), not a setting.
+    pub fn is_git(self) -> bool {
+        matches!(self, Choice::GitBranches | Choice::GitStashes | Choice::GitChanges)
     }
 }
 

@@ -861,6 +861,8 @@ impl Editor {
             // ----- git: gutter (Sublime's Next Modification; Ctrl+, is Settings, so back is Ctrl+Shift+.) -----
             ('.', false) => GitNextHunk,
             ('.', true) => GitPrevHunk,
+            // ----- git: panel -----
+            ('g', true) => GitPanel,
             _ => return None,
         })
     }
@@ -1122,6 +1124,15 @@ impl Editor {
             GitDiffFile | GitDiffFileHead | GitDiffAll | GitDiffStaged | GitDiffCommit | GitDiffCompare
             | GitDiffToggleLayout => self.git(cmd, None),
             // -----
+            // ----- git: panel -----
+            GitNextConflict | GitPrevConflict | GitConflictOurs | GitConflictTheirs | GitConflictBoth => {
+                self.conflict_command(cmd)
+            }
+            GitPanel | GitRefresh | GitCommit | GitAmend | GitStage | GitUnstage | GitDiscard | GitStageAll
+            | GitUnstageAll | GitOpenChange | GitOpenFile | GitBranches | GitNewBranch | GitStash | GitStashes
+            | GitFetch | GitPull | GitPullRebase | GitPush | GitCancel | GitOutput | GitLog | GitLogAll
+            | GitFileHistory | GitBlame | GitChangedFiles | GitConflictCompare | GitMarkResolved | GitAbort
+            | GitContinue => self.git_panel(cmd),
         }
     }
 

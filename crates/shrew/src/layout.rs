@@ -174,6 +174,9 @@ pub fn compute(r: &shrew_render::Renderer, st: &crate::state::State) -> Layout {
     // the panel spans the editor's whole width, so it goes before the minimap (which then fits the shorter text)
     #[cfg(feature = "terminal")]
     let lay = crate::terminal::carve(lay, &st.terminals);
+    // ----- git ----- the blame column, left of the text
+    #[cfg(feature = "git")]
+    let lay = crate::git::carve(lay, st);
     lay.with_minimap(crate::minimap::width(st))
 }
 

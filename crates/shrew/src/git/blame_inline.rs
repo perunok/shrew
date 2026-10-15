@@ -157,7 +157,7 @@ pub fn sync(st: &mut State, now: Instant) {
         return;
     };
     // untracked and ignored files have nothing to blame
-    let untracked = st.git.status.get(&repo).and_then(|s| s.get(&rel)).is_some_and(|e| e.untracked || e.ignored);
+    let untracked = st.git.statuses.get(&repo).and_then(|s| s.get(&rel)).is_some_and(|e| e.untracked || e.ignored);
     if untracked {
         st.git.blame.rest = None;
         return;

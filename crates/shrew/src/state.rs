@@ -99,8 +99,8 @@ pub struct State {
     /// `[mcp] port` from config.toml, when set: the MCP server listens there.
     pub mcp_port: Option<u16>,
     // ----- git -----
-    /// Git: the service, repositories, markers, blame, status and diff views (nothing runs until a file is
-    /// looked up or a git command runs).
+    /// Git: the service, repositories, markers, blame, status, diff views, the Source Control panel, log and blame
+    /// column (nothing runs until a file is looked up or a git command runs).
     #[cfg(feature = "git")]
     pub git: crate::git::Git,
 }
@@ -163,6 +163,8 @@ impl State {
             mcp_port: loaded.config.mcp_port,
         };
         st.titlebar.configure(&loaded.config.titlebar);
+        #[cfg(feature = "git")]
+        crate::git::default_mappings(&mut st.ed);
         #[cfg(feature = "syntax")]
         {
             st.ed.symbols = Some(crate::symbols::provider(st.wake.clone()));
@@ -249,12 +251,16 @@ impl State {
         if self.terminal_text(s) {
             return;
         }
-        // ----- git: nothing types into a diff tab; its keys come as keys -----
+        // ----- git: the commit box or the git prompt; nothing types into a diff tab, its keys come as keys -----
         #[cfg(feature = "git")]
-        if crate::git::diffview::is_active(self) && self.ed.prompt.is_none() && self.ed.picker.is_none() {
-            return s.chars().for_each(|c| self.key(KeyPress::ch(c)));
+        {
+            if crate::git::text(self, s) {
+                return self.after_input();
+            }
+            if crate::git::diffview::is_active(self) && self.ed.prompt.is_none() && self.ed.picker.is_none() {
+                return s.chars().for_each(|c| self.key(KeyPress::ch(c)));
+            }
         }
-        // -----
         if self.ed.mapping_pending() {
             self.ed.flush_pending_mappings();
         }
@@ -312,6 +318,9 @@ impl State {
                 self.set_font_size(size);
             }
             Event::FontReset => self.set_font_size(shrew_config::DEFAULT_FONT_SIZE),
+            // ----- git: the Source Control panel's lists (branches, stashes, changed files) -----
+            #[cfg(feature = "git")]
+            Event::Choose(c, v) if c.is_git() => crate::git::choose(self, c, v),
             Event::OpenChoice(c) => self.open_choice(c),
             Event::Choose(c, v) => self.choose(c, v),
             Event::ThemeImport(p) => self.import_theme(&p),
@@ -381,7 +390,9 @@ impl State {
             Feature::Settings if !on => self.settings.close(),
             // ----- git -----
             #[cfg(feature = "git")]
-            Feature::GitGutter | Feature::GitBlameInline | Feature::GitStatus => crate::git::feature_changed(self, f),
+            Feature::GitGutter | Feature::GitBlameInline | Feature::GitStatus | Feature::GitPanel => {
+                crate::git::feature_changed(self, f)
+            }
             _ => {}
         }
     }
@@ -868,6 +879,7 @@ fn mark_unavailable(ed: &mut Editor) {
         f.set_unavailable(Feature::GitGutter);
         f.set_unavailable(Feature::GitBlameInline);
         f.set_unavailable(Feature::GitStatus);
+        f.set_unavailable(Feature::GitPanel);
     }
 }
 

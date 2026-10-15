@@ -106,7 +106,7 @@ README has [the full table with defaults](../README.md#features). The keys are:
 `indent_guides`, `whitespace`, `search_highlight`, `word_highlight`, `smooth_scroll`, `cursor_animation`, `picker`,
 `palette`, `clipboard`, `mcp`, `update_check`, `vimrc`, `sublime_import`, `custom_titlebar`, `sidebar`,
 `compact_folders`, `project_search`, `symbols`, `recent`, `minimap`, `terminal`, `settings`, `git_gutter`,
-`git_blame_inline`, `git_status`.
+`git_blame_inline`, `git_status`, `git_panel`.
 
 ```toml
 [features]

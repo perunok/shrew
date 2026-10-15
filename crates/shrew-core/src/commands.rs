@@ -115,9 +115,84 @@ pub enum Command {
     GitDiffCompare,
     GitDiffToggleLayout,
     // -----
+    // ----- git: panel (the app's `git` module; see `Editor::git`) -----
+    GitPanel,
+    GitRefresh,
+    GitCommit,
+    GitAmend,
+    GitStage,
+    GitUnstage,
+    GitDiscard,
+    GitStageAll,
+    GitUnstageAll,
+    GitOpenChange,
+    GitOpenFile,
+    GitBranches,
+    GitNewBranch,
+    GitStash,
+    GitStashes,
+    GitFetch,
+    GitPull,
+    GitPullRebase,
+    GitPush,
+    GitCancel,
+    GitOutput,
+    GitLog,
+    GitLogAll,
+    GitFileHistory,
+    GitBlame,
+    GitChangedFiles,
+    GitNextConflict,
+    GitPrevConflict,
+    GitConflictOurs,
+    GitConflictTheirs,
+    GitConflictBoth,
+    GitConflictCompare,
+    GitMarkResolved,
+    GitAbort,
+    GitContinue,
 }
 
 use Command::*;
+
+/// The commands of the git panel, conflicts included (the app carries out all but the conflict ones).
+pub static GIT_PANEL: &[Command] = &[
+    GitPanel,
+    GitRefresh,
+    GitCommit,
+    GitAmend,
+    GitStage,
+    GitUnstage,
+    GitDiscard,
+    GitStageAll,
+    GitUnstageAll,
+    GitOpenChange,
+    GitOpenFile,
+    GitBranches,
+    GitNewBranch,
+    GitStash,
+    GitStashes,
+    GitFetch,
+    GitPull,
+    GitPullRebase,
+    GitPush,
+    GitCancel,
+    GitOutput,
+    GitLog,
+    GitLogAll,
+    GitFileHistory,
+    GitBlame,
+    GitChangedFiles,
+    GitNextConflict,
+    GitPrevConflict,
+    GitConflictOurs,
+    GitConflictTheirs,
+    GitConflictBoth,
+    GitConflictCompare,
+    GitMarkResolved,
+    GitAbort,
+    GitContinue,
+];
 
 /// (command, name used by `:` and keymaps, palette title)
 pub static COMMANDS: &[(Command, &str, &str)] = &[
@@ -231,9 +306,50 @@ pub static COMMANDS: &[(Command, &str, &str)] = &[
     (GitDiffCompare, "git_diff_compare", "Git: Compare Branches or Commits…"),
     (GitDiffToggleLayout, "git_diff_layout", "Git: Toggle Diff Layout (Split / Unified)"),
     // -----
+    // ----- git: panel -----
+    (GitPanel, "git_panel", "Git: Show Source Control"),
+    (GitRefresh, "git_refresh", "Git: Refresh"),
+    (GitCommit, "git_commit", "Git: Commit"),
+    (GitAmend, "git_amend", "Git: Commit (Amend)"),
+    (GitStage, "git_stage", "Git: Stage File"),
+    (GitUnstage, "git_unstage", "Git: Unstage File"),
+    (GitDiscard, "git_discard", "Git: Discard Changes…"),
+    (GitStageAll, "git_stage_all", "Git: Stage All Changes"),
+    (GitUnstageAll, "git_unstage_all", "Git: Unstage All Changes"),
+    (GitOpenChange, "git_open_change", "Git: Open Change"),
+    (GitOpenFile, "git_open_file", "Git: Open File"),
+    (GitBranches, "git_branches", "Git: Checkout Branch…"),
+    (GitNewBranch, "git_new_branch", "Git: Create Branch…"),
+    (GitStash, "git_stash", "Git: Stash Changes…"),
+    (GitStashes, "git_stashes", "Git: Stashes…"),
+    (GitFetch, "git_fetch", "Git: Fetch"),
+    (GitPull, "git_pull", "Git: Pull"),
+    (GitPullRebase, "git_pull_rebase", "Git: Pull (Rebase)"),
+    (GitPush, "git_push", "Git: Push"),
+    (GitCancel, "git_cancel", "Git: Cancel Running Operation"),
+    (GitOutput, "git_output", "Git: Show Output"),
+    (GitLog, "git_log", "Git: Log"),
+    (GitLogAll, "git_log_all", "Git: Log of All Branches"),
+    (GitFileHistory, "git_file_history", "Git: File History"),
+    (GitBlame, "git_blame", "Git: Toggle Blame Column"),
+    (GitChangedFiles, "git_changed_files", "Git: Changed Files…"),
+    (GitNextConflict, "git_next_conflict", "Git: Next Conflict"),
+    (GitPrevConflict, "git_prev_conflict", "Git: Previous Conflict"),
+    (GitConflictOurs, "git_conflict_ours", "Git: Accept Current Change"),
+    (GitConflictTheirs, "git_conflict_theirs", "Git: Accept Incoming Change"),
+    (GitConflictBoth, "git_conflict_both", "Git: Accept Both Changes"),
+    (GitConflictCompare, "git_conflict_compare", "Git: Compare Conflict Sides"),
+    (GitMarkResolved, "git_mark_resolved", "Git: Mark Resolved (Stage File)"),
+    (GitAbort, "git_abort", "Git: Abort Merge or Rebase"),
+    (GitContinue, "git_continue", "Git: Continue Merge or Rebase"),
 ];
 
 impl Command {
+    /// One of the Source Control commands (`git_*`, feature `git_panel`).
+    pub fn is_git_panel(self) -> bool {
+        GIT_PANEL.contains(&self)
+    }
+
     pub fn name(self) -> &'static str {
         COMMANDS.iter().find(|c| c.0 == self).map(|c| c.1).unwrap_or("?")
     }

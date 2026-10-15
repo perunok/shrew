@@ -7,17 +7,32 @@
 //! - [`blame_inline`]: who last changed the cursor line, at its end after a pause (feature `git_blame_inline`).
 //! - [`status_ui`]: the branch in the status bar and title bar, file states in the sidebar (feature `git_status`).
 //! - [`diffview`]: the diff tab (file, staged, unstaged, commit and branch diffs; split or unified).
+//! - [`scm`]: Source Control (feature `git_panel`): the [`panel`], [`pickers`] for branches, stashes and changed
+//!   files, [`ops`] with progress and cancel, the [`log`] tab with its graph, the [`blame_view`] column and
+//!   [`conflict`] regions, with the git prompt ([`ask`]) and text fields ([`textbox`]).
 //!
 //! Cost: nothing starts before the first file or project is looked up (one idle thread then), and nothing more
-//! runs for files outside a repository. The service watches the repositories in use only while the window has the
-//! focus, and the UI thread never waits on it: replies arrive through the wake callback and [`poll`].
+//! runs for files outside a repository. The service watches the repositories in use (open files, the sidebar's
+//! project, diff tabs, the Source Control repository) only while the window has the focus, and the UI thread never
+//! waits on it: replies arrive through the wake callback and [`poll`], and every part ignores tickets not its own.
 
+pub mod ask;
 pub mod blame_inline;
+pub mod blame_view;
+pub mod conflict;
 pub mod diffview;
 pub mod gutter;
+pub mod log;
+pub mod ops;
+pub mod panel;
+pub mod pickers;
+pub mod scm;
 pub mod status_ui;
 #[cfg(test)]
 mod tests;
+pub mod textbox;
+
+pub use scm::*;
 
 use crate::state::{State, Waker};
 use shrew_core::features::Feature;
@@ -79,7 +94,7 @@ pub struct Git {
     asking: HashSet<PathBuf>,
     pub repos: HashMap<PathBuf, RepoInfo>,
     /// The latest status of each repository in use (the service sends a new one whenever it changes).
-    pub status: HashMap<PathBuf, Arc<Status>>,
+    pub statuses: HashMap<PathBuf, Arc<Status>>,
     watching: HashSet<PathBuf>,
     /// File -> where it is, once its folder is known.
     files: HashMap<PathBuf, Place>,
@@ -89,6 +104,15 @@ pub struct Git {
     pub blame: blame_inline::InlineBlame,
     pub status_ui: status_ui::StatusUi,
     pub diff: diffview::Views,
+    // ----- Source Control -----
+    pub scm: scm::Scm,
+    pub panel: panel::Panel,
+    pub ask: Option<ask::Ask>,
+    pub ops: ops::Ops,
+    pub views: log::Views,
+    pub blame_view: blame_view::Blames,
+    pub conflicts: conflict::Conflicts,
+    // -----
     /// `[git] gutter_base = "head"`.
     pub head_base: bool,
     pub blame_delay: Duration,
@@ -101,7 +125,7 @@ impl Git {
             dirs: HashMap::new(),
             asking: HashSet::new(),
             repos: HashMap::new(),
-            status: HashMap::new(),
+            statuses: HashMap::new(),
             watching: HashSet::new(),
             files: HashMap::new(),
             dirty: HashMap::new(),
@@ -109,6 +133,13 @@ impl Git {
             blame: Default::default(),
             status_ui: Default::default(),
             diff: Default::default(),
+            scm: Default::default(),
+            panel: Default::default(),
+            ask: None,
+            ops: Default::default(),
+            views: Default::default(),
+            blame_view: Default::default(),
+            conflicts: Default::default(),
             head_base: false,
             blame_delay: Duration::ZERO,
         };
@@ -168,6 +199,17 @@ impl Git {
         None
     }
 
+    /// What discovery said about `dir` (`None` while unknown); no request.
+    pub fn known(&self, dir: &Path) -> Option<Option<RepoInfo>> {
+        self.dirs.get(dir).map(|w| w.as_ref().and_then(|w| self.repos.get(w).cloned()))
+    }
+
+    /// What discovery says about `dir`, asking the service the first time (`None` until it answers).
+    pub fn dir_info(&mut self, dir: &Path) -> Option<Option<RepoInfo>> {
+        self.dir_repo(dir)?;
+        self.known(dir)
+    }
+
     /// Starts watching `repo` (its status comes now and whenever it changes).
     pub fn watch(&mut self, repo: &Path) {
         if self.watching.insert(repo.to_path_buf()) {
@@ -181,7 +223,7 @@ impl Git {
         let gone: Vec<PathBuf> = self.watching.iter().filter(|r| !used.contains(*r)).cloned().collect();
         for r in gone {
             self.watching.remove(&r);
-            self.status.remove(&r);
+            self.statuses.remove(&r);
             if let Some(s) = &self.link.service {
                 s.unwatch(&r);
             }
@@ -189,7 +231,7 @@ impl Git {
     }
 
     pub fn status_of(&self, repo: &Path) -> Option<&Arc<Status>> {
-        self.status.get(repo)
+        self.statuses.get(repo)
     }
 
     /// Where `file` is, if it was looked up already (no request).
@@ -219,55 +261,66 @@ pub fn any_on(st: &State) -> bool {
     f.on(Feature::GitGutter) || f.on(Feature::GitBlameInline) || f.on(Feature::GitStatus)
 }
 
-/// After input, a wake or a timer: looks up what the screen shows and asks for what is missing or stale.
+/// After input, a wake or a timer: looks up what the screen shows, asks for what is missing or stale, and keeps
+/// the repositories in use watched (and only those).
 pub fn sync(st: &mut State) {
-    if !any_on(st) {
+    let markers = any_on(st);
+    if !markers {
         if !st.ed.git_hunks.is_empty() {
             st.ed.git_hunks.clear();
         }
         st.git.gutter.peek = None;
-        return;
     }
     let now = Instant::now();
     let mut used = HashSet::new();
-    // saves: the status changed (the service also notices within its poll interval, this is at once)
     let mut saved = Vec::new();
-    for b in &st.ed.buffers {
-        let was = st.git.dirty.insert(b.id, b.doc.dirty);
-        if was == Some(true) && !b.doc.dirty {
-            saved.push(b.id);
-        }
-    }
-    st.git.dirty.retain(|id, _| st.ed.buffers.iter().any(|b| b.id == *id));
-    // every open file's repository stays watched
-    let files: Vec<(u64, PathBuf)> =
-        st.ed.buffers.iter().filter_map(|b| b.doc.path.clone().map(|p| (b.id, p))).collect();
-    for (id, path) in &files {
-        if let Place::In { repo, .. } = st.git.place(path) {
-            if saved.contains(id)
-                && let Some(s) = &st.git.link.service
-            {
-                s.refresh(&repo);
+    if markers {
+        // saves: the status changed (the service also notices within its poll interval, this is at once)
+        for b in &st.ed.buffers {
+            let was = st.git.dirty.insert(b.id, b.doc.dirty);
+            if was == Some(true) && !b.doc.dirty {
+                saved.push(b.id);
             }
+        }
+        st.git.dirty.retain(|id, _| st.ed.buffers.iter().any(|b| b.id == *id));
+        // every open file's repository stays watched
+        let files: Vec<(u64, PathBuf)> =
+            st.ed.buffers.iter().filter_map(|b| b.doc.path.clone().map(|p| (b.id, p))).collect();
+        for (id, path) in &files {
+            if let Place::In { repo, .. } = st.git.place(path) {
+                if saved.contains(id)
+                    && let Some(s) = &st.git.link.service
+                {
+                    s.refresh(&repo);
+                }
+                used.insert(repo);
+            }
+        }
+        // the sidebar's project
+        if st.ed.features.on(Feature::GitStatus)
+            && st.ed.sidebar_on()
+            && let Some(root) = st.ed.tree.as_ref().map(|t| t.root.clone())
+            && let Some(Some(repo)) = st.git.dir_repo(&root)
+        {
             used.insert(repo);
         }
     }
-    // the sidebar's project
-    if st.ed.features.on(Feature::GitStatus)
-        && st.ed.sidebar_on()
-        && let Some(root) = st.ed.tree.as_ref().map(|t| t.root.clone())
-        && let Some(Some(repo)) = st.git.dir_repo(&root)
-    {
-        used.insert(repo);
-    }
-    // and every diff tab's
+    // every diff tab's, and the Source Control repository once its status was asked for
     used.extend(diffview::repos(st));
+    if scm::on(&st.ed)
+        && let Some(r) = st.git.workdir()
+        && st.git.watching.contains(r)
+    {
+        used.insert(r.to_path_buf());
+    }
     for r in &used {
         st.git.watch(r);
     }
     st.git.unwatch_except(&used);
-    gutter::sync(st, now, &saved);
-    blame_inline::sync(st, now);
+    if markers {
+        gutter::sync(st, now, &saved);
+        blame_inline::sync(st, now);
+    }
 }
 
 /// Takes the service's replies (on a wake). True when something on screen may have changed.
@@ -276,29 +329,33 @@ pub fn poll(st: &mut State) -> bool {
         Some(s) => s.poll(),
         None => Vec::new(),
     };
-    let mut changed = false;
+    let mut changed = !events.is_empty();
     for ev in events {
         diffview::event(st, &ev);
+        // Source Control never needs the line diffs, which can be big
+        if !matches!(ev.reply, Reply::Gutter(_) | Reply::FileDiff(_) | Reply::TreeDiff(_) | Reply::Discovered { .. }) {
+            scm::event(st, ev.clone());
+        }
         let repo = ev.repo.clone();
-        changed |= !matches!(ev.reply, Reply::Progress(_));
         match ev.reply {
             Reply::Discovered { path, repo } => {
                 st.git.asking.remove(&path);
                 let workdir = repo.as_ref().map(|r| r.workdir.clone());
-                if let Some(info) = repo {
-                    st.git.repos.insert(info.workdir.clone(), info);
+                if let Some(info) = &repo {
+                    st.git.repos.insert(info.workdir.clone(), info.clone());
                 }
-                st.git.dirs.insert(path, workdir);
+                st.git.dirs.insert(path.clone(), workdir);
+                scm::discovered(st, path, repo);
             }
             Reply::Status(Ok(s)) => {
                 if let Some(r) = repo
                     && st.git.watching.contains(&r)
                 {
-                    st.git.status.insert(r, s);
+                    st.git.statuses.insert(r, s);
                     st.git.status_ui.invalidate();
                 }
             }
-            Reply::Status(Err(e)) => log::debug!("git status: {e}"),
+            Reply::Status(Err(e)) => ::log::debug!("git status: {e}"),
             Reply::Changed(c) => {
                 if let Some(r) = repo {
                     if c.index || c.head {
@@ -345,11 +402,10 @@ pub fn deadline(st: &State) -> Option<Instant> {
 /// Work in flight or timers pending (`--screenshot` waits for them).
 pub fn busy(st: &State) -> bool {
     let markers = any_on(st)
-        && (!st.git.asking.is_empty()
-            || st.git.gutter.busy()
+        && (st.git.gutter.busy()
             || st.git.blame.busy()
-            || st.git.watching.iter().any(|r| !st.git.status.contains_key(r)));
-    markers || diffview::busy(st)
+            || st.git.watching.iter().any(|r| !st.git.statuses.contains_key(r)));
+    !st.git.asking.is_empty() || markers || diffview::busy(st) || st.git.scm_busy()
 }
 
 /// `--keys`: waits (a few seconds at most) until discovery, the markers and hunk commands are done, so the next
@@ -368,11 +424,12 @@ pub fn command(st: &mut State, cmd: Command, arg: Option<String>) {
     match cmd {
         GitDiffFile | GitDiffFileHead | GitDiffAll | GitDiffStaged | GitDiffCommit | GitDiffCompare
         | GitDiffToggleLayout => diffview::command(st, cmd, arg),
-        _ => gutter::command(st, cmd),
+        GitPreviewHunk | GitStageHunk | GitUnstageHunk | GitRevertHunk | GitGutterBase => gutter::command(st, cmd),
+        _ => scm::panel_command(st, cmd),
     }
 }
 
-/// A git list (commits, refs) to open (`value: None`) or a row picked in it.
+/// A diff view list (commits, refs) to open (`value: None`) or a row picked in it.
 pub fn choice(st: &mut State, choice: Choice, value: Option<String>) {
     diffview::choice(st, choice, value);
 }
@@ -384,8 +441,10 @@ pub fn focus(st: &mut State, focused: bool) {
     diffview::focus(st, focused);
 }
 
-/// After every key, click or event: markers, blame and status follow the buffers, and so do diff views.
+/// After every key, click or event: Source Control follows the active file's repository, markers, blame and
+/// status follow the buffers, and so do diff views.
 pub fn after_input(st: &mut State) {
+    scm::panel_after_input(st);
     sync(st);
     diffview::after_input(st);
 }
@@ -393,6 +452,7 @@ pub fn after_input(st: &mut State) {
 /// A feature was switched: what it showed goes away at once, or comes back on the next sync.
 pub fn feature_changed(st: &mut State, f: Feature) {
     match f {
+        Feature::GitPanel => scm::panel_feature_changed(st),
         Feature::GitGutter if !st.ed.features.on(f) => {
             st.ed.git_hunks.clear();
             st.git.gutter.clear();
@@ -403,14 +463,15 @@ pub fn feature_changed(st: &mut State, f: Feature) {
     sync(st);
 }
 
-/// A key the git parts take before the editor: Esc closes the hunk peek, a diff tab takes the keys the editor
-/// would (not while a title bar `menu` is open). True when taken.
+/// A key the git parts take before the editor: the git prompt, the git pickers' own keys, the focused Source
+/// Control panel, a log tab, Enter on the blame column, Esc closing the hunk peek, and a diff tab's keys (not while a
+/// title bar `menu` is open). True when taken.
 pub fn key(st: &mut State, k: KeyPress, menu: bool) -> bool {
-    gutter::key(st, k) || (!menu && diffview::key(st, k))
+    scm::panel_key(st, k) || gutter::key(st, k) || (!menu && diffview::key(st, k))
 }
 
-/// A left click: the peek's buttons, a gutter marker, the status bar's branch. True when taken.
-pub fn press(
+/// A left click over the text: the peek's buttons, a gutter marker, the status bar's branch. True when taken.
+pub fn press_text(
     st: &mut State,
     hits: &Hits,
     lay: &crate::layout::Layout,

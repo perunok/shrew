@@ -41,6 +41,8 @@ pub enum Feature {
     GitGutter,
     GitBlameInline,
     GitStatus,
+    // ----- git: panel -----
+    GitPanel,
 }
 
 pub struct FeatureInfo {
@@ -132,6 +134,13 @@ pub static FEATURES: &[FeatureInfo] = &[
         "git_status",
         true,
         "Git: the branch in the status bar and title bar, file states in the sidebar (M, A, ?, U, !)",
+    ),
+    // ----- git: panel -----
+    f(
+        Feature::GitPanel,
+        "git_panel",
+        true,
+        "Source Control (Ctrl+Shift+G): changes, commit, branches, stashes, log, blame and merge conflicts",
     ),
 ];
 

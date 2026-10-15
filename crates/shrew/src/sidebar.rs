@@ -25,7 +25,12 @@ pub struct Hits {
 
 /// The sidebar's width in pixels for this window (0 when it is off).
 pub fn width(st: &State, window_w: f32, scale: f32) -> f32 {
-    if !st.ed.sidebar_on() {
+    // ----- git: panel ----- Ctrl+Shift+G shows the Git tab even with the sidebar off
+    #[cfg(feature = "git")]
+    let git = crate::git::panel::draw::alone(st);
+    #[cfg(not(feature = "git"))]
+    let git = false;
+    if !st.ed.sidebar_on() && !git {
         return 0.0;
     }
     (st.sidebar_width.clamp(MIN_WIDTH, MAX_WIDTH) * scale).min(window_w * 0.6).round()
@@ -44,6 +49,12 @@ pub fn draw(scene: &mut Scene, st: &mut State, hits: &mut Hits, lay: &Layout, c:
     hits.edge = Some(Rect::new(area.right() - (3.0 * scale).round(), area.y, (6.0 * scale).round(), area.h));
     let inner = Rect::new(area.x, area.y, area.w - border, area.h);
     scene.push_clip(inner);
+    // ----- git: panel ----- the Files | Git tabs in the header; the Git tab draws instead of the tree
+    #[cfg(feature = "git")]
+    if crate::git::panel::draw::sidebar(scene, st, lay, c) {
+        scene.pop_clip();
+        return;
+    }
     let focused = st.ed.sidebar_focus;
     let active = st.ed.buf().doc.path.clone();
     let x0 = area.x + 3.0 * pad;

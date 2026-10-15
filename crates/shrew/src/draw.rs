@@ -127,6 +127,8 @@ pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: 
     scene.background(c.background);
     ui.hits = Hits::default();
     ui.cursor_rect = None;
+    #[cfg(feature = "git")]
+    crate::git::begin_frame(st);
 
     if !crate::titlebar::draw(scene, st, ui, lay, &c) {
         tabs(scene, st, ui, lay, &c);
@@ -139,21 +141,32 @@ pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: 
     {
         ui.focused = window_focused && !st.terminals.has_focus();
     }
-    // ----- git: a diff tab draws in the editor's place -----
+    // ----- git: a diff or log tab draws in the editor's place; while the Source Control panel or the git prompt
+    // has the keys, the text looks unfocused -----
     #[cfg(feature = "git")]
-    let diff = crate::git::diffview::is_active(st);
-    #[cfg(not(feature = "git"))]
-    let diff = false;
-    if diff {
-        #[cfg(feature = "git")]
-        {
+    let focused_before = ui.focused;
+    #[cfg(feature = "git")]
+    let view = {
+        ui.focused = ui.focused && !crate::git::has_focus(st);
+        if crate::git::diffview::is_active(st) {
             animating |= crate::git::diffview::draw(scene, st, ui, lay, &c, now);
+            true
+        } else {
+            crate::git::draw_view(scene, st, lay, &c)
         }
-    } else {
+    };
+    #[cfg(not(feature = "git"))]
+    let view = false;
+    if !view {
         editor(scene, st, ui, lay, &c, scroll);
+        #[cfg(feature = "git")]
+        crate::git::draw_decorations(scene, st, ui, lay, &c, scroll);
         crate::minimap::draw(scene, st, ui, lay, &c, scroll);
     }
-    // -----
+    #[cfg(feature = "git")]
+    {
+        ui.focused = focused_before;
+    }
     #[cfg(feature = "terminal")]
     {
         ui.focused = window_focused;
@@ -164,6 +177,8 @@ pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: 
     }
     status(scene, st, ui, lay, &c);
     cmdline(scene, &st.ed, st, lay, &c);
+    #[cfg(feature = "git")]
+    crate::git::draw_overlays(scene, st, lay, &c);
     crate::settings::draw(scene, st, lay, &c);
     if st.ed.picker.is_some() {
         picker(scene, &st.ed, ui, lay, &c);

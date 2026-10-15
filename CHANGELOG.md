@@ -6,6 +6,17 @@ new version when it tags a release.
 
 ## [Unreleased]
 
+### Added
+
+- Source Control (feature `git_panel`, cargo feature `git`, both on by default; nothing runs until it is used): the
+  sidebar's Git tab (Ctrl+Shift+G, also with the sidebar off) with the branch, its upstream and a sync button, a
+  commit message box (Ctrl+Enter commits, Ctrl+Shift+Enter amends, a 50/72 subject hint), and Merge Changes /
+  Staged / Changes / Untracked to stage, unstage and discard by key or mouse; branch, stash and changed-file lists;
+  fetch, pull and push with a progress toast and cancel; the log tab with the commit graph, ref labels, paging,
+  search and author / path filters, and commit details; blame as a column left of the text; merge conflicts tinted
+  with *Accept Current / Incoming / Both / Compare*, `]x` / `[x`, and mark resolved. A Git menu and a Git section in
+  Settings.
+
 ## [0.1.0] - 2026-10-15
 
 ### Added

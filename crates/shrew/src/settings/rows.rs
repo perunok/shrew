@@ -70,8 +70,9 @@ impl Section {
             }
             Section::Layout => "The parts of the window around the text.",
             Section::Git => {
-                "Change markers, inline blame, the branch, the diff view and the Source Control panel. Nothing runs \
-                 outside a git repository."
+                "Change markers, inline blame, the branch, the diff view and Source Control (Ctrl+Shift+G): stage, \
+                 commit, branches, stashes, the log, blame and conflicts. Reads run in shrew; writes and the network \
+                 run the git program. Nothing runs outside a repository."
             }
             Section::Keybindings => {
                 "The chords that work right now and your own mappings (config.toml [keys], your vimrc, Sublime). \
@@ -707,6 +708,56 @@ fn git(rows: &mut Vec<Row>) {
     rows.push(heading(S, "Status"));
     rows.push(feature(S, Feature::GitStatus, "Branch and file states"));
     git_diff(rows);
+    git_panel(rows);
+}
+
+/// The Source Control panel's switch, where git is, and the ways in.
+fn git_panel(rows: &mut Vec<Row>) {
+    use Section::Git as S;
+    use shrew_core::Command;
+    rows.push(heading(S, "Source Control"));
+    rows.push(feature(S, Feature::GitPanel, "Source Control panel"));
+    #[cfg(feature = "git")]
+    rows.push(info(S, "The git program", "Commits, branches, stashes and the network go through it (hooks, signing and credentials work as in a terminal).", |_| {
+        if shrew_git::git_available() { "found".into() } else { "not found: reading works, writing does not".into() }
+    }));
+    let run = |cmd: Command| {
+        move |st: &mut State| {
+            st.settings.close();
+            st.ed.run(cmd);
+            st.process_events();
+        }
+    };
+    rows.push(action(
+        S,
+        "git.panel",
+        "Changes and commit",
+        "The Git tab of the sidebar: stage, unstage, discard, commit (Ctrl+Enter, amend with Ctrl+Shift+Enter).",
+        "Open",
+        run(Command::GitPanel),
+    ));
+    rows.push(action(
+        S,
+        "git.branches",
+        "Branches",
+        "Check out, create (Ctrl+Enter) or delete (Delete) branches.",
+        "Open",
+        run(Command::GitBranches),
+    ));
+    rows.push(action(
+        S,
+        "git.log",
+        "History",
+        "The log with its commit graph; Enter shows a commit, / searches, a filters by author.",
+        "Open",
+        run(Command::GitLog),
+    ));
+    rows.push(text(
+        S,
+        "Conflicts",
+        "Inline actions on each conflict; git_conflict_ours / theirs / both from the palette.",
+        "]x and [x jump between them",
+    ));
 }
 
 /// The terminal panel's settings (`[terminal]`); they apply to the open terminals where they can.

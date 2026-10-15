@@ -87,18 +87,23 @@ Every shot is the real editor, rendered headless from shrew's own source code. R
   scrollback, vim, htop and less work, a vim-style normal mode to search and copy, and Ctrl+click on
   `src/main.rs:12:5` in the output opens it. Nothing runs until you open one. See
   **[docs/KEYBINDINGS.md](docs/KEYBINDINGS.md#terminal)**.
-- **Git in the gutter.** Change markers against the index (or HEAD) follow every keystroke, in the gutter, the
-  minimap and the scrollbar. `]c` / `[c` (Ctrl+. / Ctrl+Shift+.) move between changes, `ghp` peeks at the old
-  lines with the changed words marked, `ghs` / `ghu` / `ghr` stage, unstage and revert the change or the selected
-  lines. The cursor line's author and commit show faintly at its end after a pause, the branch sits in the status
-  bar and the title bar, and the sidebar colours files by their state. Reads run in-process (gix, pure Rust), off
-  the UI thread; nothing runs outside a repository. See
-  **[docs/KEYBINDINGS.md](docs/KEYBINDINGS.md#git)**.
-- **Git diffs.** A diff tab (`:Gdiff`, the Git menu, the palette) shows a file, the staged or unstaged changes, a
-  commit or two branches side by side or unified, with syntax colors, changed words marked and unchanged lines
-  folded. It follows your unsaved edits as you type; `s`, `u` and `X` stage, unstage or revert a change or the
-  selected lines. Diffs run on gix (pure Rust) in the background; see
-  [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md#diff-view).
+- **Git.** The gutter marks what changed against the index (or HEAD) as you type, in the gutter, the minimap and the
+  scrollbar. `]c` / `[c` (Ctrl+. / Ctrl+Shift+.) move between changes, `ghp` peeks at the old lines with the changed
+  words marked, `ghs` / `ghu` / `ghr` stage, unstage and revert the change or the selected lines. The cursor line's
+  author shows faintly at its end after a pause, the branch sits in the status bar and the title bar, and the
+  sidebar colours files by their state. See **[docs/KEYBINDINGS.md](docs/KEYBINDINGS.md#git)**.
+- **Source Control.** Ctrl+Shift+G opens it in the sidebar: stage, unstage and discard files, write the commit
+  message (Ctrl+Enter commits), switch, create and delete branches, stash, fetch, pull and push with progress and
+  cancel. The log tab draws the commit graph and loads as you scroll, blame shows who changed each line, and merge
+  conflicts get *Accept Current / Incoming / Both* on each one. See
+  [KEYBINDINGS.md](docs/KEYBINDINGS.md#source-control).
+- **Git diffs.** A diff tab (Enter on a change in Source Control, `:Gdiff`, the Git menu, the palette) shows a file,
+  the staged or unstaged changes, a commit or two branches side by side or unified, with syntax colors, changed words
+  marked and unchanged lines folded. It follows your unsaved edits as you type; `s`, `u` and `X` stage, unstage or
+  revert a change or the selected lines. See [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md#diff-view).
+
+  All of it reads the repository inside shrew (gix, pure Rust) off the UI thread, and writes through the `git`
+  program, so your hooks and credentials just work. Nothing runs outside a repository.
 - **Updates itself.** shrew checks GitHub Releases once a day and shows an update button in the status bar. The
   download is verified against its sha256 before it replaces the binary.
 - **Pure Rust.** It builds with `cargo` alone: no C compiler, no system `-dev` packages. GPU drivers, Wayland and
@@ -155,6 +160,7 @@ the table below for your build and config.
 | `git_gutter` | Git change markers in the gutter, minimap and scrollbar; `]c` / `[c`, peek, stage, unstage and revert changes (see `[git]`) | on | `git` |
 | `git_blame_inline` | Who last changed the cursor line, faintly at its end after a pause | on | `git` |
 | `git_status` | The branch in the status bar and title bar, file states in the sidebar | on | `git` |
+| `git_panel` | Source Control (Ctrl+Shift+G): stage, commit, branches, stashes, fetch / pull / push, the log and its graph, blame, merge conflicts | on | `git` |
 
 Keys also work without the underscore (`:set nolinenumbers`). The usual vim spellings work too: `:set nu`, `rnu`,
 `hls`, `list`, `et`, `ts=2`, `so=8`.
@@ -247,6 +253,7 @@ Ctrl+Z, Ctrl+C/X/V, Ctrl+F, Ctrl+D.
 | Show the file tree, find in project | Ctrl+B (Ctrl+Shift+E to give it the keys), Ctrl+Shift+F |
 | Go to symbol, in the project | Ctrl+R (`@` in Ctrl+P), Ctrl+Shift+R |
 | Open a terminal | Ctrl+\` |
+| Source Control (git) | Ctrl+Shift+G |
 | Settings | Ctrl+, (or the gear) |
 | The menus | F10, Alt+F |
 | Edit your config | palette: *Shrew: Open Config File* (`:config`) |

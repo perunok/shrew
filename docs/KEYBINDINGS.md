@@ -31,12 +31,13 @@ motion, character or register name. "Ctrl" also means ⌘ Cmd on macOS. Vim keys
 | Alt+F, Alt+E, Alt+V, Alt+G, Alt+H, F10 | editor / terminal | Open the menus / sent to the program (readline's Alt+F moves a word); the menu button still works |
 | Ctrl+Shift+E, Ctrl+Shift+F, Ctrl+, … | editor / terminal | The global chord / sent to the program; add it to `[terminal.keys]` to keep it for shrew |
 | `q`, `r`, `R`, `/`, `:` | sidebar, Settings panel | Their own meaning while they have the keys (see each section) |
+| `s`, `u`, `x`, `c`, `b`, Enter | Source Control panel, a log tab | Their own meaning while they have the keys (see [Git](#git)) |
 
 **Contents:** [Global chords](#global-chords) · [Insert mode](#insert-mode) · [Normal mode](#normal-mode) ·
 [Visual mode](#visual-mode) · [Prompts](#prompts--and-) · [Pickers](#pickers) · [Sidebar](#sidebar) ·
 [Find in project](#find-in-project) · [Settings](#settings-panel) · [About panel](#about-panel) · [Menus](#menus) ·
 [Ex commands](#ex-commands) · [Named commands](#named-commands) · [Mouse](#mouse) · [Title bar](#title-bar) ·
-[Terminal](#terminal) · [Git](#git) · [Diff view](#diff-view)
+[Terminal](#terminal) · [Git](#git) · [Source Control](#source-control) · [Diff view](#diff-view)
 
 ## Global chords
 
@@ -125,6 +126,7 @@ The home folder and `/` are never a project: without one, Ctrl+P lists your rece
 | Ctrl+Alt+P | Open a recent project | always |
 | Ctrl+Shift+T | Reopen the last closed file | always |
 | Alt+Left / Alt+Right, Alt+- / Alt+Shift+- | Go back / forward along the [jump list](#other-commands) | always |
+| Ctrl+Shift+G | The [Source Control panel](#source-control) (shows the sidebar's Git tab); again: back to the text | always |
 
 ### View
 
@@ -409,7 +411,7 @@ matches.
 
 Ctrl+, (Cmd+, on macOS), palette *Preferences: Settings*, `:settings [section]` or the gear at the right end of the
 status bar. Sections on the left (Appearance, Editor, Features, Layout & window, Keybindings, Import, AI assistants,
-Updates, About), their settings on the right. Every change applies at once and is saved to `config.toml` (comments
+Git, Updates, About), their settings on the right. Every change applies at once and is saved to `config.toml` (comments
 kept), exactly like `:set`, the pickers and the Features list.
 
 | Keys | Action |
@@ -628,6 +630,29 @@ command palette by its title.
 | `git_diff_commit` | Git: Diff Commit… | |
 | `git_diff_compare` | Git: Compare Branches or Commits… | |
 | `git_diff_layout` | Git: Toggle Diff Layout (Split / Unified) | `t` in a diff |
+| `git_panel` | Git: Show Source Control | Ctrl+Shift+G |
+| `git_refresh` | Git: Refresh | `r` in the panel |
+| `git_commit` | Git: Commit | Ctrl+Enter in the panel |
+| `git_amend` | Git: Commit (Amend) | Ctrl+Shift+Enter in the panel |
+| `git_stage` / `git_unstage` | Git: Stage File / Unstage File | `s` / `u` in the panel (elsewhere: the active file) |
+| `git_discard` | Git: Discard Changes… | `x` in the panel |
+| `git_stage_all` / `git_unstage_all` | Git: Stage All Changes / Unstage All Changes | `S` / `U` in the panel |
+| `git_open_change` / `git_open_file` | Git: Open Change / Open File | Enter / `o` in the panel |
+| `git_branches` | Git: Checkout Branch… | `b` in the panel |
+| `git_new_branch` | Git: Create Branch… | Ctrl+Enter in the branch list |
+| `git_stash` / `git_stashes` | Git: Stash Changes… / Stashes… | `z` in the panel |
+| `git_fetch` / `git_pull` / `git_pull_rebase` / `git_push` | Git: Fetch / Pull / Pull (Rebase) / Push | `f` / `p` / `P` in the panel, the sync button |
+| `git_cancel` | Git: Cancel Running Operation | the toast's cancel button |
+| `git_output` | Git: Show Output | |
+| `git_log` / `git_log_all` | Git: Log / Log of All Branches | `L` in the panel |
+| `git_file_history` | Git: File History | `p` in a log tab |
+| `git_blame` | Git: Toggle Blame Column | |
+| `git_changed_files` | Git: Changed Files… | |
+| `git_next_conflict` / `git_prev_conflict` | Git: Next Conflict / Previous Conflict | `]x` / `[x` (normal) |
+| `git_conflict_ours` / `git_conflict_theirs` / `git_conflict_both` | Git: Accept Current / Incoming / Both Changes | the actions on a conflict |
+| `git_conflict_compare` | Git: Compare Conflict Sides | *Compare* on a conflict |
+| `git_mark_resolved` | Git: Mark Resolved (Stage File) | `+` on a conflicted file in the panel |
+| `git_abort` / `git_continue` | Git: Abort / Continue Merge or Rebase | the panel's buttons during a merge or rebase |
 
 ## Mouse
 
@@ -735,6 +760,84 @@ uncommitted lines read "You • Uncommitted changes").
 clicking it opens the branch picker when the build has one. The sidebar colours files by state with git's letter at
 the right: M modified, A added, D deleted, R renamed, ? untracked, U conflict, ! ignored; a folder holding changes
 is tinted and gets a dot.
+## Source Control
+
+With the `git` cargo feature and the `git_panel` feature (both on by default), shrew works with the repository of the
+active file. Nothing runs before you use it: Ctrl+Shift+G, a `git_*` command or the Git menu looks the repository up;
+reads (status, log, blame) happen inside shrew, and commits, branches, stashes and the network run the `git` program
+(so hooks, signing and credential helpers behave as in a terminal). The code is in `crates/shrew/src/git/`.
+
+**The Source Control panel** is the sidebar's Git tab, beside the file tree's (click either name). Ctrl+Shift+G shows
+it and gives it the keys, even with the sidebar off; again, it gives them back. At the top: the branch, how far it is
+from its upstream and a sync button (Pull, Push, Publish or Fetch); during a merge or rebase, Continue and Abort.
+Then the commit message box, the Commit and Amend buttons and the subject's length (yellow past 50 columns, red past
+72), and the changes in sections: Merge Changes, Staged Changes, Changes, Untracked.
+
+| Keys | Action |
+| --- | --- |
+| `j` / `k`, Down / Up, Ctrl+N / Ctrl+P | Next / previous row |
+| `g`, Home / `G`, End, Ctrl+D / Ctrl+U, PageDown / PageUp | First / last row, half a page, a page |
+| Enter, `l`, Right | Open the change in the [diff view](#diff-view) (on a section: fold or unfold it) |
+| Space | Open the change and stay in the panel |
+| `o` | Open the file |
+| `h`, Left | To the section's header; on a header, fold it |
+| `s`, `+` | Stage the file (a conflict: mark it resolved); on a header, the whole section |
+| `u`, `-` | Unstage the file; on the Staged header, everything |
+| `x`, Delete | Discard the changes (an untracked file: delete it), after a `y` |
+| `S` / `U` | Stage / unstage everything |
+| `c`, `i`, Tab | The message box (Tab first visits each section's header) |
+| Ctrl+Enter / Ctrl+Shift+Enter | Commit / amend the last commit (with an empty box, amending fills in its message to edit) |
+| `b`, `z`, `f`, `p`, `P`, `L` | Branches, stash, fetch, pull, push, the log |
+| `r`, F5 | Read the status again |
+| `:` | The command line |
+| Esc, Ctrl+C | Back to the text (in the message box: back to the list) |
+| `q` | Close the Git tab |
+
+In the message box Enter starts a new line; arrows, Home / End, Ctrl+Left / Right, Ctrl+Backspace, Ctrl+U and Ctrl+V
+work as in a text field. With the mouse: click a row to open its change (double-click: the file), click a section to
+fold it, the `+` / `−` / `↺` buttons on the row under the pointer stage, unstage and discard, right-click for a menu,
+and the wheel scrolls. The status is read again when the window gets the focus back, after every git command and
+after you save a file of the repository.
+
+**Lists.** `git_branches` lists local branches (newest first), remote branches and tags: Enter checks one out (a remote
+branch as a new tracking branch, a tag detached), Ctrl+Enter creates a branch named by what you typed (a row offers it
+too), Delete deletes a local branch after a `y` (and asks again when it is not merged). `git_stashes`: Enter pops,
+Ctrl+Enter applies, Delete drops. `git_changed_files` lists the changed files. `git_stash` asks for a message (Enter
+stashes, Ctrl+Enter takes untracked files too).
+
+**Fetch, pull and push** show a toast at the bottom right with git's progress; its cancel button (or `git_cancel`)
+stops git. When a command fails, the toast keeps git's whole message until Esc or its close button; `git_output`
+opens the last output in a buffer.
+
+**The log tab** (`git_log`, `git_log_all` for every branch, `git_file_history` for the active file, following
+renames) lists commits with their graph, branch and tag labels, author and age, loading more as you scroll.
+
+| Keys | Action |
+| --- | --- |
+| `j` / `k`, `g` / `G`, Ctrl+D / Ctrl+U, Ctrl+F / Ctrl+B, PageDown / PageUp | Move |
+| Enter, Space, `l` | Show the commit (message and changed files) below the list; again, hide it |
+| Tab | Into the changed files (`j` / `k`, Enter opens what the commit did to one in the diff view); Tab or Esc goes back |
+| `d` | The commit's whole diff in the [diff view](#diff-view) |
+| `/`, `n` / `N` | Search summaries, authors, ids and labels (loading more when needed); next / previous |
+| `a` | Show only one author's commits (empty: everyone) |
+| `p` | The history of a path |
+| `b` | Create a branch at the commit |
+| `y` | Copy the commit's id |
+| `r`, F5 | Read the log again |
+| Esc | Hide the commit, or forget the search |
+| `q` | Close the tab |
+
+**Blame** (`git_blame`, again to hide it) adds a column left of the text: each run of lines from one commit shows its
+id, author, age and summary, with a bar coloured by age. A click on a run, or Enter in normal mode on a line, opens
+what that commit did to the file in the diff view. The buffer is blamed as it is, unsaved lines included; after an edit the column dims until
+you save.
+
+**Merge conflicts.** While git lists the active file as conflicted (or a merge or rebase is going on), the current
+side, the common ancestor and the incoming side of each conflict are tinted, and its `<<<<<<<` line offers *Accept
+Current*, *Accept Incoming*, *Accept Both* and *Compare* (a click; each is one undo step). `]x` / `[x` (or
+`git_next_conflict` / `git_prev_conflict`) jump between conflicts, `git_conflict_ours` / `git_conflict_theirs` /
+`git_conflict_both` resolve the one at the cursor, and `git_mark_resolved` saves the file and stages it.
+
 ## Diff view
 
 A diff opens as a tab of its own (cargo feature `git`): one file, or every changed file of the unstaged or staged

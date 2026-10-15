@@ -110,6 +110,8 @@ fn a_command_runs_on_a_pty_and_lands_on_the_screen() {
     assert_eq!(st.terminals.tabs.len(), 1, "{:?}", st.ed.message);
     assert!(st.terminals.visible && st.terminals.has_focus());
     assert!(wait(&mut st, |st| st.terminals.tabs[0].session.exited()), "the command ends");
+    // the output is read on another thread: wait for the text itself (it is the last line, `pwd`), not for idle
+    assert!(wait(&mut st, |st| !screen_row(st, 2).is_empty()), "the output reaches the screen");
     wait(&mut st, |st| !st.terminals_busy());
     assert_eq!(screen_row(&st, 0), "hello green");
     assert_eq!(screen_row(&st, 1), "xterm-256color truecolor");

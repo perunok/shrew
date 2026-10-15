@@ -11,9 +11,15 @@ pub struct TestRepo {
 
 /// `git` with a fixed identity and no user or system config, so results do not depend on the machine.
 pub fn git_in(dir: &Path, args: &[&str]) -> String {
+    git_in_env(dir, args, &[])
+}
+
+/// [`git_in`] with extra environment variables (commit dates).
+pub fn git_in_env(dir: &Path, args: &[&str], env: &[(&str, &str)]) -> String {
     let out = Command::new("git")
         .current_dir(dir)
         .args(args)
+        .envs(env.iter().copied())
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_CONFIG_GLOBAL", null_config())
         .env("GIT_AUTHOR_NAME", "Test")
@@ -106,9 +112,17 @@ impl TestRepo {
         self.path().join(rel)
     }
 
+    /// Commits everything. Each commit gets its own date, a minute after the previous one in this process, so
+    /// date order (and "newest first") is unambiguous even when the machine commits several in one second.
     pub fn commit_all(&self, msg: &str) -> String {
+        static CLOCK: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let when = format!("{} +0000", 1_700_000_000 + 60 * CLOCK.fetch_add(1, std::sync::atomic::Ordering::SeqCst));
         self.git(&["add", "-A"]);
-        self.git(&["commit", "-q", "--allow-empty", "-m", msg]);
+        git_in_env(
+            self.path(),
+            &["commit", "-q", "--allow-empty", "-m", msg],
+            &[("GIT_AUTHOR_DATE", &when), ("GIT_COMMITTER_DATE", &when)],
+        );
         self.git(&["rev-parse", "HEAD"]).trim().to_string()
     }
 

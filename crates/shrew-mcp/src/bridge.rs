@@ -160,7 +160,14 @@ impl Transport for Http {
         let mut resp = match req.send(body) {
             Ok(r) => r,
             Err(ureq::Error::Io(e))
-                if matches!(e.kind(), io::ErrorKind::ConnectionRefused | io::ErrorKind::ConnectionReset) =>
+                if matches!(
+                    e.kind(),
+                    io::ErrorKind::ConnectionRefused
+                        | io::ErrorKind::ConnectionReset
+                        | io::ErrorKind::ConnectionAborted
+                        | io::ErrorKind::BrokenPipe
+                        | io::ErrorKind::NotConnected
+                ) =>
             {
                 return Err(SendError::Unreachable);
             }

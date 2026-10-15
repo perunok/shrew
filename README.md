@@ -87,6 +87,11 @@ Every shot is the real editor, rendered headless from shrew's own source code. R
   scrollback, vim, htop and less work, a vim-style normal mode to search and copy, and Ctrl+click on
   `src/main.rs:12:5` in the output opens it. Nothing runs until you open one. See
   **[docs/KEYBINDINGS.md](docs/KEYBINDINGS.md#terminal)**.
+- **Git diffs.** A diff tab (`:Gdiff`, the Git menu, the palette) shows a file, the staged or unstaged changes, a
+  commit or two branches side by side or unified, with syntax colors, changed words marked and unchanged lines
+  folded. It follows your unsaved edits as you type; `s`, `u` and `X` stage, unstage or revert a change or the
+  selected lines. Diffs run on gix (pure Rust) in the background; see
+  [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md#diff-view).
 - **Updates itself.** shrew checks GitHub Releases once a day and shows an update button in the status bar. The
   download is verified against its sha256 before it replaces the binary.
 - **Pure Rust.** It builds with `cargo` alone: no C compiler, no system `-dev` packages. GPU drivers, Wayland and
@@ -154,7 +159,7 @@ mcp = true
 ```
 
 **Compile-time.** The `shrew` package's (the `srw` binary's) default cargo features are `syntax`, `picker`,
-`clipboard`, `mcp`, `update`, `embed-font`, `project` and `terminal`. A minimal build:
+`clipboard`, `mcp`, `update`, `embed-font`, `project`, `terminal` and `git`. A minimal build:
 
 ```sh
 cargo build --release -p shrew --no-default-features                     # just the editor

@@ -234,11 +234,34 @@ pub fn parse(text: &str, source: &str) -> (Config, Vec<Warning>) {
                 let Some(t) = cx.table(item, key) else { continue };
                 terminal(&mut cx, t, &mut config.terminal);
             }
+            // ----- git -----
+            "git" => {
+                let Some(t) = cx.table(item, key) else { continue };
+                git(&mut cx, t, &mut config.git);
+            }
+            // -----
             _ => cx.warn(item, format!("unknown section or key {key:?}")),
         }
     }
     (config, cx.warnings)
 }
+
+// ----- git -----
+fn git(cx: &mut Ctx, t: &dyn TableLike, c: &mut crate::GitConfig) {
+    for (k, v) in t.iter() {
+        match k {
+            "diff_layout" => match cx.str(v, "git.diff_layout") {
+                Some(s @ ("split" | "unified")) => c.diff_layout = Some(s.to_string()),
+                Some(s) => cx.warn(v, format!("git.diff_layout: {s:?} is not \"split\" or \"unified\"")),
+                None => {}
+            },
+            "diff_context" => c.diff_context = cx.int(v, "git.diff_context", 0..=1000).map(|n| n as u32),
+            "diff_ignore_whitespace" => c.diff_ignore_whitespace = cx.bool(v, "git.diff_ignore_whitespace"),
+            _ => cx.warn(v, format!("unknown key git.{k}")),
+        }
+    }
+}
+// -----
 
 fn terminal(cx: &mut Ctx, t: &dyn TableLike, c: &mut crate::TerminalConfig) {
     for (k, v) in t.iter() {
@@ -475,6 +498,14 @@ pub fn default_config_text() -> String {
 [terminal.keys]
 # "<C-S-e>" = "focus_editor"
 # "<C-PageUp>" = ""
+
+# Git. The diff view (palette: Git: Diff File, :Gdiff) opens with these; t, < > and w change them there.
+[git]
+# "split" (side by side) or "unified".
+# diff_layout = "split"
+# Unchanged lines shown around each change; the rest fold into one row.
+# diff_context = 3
+# diff_ignore_whitespace = false
 "#;
     s
 }

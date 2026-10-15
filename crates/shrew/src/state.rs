@@ -98,6 +98,11 @@ pub struct State {
     pub imports: Vec<shrew_config::ImportReport>,
     /// `[mcp] port` from config.toml, when set: the MCP server listens there.
     pub mcp_port: Option<u16>,
+    // ----- git -----
+    /// The git service and the git UI's state (nothing runs until a git command; see `git`).
+    #[cfg(feature = "git")]
+    pub git: crate::git::Git,
+    // -----
 }
 
 impl State {
@@ -153,7 +158,11 @@ impl State {
             settings: Default::default(),
             imports: loaded.imports.clone(),
             mcp_port: loaded.config.mcp_port,
+            #[cfg(feature = "git")]
+            git: Default::default(),
         };
+        #[cfg(feature = "git")]
+        st.git.diff.configure(&loaded.config.git);
         st.titlebar.configure(&loaded.config.titlebar);
         #[cfg(feature = "syntax")]
         {
@@ -222,6 +231,12 @@ impl State {
         if crate::titlebar::key(self, k) {
             return;
         }
+        // ----- git: a diff tab takes the keys the editor would (but not its prompt, pickers or chords) -----
+        #[cfg(feature = "git")]
+        if !menu && crate::git::diffview::key(self, k) {
+            return self.after_input();
+        }
+        // -----
         self.ed.handle_key(k);
         self.after_input();
     }
@@ -235,6 +250,12 @@ impl State {
         if self.terminal_text(s) {
             return;
         }
+        // ----- git: nothing types into a diff tab; its keys come as keys -----
+        #[cfg(feature = "git")]
+        if crate::git::diffview::is_active(self) && self.ed.prompt.is_none() && self.ed.picker.is_none() {
+            return s.chars().for_each(|c| self.key(KeyPress::ch(c)));
+        }
+        // -----
         if self.ed.mapping_pending() {
             self.ed.flush_pending_mappings();
         }
@@ -255,6 +276,10 @@ impl State {
         self.check_theme_saved();
         self.sync_preview();
         self.ed.sync_tree();
+        // ----- git -----
+        #[cfg(feature = "git")]
+        crate::git::after_input(self);
+        // -----
         self.save_recent();
         if self.close_warned && self.ed.buffers.iter().all(|b| !b.doc.dirty) {
             self.close_warned = false;
@@ -313,8 +338,37 @@ impl State {
             #[cfg(not(feature = "terminal"))]
             Event::Terminal(..) => self.ed.error("the terminal is not compiled into this build"),
             Event::OpenSettings(section) => self.open_settings(&section),
+            // ----- git -----
+            Event::Git(cmd, arg) => self.git_command(cmd, arg),
+            // -----
         }
     }
+
+    // ----- git -----
+
+    /// A git command (see `git::command`).
+    fn git_command(&mut self, cmd: shrew_core::Command, arg: Option<String>) {
+        #[cfg(feature = "git")]
+        crate::git::command(self, cmd, arg);
+        #[cfg(not(feature = "git"))]
+        {
+            let _ = (cmd, arg);
+            self.ed.error("git is not compiled into this build");
+        }
+    }
+
+    /// A git list to open (`value: None`) or a row picked in one (see `git::choice`).
+    pub(crate) fn git_choice(&mut self, choice: shrew_core::Choice, value: Option<String>) {
+        #[cfg(feature = "git")]
+        crate::git::choice(self, choice, value);
+        #[cfg(not(feature = "git"))]
+        {
+            let _ = (choice, value);
+            self.ed.error("git is not compiled into this build");
+        }
+    }
+
+    // -----
 
     /// Starts or stops what depends on a feature.
     fn feature_changed(&mut self, f: Feature) {
@@ -448,6 +502,12 @@ impl State {
         {
             changed |= self.poll_terminals();
         }
+        // ----- git -----
+        #[cfg(feature = "git")]
+        {
+            changed |= crate::git::poll(self);
+        }
+        // -----
         changed
     }
 
@@ -673,6 +733,8 @@ impl State {
         }
         #[cfg(feature = "terminal")]
         self.terminals.set_config(loaded.config.terminal.clone());
+        #[cfg(feature = "git")]
+        self.git.diff.configure(&loaded.config.git);
         self.ed.info("config reloaded");
         self.show_warnings(&warnings);
     }

@@ -35,7 +35,7 @@ one value in `config.toml`, so the choice survives a restart. Your comments, ord
 
 **Contents:** [`[editor]`](#editor) · [`[theme]`](#theme) · [`[font]`](#font) · [`[features]`](#features) ·
 [`[keys]`](#keys) · [`[import]`](#import) · [`[mcp]`](#mcp) · [`[update]`](#update) · [`[titlebar]`](#titlebar) ·
-[`[sidebar]`](#sidebar) · [`[minimap]`](#minimap) · [`[terminal]`](#terminal) · [Full example](#full-example)
+[`[sidebar]`](#sidebar) · [`[minimap]`](#minimap) · [`[terminal]`](#terminal) · [`[git]`](#git) · [Full example](#full-example)
 
 ## `[editor]`
 
@@ -351,6 +351,17 @@ Terminals start in the editor's folder (`:cd` changes it) with `TERM=xterm-256co
 that window). The 16 ANSI colors come from the theme: set `ansi-red`, `ansi-bright-blue` and so on in a theme's
 `[ui]` table, or let shrew derive them from its syntax colors ([THEMES.md](THEMES.md#ui-tokens)).
 
+## `[git]`
+
+Git (cargo feature `git`). The diff view's defaults; the keys in a diff change them too, and save them here
+([KEYBINDINGS.md](KEYBINDINGS.md#diff-view)).
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `diff_layout` | `"split"` or `"unified"` | `"split"` | Side by side, or one column with removed lines above added ones (`t`) |
+| `diff_context` | integer 0–1000 | `3` | Unchanged lines shown around each change; longer runs fold into one row (`<`, `>`) |
+| `diff_ignore_whitespace` | bool | `false` | Lines that differ only in spaces and tabs count as unchanged (`w`) |
+
 ## Full example
 
 ```toml
@@ -422,4 +433,8 @@ copy_on_select = true
 
 [terminal.keys]
 "<C-S-e>" = "focus_editor"
+
+[git]
+diff_layout = "unified"
+diff_context = 5
 ```

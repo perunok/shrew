@@ -53,6 +53,31 @@ pub struct Colors {
     /// The terminal's 16 ANSI colors (see [`shrew_theme::Ui::ansi`]).
     #[cfg_attr(not(feature = "terminal"), allow(dead_code))]
     pub ansi: [Color; 16],
+    // ----- git: placeholders derived from the status colors until shrew-theme has git tokens -----
+    #[cfg_attr(not(feature = "git"), allow(dead_code))]
+    pub git_added: Color,
+    #[cfg_attr(not(feature = "git"), allow(dead_code))]
+    pub git_modified: Color,
+    #[cfg_attr(not(feature = "git"), allow(dead_code))]
+    pub git_deleted: Color,
+    #[cfg_attr(not(feature = "git"), allow(dead_code))]
+    pub git_renamed: Color,
+    #[allow(dead_code)] // for the gutter, the sidebar and the panel
+    pub git_untracked: Color,
+    #[allow(dead_code)] // for the gutter, the sidebar and the panel
+    pub git_ignored: Color,
+    #[allow(dead_code)] // for the gutter, the sidebar and the panel
+    pub git_conflict: Color,
+    /// Behind added and removed lines, and behind the words that changed in them.
+    #[cfg_attr(not(feature = "git"), allow(dead_code))]
+    pub diff_add_bg: Color,
+    #[cfg_attr(not(feature = "git"), allow(dead_code))]
+    pub diff_del_bg: Color,
+    #[cfg_attr(not(feature = "git"), allow(dead_code))]
+    pub diff_add_word: Color,
+    #[cfg_attr(not(feature = "git"), allow(dead_code))]
+    pub diff_del_word: Color,
+    // -----
 }
 
 impl Colors {
@@ -102,6 +127,19 @@ impl Colors {
             mode_visual_fg: k(u.mode_visual_fg),
             scrollbar: k(u.scrollbar),
             ansi: u.ansi().map(k),
+            // ----- git -----
+            git_added: k(u.success),
+            git_modified: k(u.warning),
+            git_deleted: k(u.danger),
+            git_renamed: k(u.info),
+            git_untracked: k(u.success),
+            git_ignored: k(u.text_faint),
+            git_conflict: k(u.danger),
+            diff_add_bg: mix(k(u.success), k(u.bg), if t.dark() { 0.13 } else { 0.15 }),
+            diff_del_bg: mix(k(u.danger), k(u.bg), if t.dark() { 0.13 } else { 0.12 }),
+            diff_add_word: mix(k(u.success), k(u.bg), if t.dark() { 0.30 } else { 0.32 }),
+            diff_del_word: mix(k(u.danger), k(u.bg), if t.dark() { 0.30 } else { 0.27 }),
+            // -----
         }
     }
 }

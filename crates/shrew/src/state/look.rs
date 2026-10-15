@@ -176,6 +176,11 @@ impl State {
     // ----- pickers -----
 
     pub(super) fn open_choice(&mut self, choice: Choice) {
+        // ----- git: its lists come from the repository, in the background -----
+        if matches!(choice, Choice::GitCommit | Choice::GitRef) {
+            return self.git_choice(choice, None);
+        }
+        // -----
         let item = |label: String, detail: String, value: &str| PickerItem {
             label,
             detail,
@@ -224,6 +229,7 @@ impl State {
                 }
                 (items, self.font_choice_value())
             }
+            Choice::GitCommit | Choice::GitRef => return,
         };
         let selected = items.iter().position(|i| matches!(&i.data, PickerData::Value(v) if *v == current)).unwrap_or(0);
         self.ed.open_choice(choice, items, selected);
@@ -282,6 +288,7 @@ impl State {
                 self.set_font_family(value);
                 Ok(())
             }
+            Choice::GitCommit | Choice::GitRef => Ok(()),
         };
         if let Err(e) = r {
             self.ed.error(e);
@@ -340,6 +347,7 @@ impl State {
                 self.persist(Setting::FontFamily, &value);
                 self.ed.info(format!("font {value}"));
             }
+            Choice::GitCommit | Choice::GitRef => self.git_choice(choice, Some(value)),
         }
     }
 

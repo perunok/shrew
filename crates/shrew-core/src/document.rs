@@ -16,6 +16,9 @@ const MAX_RECORDED_CHANGES: usize = 4096;
 pub struct Document {
     pub rope: Rope,
     pub path: Option<PathBuf>,
+    /// The tab title of a buffer that stands for a view rather than a file (a diff): shown instead of the file
+    /// name, and such a buffer is never reused for a file.
+    pub title: Option<String>,
     /// Bumped on every change; caches key on it.
     pub version: u64,
     pub dirty: bool,
@@ -53,6 +56,7 @@ impl Document {
         Document {
             rope: Rope::from_str(s),
             path: None,
+            title: None,
             version: 0,
             dirty: false,
             crlf: false,
@@ -114,6 +118,9 @@ impl Document {
     }
 
     pub fn display_name(&self) -> String {
+        if let Some(t) = &self.title {
+            return t.clone();
+        }
         self.path
             .as_ref()
             .and_then(|p| p.file_name())

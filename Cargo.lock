@@ -4054,6 +4054,7 @@ dependencies = [
  "serde_json",
  "shrew-config",
  "shrew-core",
+ "shrew-git",
  "shrew-mcp",
  "shrew-render",
  "shrew-syntax",

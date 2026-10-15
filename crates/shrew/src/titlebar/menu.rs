@@ -1,4 +1,4 @@
-//! The application menu: File, Edit, Selection, View, Go, Terminal, Help, built from the named commands when it
+//! The application menu: File, Edit, Selection, View, Go, Git, Terminal, Help, built from the named commands when it
 //! opens (a command this build lacks is left out, an empty menu too), each entry with the chord that runs it right
 //! now. Opened by the title bar's menu button, F10 or Alt+F/E/V/G/H; driven by arrows, Enter, Esc and typing the
 //! start of an entry, or by the mouse. The title bar's right-click menu is the same widget with one, flat list.
@@ -131,6 +131,24 @@ static MENUS: &[(&str, char, &[&str])] = &[
             "jump_forward|Forward",
         ],
     ),
+    // ----- git -----
+    (
+        "Git",
+        'i',
+        &[
+            "git_diff_file|Diff File",
+            "git_diff_file_head|Diff File Against HEAD",
+            "-",
+            "git_diff_all|Diff All Changes",
+            "git_diff_staged|Diff Staged Changes",
+            "-",
+            "git_diff_commit|Diff Commit…",
+            "git_diff_compare|Compare Branches or Commits…",
+            "-",
+            "git_diff_layout|Split / Unified Diff",
+        ],
+    ),
+    // -----
     (
         "Terminal",
         't',
@@ -437,6 +455,8 @@ pub fn build(ed: &Editor) -> Vec<Menu> {
         .iter()
         .map(|&(title, mnemonic, names)| Menu { title, mnemonic, entries: entries_of(ed, names) })
         .filter(|m| !m.entries.is_empty())
+        // ----- git: no Git menu in a build without git -----
+        .filter(|m| cfg!(feature = "git") || m.title != "Git")
         .collect()
 }
 

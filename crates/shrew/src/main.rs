@@ -15,6 +15,7 @@
 //! - [`settings`]: the Settings panel (Ctrl+,): sections of setting rows, saved to config.toml.
 //! - [`headless`]: `--screenshot`, a frame rendered without a window.
 //! - [`titlebar`]: the custom title bar (tabs, menus, window buttons) and its window behaviour.
+//! - [`git`]: git integration (cargo feature `git`): the diff view.
 
 mod about;
 mod anim;
@@ -24,6 +25,8 @@ mod cli;
 mod clipboard;
 mod colors;
 mod draw;
+#[cfg(feature = "git")]
+mod git;
 mod headless;
 mod ipc;
 mod keys;

@@ -3,6 +3,9 @@
 
 pub mod change;
 pub mod commands;
+// ----- git: diff view -----
+pub mod diffview;
+// -----
 pub mod document;
 pub mod editor;
 pub mod features;

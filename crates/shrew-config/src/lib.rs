@@ -201,7 +201,45 @@ pub struct Config {
     /// `[sidebar] width`, logical pixels.
     pub sidebar_width: Option<f32>,
     pub terminal: TerminalConfig,
+    // ----- git -----
+    pub git: GitConfig,
+    // -----
 }
+
+// ----- git -----
+
+/// `[git]`: the diff view's defaults (and other git settings).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct GitConfig {
+    /// `"split"` (side by side) or `"unified"`.
+    pub diff_layout: Option<String>,
+    /// Unchanged lines shown around each change; the rest fold.
+    pub diff_context: Option<u32>,
+    pub diff_ignore_whitespace: Option<bool>,
+}
+
+pub const DEFAULT_DIFF_CONTEXT: u32 = 3;
+
+impl GitConfig {
+    pub fn diff_layout(&self) -> &str {
+        self.diff_layout.as_deref().unwrap_or("split")
+    }
+    pub fn diff_context(&self) -> u32 {
+        self.diff_context.unwrap_or(DEFAULT_DIFF_CONTEXT)
+    }
+    pub fn diff_ignore_whitespace(&self) -> bool {
+        self.diff_ignore_whitespace.unwrap_or(false)
+    }
+    fn merge(&mut self, o: &GitConfig) {
+        if o.diff_layout.is_some() {
+            self.diff_layout = o.diff_layout.clone();
+        }
+        self.diff_context = o.diff_context.or(self.diff_context);
+        self.diff_ignore_whitespace = o.diff_ignore_whitespace.or(self.diff_ignore_whitespace);
+    }
+}
+
+// -----
 
 /// `[titlebar] left / right / hidden`: item names as written (the app knows which exist and sanitises them).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -298,6 +336,7 @@ impl Config {
             self.sidebar_width = over.sidebar_width;
         }
         self.terminal.merge(&over.terminal);
+        self.git.merge(&over.git);
     }
 }
 

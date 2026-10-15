@@ -26,11 +26,14 @@ pub enum Section {
     Import,
     Ai,
     Updates,
+    // ----- git -----
+    Git,
+    // -----
     About,
 }
 
 impl Section {
-    pub const ALL: [Section; 9] = [
+    pub const ALL: [Section; 10] = [
         Section::Appearance,
         Section::Editor,
         Section::Features,
@@ -39,6 +42,7 @@ impl Section {
         Section::Import,
         Section::Ai,
         Section::Updates,
+        Section::Git,
         Section::About,
     ];
 
@@ -52,6 +56,7 @@ impl Section {
             Section::Import => "Import",
             Section::Ai => "AI assistants",
             Section::Updates => "Updates",
+            Section::Git => "Git",
             Section::About => "About",
         }
     }
@@ -75,6 +80,7 @@ impl Section {
                  edit is one undo step and nothing is saved without you."
             }
             Section::Updates => "shrew checks GitHub Releases at most once a day; the download is verified before use.",
+            Section::Git => "Git in shrew. Nothing runs until a git command, and nothing at all outside a repository.",
             Section::About => "Small, quick, yours.",
         }
     }
@@ -290,6 +296,7 @@ pub fn build(st: &State) -> Vec<Row> {
     import(&mut rows, st);
     ai(&mut rows);
     updates(&mut rows);
+    git(&mut rows);
     about(&mut rows);
     rows
 }
@@ -870,6 +877,81 @@ fn updates(rows: &mut Vec<Row>) {
         |st| st.ed.events.push(Event::InstallUpdate),
     ));
 }
+
+// ----- git -----
+
+fn git(rows: &mut Vec<Row>) {
+    use Section::Git as S;
+    if !cfg!(feature = "git") {
+        rows.push(text(S, "Git", "", "not compiled into this build"));
+        return;
+    }
+    rows.push(heading(S, "Diff view"));
+    #[cfg(feature = "git")]
+    {
+        use shrew_core::diffview::Layout;
+        rows.push(Row::new(
+            S,
+            "git.diff_layout",
+            "Layout",
+            "Side by side, or one column with removed lines above added ones (t in a diff switches).",
+            Kind::Options {
+                options: Box::new(|_| {
+                    vec![("split".into(), "Side by side".into()), ("unified".into(), "Unified".into())]
+                }),
+                get: Box::new(|st| st.git.diff.defaults.layout.name().to_string()),
+                show: Box::new(|st| match st.git.diff.defaults.layout {
+                    Layout::Split => "Side by side".into(),
+                    Layout::Unified => "Unified".into(),
+                }),
+                set: Box::new(|st, v| {
+                    let layout = Layout::from_name(&v).unwrap_or_default();
+                    st.git.diff.defaults.layout = layout;
+                    save_with(st, |p| shrew_config::persist_value(p, "git", "diff_layout", layout.name()));
+                }),
+                default: "split".into(),
+            },
+        ));
+        rows.push(number(
+            S,
+            "git.diff_context",
+            "Context lines",
+            "Unchanged lines shown around each change; longer runs fold into one row (< and > in a diff).",
+            (0.0, 50.0, 1.0),
+            shrew_config::DEFAULT_DIFF_CONTEXT as f64,
+            |st| st.git.diff.defaults.context.min(50) as f64,
+            |st, v| {
+                st.git.diff.defaults.context = v as u32;
+                save_with(st, |p| shrew_config::persist_value(p, "git", "diff_context", v as i64));
+            },
+        ));
+        rows.push(toggle(
+            S,
+            "git.diff_ignore_whitespace",
+            "Ignore white space",
+            "Lines that differ only in spaces and tabs count as unchanged (w in a diff).",
+            false,
+            |st| st.git.diff.defaults.ignore_ws,
+            |st, on| {
+                st.git.diff.defaults.ignore_ws = on;
+                save_with(st, |p| shrew_config::persist_value(p, "git", "diff_ignore_whitespace", on));
+            },
+        ));
+        rows.push(action(
+            S,
+            "git.diff_all",
+            "Changes",
+            "Every file that differs from the index, in one tab.",
+            "Diff",
+            |st| {
+                st.settings.close();
+                st.ed.run(shrew_core::Command::GitDiffAll);
+            },
+        ));
+    }
+}
+
+// -----
 
 fn about(rows: &mut Vec<Row>) {
     use Section::About as S;

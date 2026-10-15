@@ -36,7 +36,7 @@ motion, character or register name. "Ctrl" also means ⌘ Cmd on macOS. Vim keys
 [Visual mode](#visual-mode) · [Prompts](#prompts--and-) · [Pickers](#pickers) · [Sidebar](#sidebar) ·
 [Find in project](#find-in-project) · [Settings](#settings-panel) · [About panel](#about-panel) · [Menus](#menus) ·
 [Ex commands](#ex-commands) · [Named commands](#named-commands) · [Mouse](#mouse) · [Title bar](#title-bar) ·
-[Terminal](#terminal)
+[Terminal](#terminal) · [Diff view](#diff-view)
 
 ## Global chords
 
@@ -492,6 +492,9 @@ or `:duplicate_line`.
 | `:accent` / `:accent {id}` | Accent picker / switch to an accent (`theme` for the theme's own) and save it |
 | `:font` / `:font {family}` | Font picker (installed monospace families, live preview) / switch to a family and save it |
 | `:term`, `:terminal` / `:term {command}` | A new terminal with your shell / one running `command` (it stays open when the command ends; Enter closes it) |
+| `:Gdiff`, `:Gdiffsplit`, `:Gvdiffsplit` / `:Gdiff {rev}` | [Diff](#diff-view) the file: index ↔ working tree / `rev` (`HEAD`, a branch, a hash) ↔ working tree |
+| `:git_diff_commit [rev]`, `:Gshow [rev]` | A commit against its parent (`HEAD~2`, a hash; no argument: pick one) |
+| `:git_diff_compare [a] [b]`, `[a..b]` | Every file that differs between two revisions (one: against the working tree; none: pick them) |
 
 ### `:set`
 
@@ -605,6 +608,13 @@ command palette by its title.
 | `focus_editor` | Terminal: Focus Editor | Ctrl+W k (in a terminal, vim keys) |
 | `terminal_normal_mode` | Terminal: Normal Mode (scroll, select, search) | Ctrl+\\ Ctrl+N (in a terminal) |
 | `settings` | Preferences: Settings | Ctrl+,, `:settings`, the status-bar gear |
+| `git_diff_file` | Git: Diff File (Index ↔ Working Tree) | `:Gdiff`, the Git menu |
+| `git_diff_file_head` | Git: Diff File Against HEAD | `:Gdiff HEAD` |
+| `git_diff_all` | Git: Diff All Unstaged Changes | |
+| `git_diff_staged` | Git: Diff Staged Changes | |
+| `git_diff_commit` | Git: Diff Commit… | |
+| `git_diff_compare` | Git: Compare Branches or Commits… | |
+| `git_diff_layout` | Git: Toggle Diff Layout (Split / Unified) | `t` in a diff |
 
 ## Mouse
 
@@ -682,3 +692,45 @@ terminal.
 
 `srw file` in a shrew terminal opens the file in that window, and `srw -w` waits for it, so `EDITOR="srw -w"` works
 for `git commit` run there.
+
+## Diff view
+
+A diff opens as a tab of its own (cargo feature `git`): one file, or every changed file of the unstaged or staged
+changes, a commit or a comparison, each with a header that folds it. Side by side (old left, new right, aligned,
+blank where one side has no line) or unified, with syntax colors, the changed words marked, and unchanged lines
+folded into one row ("··· 42 unchanged lines ···"). When the working-tree side is open in a buffer the diff shows
+your edits as you type. Open one from the Git menu, the palette (*Git: …*) or `:Gdiff`; the code is in
+`crates/shrew/src/git/diffview/`. While a diff tab is active it takes these keys; the palette, Ctrl+P, Ctrl+Tab,
+`:` and the other app-wide chords still work.
+
+| Keys | Action |
+| --- | --- |
+| `j` / `k`, Down / Up | Next / previous row (a count works: `5j`) |
+| Ctrl+D / Ctrl+U, Ctrl+F / Ctrl+B, PageDown / PageUp | Half a page / a page down / up |
+| Ctrl+E / Ctrl+Y | Scroll a row |
+| `gg`, Home / `G`, End | First / last row (`{n}G`: row `n`) |
+| `]c` / `[c`, F7 / Shift+F7 | Next / previous change (`n` / `N` too, when there is no search) |
+| `]f` / `[f` | Next / previous file |
+| Tab | The other side (where Enter, `y` and searches start) |
+| `h` / `l`, Left / Right, `0` | Scroll sideways / back to the first column |
+| Enter | Open the fold or the file header under the cursor; on a line, open the file there |
+| `o` | Open the working-tree file at the line under the cursor |
+| Space, `za`, `zo` / `zc` | Open or close the fold or file header / fold the file |
+| `zR` / `zM` | Show every line / fold the unchanged ones again |
+| `s` / `u` / `-` | Stage / unstage / either, the change under the cursor or the selected lines |
+| `X` | Revert it: in an open buffer as an edit (undoable there); from the file on disk after a second `X` |
+| `v`, `V` / Esc | Select rows for `s`, `u`, `X` and `y` / clear the selection |
+| `y` | Copy the lines of the cursor's side |
+| `t` | Split / unified (saved as `[git] diff_layout`) |
+| `w` | Ignore white space, or not |
+| `<` / `>` | Fewer / more context lines around each change |
+| `/`, `?`, `n` / `N` | Search both sides / next, previous match |
+| `r` | Reload |
+| `q` | Close the tab |
+
+Staging works in the unstaged diff (index ↔ working tree), unstaging in the staged one (HEAD ↔ index); line
+selections stage just those lines. With the mouse: click a row to put the cursor there (Shift+click extends, a drag
+selects rows), click a fold or a file header to open it, double-click a line to open the file, click the round button
+on a change in the middle gutter to stage or unstage it, and use the header's buttons (layout, white space, context,
+stage, unstage, revert, previous / next change). The wheel scrolls (Shift+wheel sideways); the scrollbar shows every
+change and can be dragged.

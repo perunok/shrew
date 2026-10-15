@@ -96,6 +96,15 @@ pub enum Command {
     TerminalNormalMode,
     // ----- settings panel -----
     Settings,
+    // ----- git: diff view (the app's `git::diffview`) -----
+    GitDiffFile,
+    GitDiffFileHead,
+    GitDiffAll,
+    GitDiffStaged,
+    GitDiffCommit,
+    GitDiffCompare,
+    GitDiffToggleLayout,
+    // -----
 }
 
 use Command::*;
@@ -193,6 +202,15 @@ pub static COMMANDS: &[(Command, &str, &str)] = &[
     (FocusEditor, "focus_editor", "Terminal: Focus Editor"),
     (TerminalNormalMode, "terminal_normal_mode", "Terminal: Normal Mode (scroll, select, search)"),
     (Settings, "settings", "Preferences: Settings"),
+    // ----- git: diff view -----
+    (GitDiffFile, "git_diff_file", "Git: Diff File (Index ↔ Working Tree)"),
+    (GitDiffFileHead, "git_diff_file_head", "Git: Diff File Against HEAD"),
+    (GitDiffAll, "git_diff_all", "Git: Diff All Unstaged Changes"),
+    (GitDiffStaged, "git_diff_staged", "Git: Diff Staged Changes"),
+    (GitDiffCommit, "git_diff_commit", "Git: Diff Commit…"),
+    (GitDiffCompare, "git_diff_compare", "Git: Compare Branches or Commits…"),
+    (GitDiffToggleLayout, "git_diff_layout", "Git: Toggle Diff Layout (Split / Unified)"),
+    // -----
 ];
 
 impl Command {

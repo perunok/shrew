@@ -36,7 +36,7 @@ motion, character or register name. "Ctrl" also means ⌘ Cmd on macOS. Vim keys
 [Visual mode](#visual-mode) · [Prompts](#prompts--and-) · [Pickers](#pickers) · [Sidebar](#sidebar) ·
 [Find in project](#find-in-project) · [Settings](#settings-panel) · [About panel](#about-panel) · [Menus](#menus) ·
 [Ex commands](#ex-commands) · [Named commands](#named-commands) · [Mouse](#mouse) · [Title bar](#title-bar) ·
-[Terminal](#terminal)
+[Terminal](#terminal) · [Git](#git)
 
 ## Global chords
 
@@ -105,6 +105,7 @@ turned off, and "normal" means vim normal mode.
 | Ctrl+F | Find (incremental, regex) | insert (in normal mode, page down) |
 | F3 / Shift+F3 | Next / previous match | always |
 | Ctrl+G | Go to line: opens the `:` prompt, type a number | always |
+| Ctrl+. / Ctrl+Shift+. | Next / previous git change ([Git](#git); Sublime's Next Modification) | always |
 
 ### Project navigation
 
@@ -189,6 +190,7 @@ Motions move the cursor in normal mode, extend the selection in visual mode, and
 | `}` `{` | Next / previous paragraph (blank line) |
 | `H` `M` `L` | Top / middle / bottom of the screen |
 | `n` `N` | Next / previous search match |
+| `]c` `[c`, `]h` `[h` | Next / previous git change, wrapping around the file ([Git](#git)) |
 | `*` `#` | Search the word under the cursor forward / backward |
 | `` `{a-z} `` / `'{a-z}` | To mark: exact position / its line |
 | ``` `` ``` / `''` | Back to where the last jump started (and again to return) |
@@ -272,6 +274,8 @@ which takes the brackets, quotes or trailing space too. A count picks an outer p
 | `ZZ` / `ZQ` | Save and close / close without saving |
 | `gt` / `gT` | Next / previous buffer |
 | Ctrl+O / Ctrl+I, Tab | Older / newer place in the jump list. Jumps are `G`, `gg`, `%`, `n`, `N`, `*`, `#`, `/`, `?`, `{`, `}`, `H`, `M`, `L`, marks, `:42`, and opening or switching files |
+| `ghs` / `ghu` / `ghr` | Stage / unstage / revert the git change at the cursor (in visual mode: the selected lines) |
+| `ghp` / `ghb` | Peek at the change at the cursor / toggle the inline blame |
 | `gf` | Open the file named under the cursor (`src/main.rs:42:5` goes to line 42, column 5); tried next to the file, in the project and in `:pwd` |
 | Esc, Ctrl+C, Ctrl+[ | Cancel a half-typed command; with several cursors, back to one; hide search highlights |
 
@@ -437,7 +441,7 @@ read-only; a click on a link (or on the repository address at the bottom) opens 
 ## Menus
 
 The custom title bar (feature `custom_titlebar`, on by default) has an application menu: File, Edit, Selection,
-View, Go, Terminal and Help. Each entry shows the chord that runs it in the current mode; entries for commands this
+View, Go, Git, Terminal and Help. Each entry shows the chord that runs it in the current mode; entries for commands this
 build does not have are left out.
 
 | Keys | Action |
@@ -605,6 +609,15 @@ command palette by its title.
 | `focus_editor` | Terminal: Focus Editor | Ctrl+W k (in a terminal, vim keys) |
 | `terminal_normal_mode` | Terminal: Normal Mode (scroll, select, search) | Ctrl+\\ Ctrl+N (in a terminal) |
 | `settings` | Preferences: Settings | Ctrl+,, `:settings`, the status-bar gear |
+| `git_next_hunk` | Git: Next Change | `]c`, Ctrl+. |
+| `git_prev_hunk` | Git: Previous Change | `[c`, Ctrl+Shift+. |
+| `git_preview_hunk` | Git: Preview Change | `ghp`, a click on a marker |
+| `git_stage_hunk` | Git: Stage Change (or Selected Lines) | `ghs` |
+| `git_unstage_hunk` | Git: Unstage Change (or Selected Lines) | `ghu` |
+| `git_revert_hunk` | Git: Revert Change (or Selected Lines) | `ghr` |
+| `git_gutter_base` | Git: Compare Markers With HEAD / the Index | |
+| `git_toggle_gutter` | Git: Toggle Change Markers | `:set git_gutter!` |
+| `git_toggle_blame_inline` | Git: Toggle Inline Blame | `ghb` |
 
 ## Mouse
 
@@ -682,3 +695,33 @@ terminal.
 
 `srw file` in a shrew terminal opens the file in that window, and `srw -w` waits for it, so `EDITOR="srw -w"` works
 for `git commit` run there.
+
+## Git
+
+In a git repository (cargo feature `git`), the gutter marks what changed against the index (feature `git_gutter`;
+`[git] gutter_base = "head"` compares with the last commit): a bar for added lines (`git-added`) and changed lines
+(`git-modified`), a triangle where lines were deleted (`git-deleted`). The same marks run along the minimap and the
+scrollbar. They follow your typing a moment after each pause.
+
+| Keys | Action |
+| --- | --- |
+| `]c` / `[c` (also `]h` / `[h`), Ctrl+. / Ctrl+Shift+. | Next / previous change. A count works (`3]c`), it wraps around the file, and it is a jump (Ctrl+O comes back). With an operator, the lines up to it (`d]c`) |
+| `ghp`, a click on a marker | Peek at the change: its old and new lines under it, the changed words marked, with Stage and Revert buttons. It follows `]c` / `[c`; Esc closes it |
+| `ghs` | Stage the change at the cursor. In visual mode: just the selected lines (a changed line takes its old line with it) |
+| `ghu` | Unstage the change at the cursor, or the selected lines |
+| `ghr` | Revert the change at the cursor, or the selected lines, to the marked version: an ordinary edit, so `u` undoes it |
+| `ghb` | Inline blame on / off |
+
+The `gh` keys are gitsigns' hunk mappings without a leader (shrew has none by default; map `<leader>hs` to
+`git_stage_hunk` and so on in `[keys.normal]` if you prefer). With vim off, the palette has every command (*Git: …*)
+and the title bar's Git menu lists them with their keys.
+
+**Inline blame** (feature `git_blame_inline`): when the cursor rests on a line for 300 ms (`[git] blame_delay`), its
+last author, when and the commit's summary show faintly after the line ("Ann, 3 days ago • Fix the parser"; your own
+uncommitted lines read "You • Uncommitted changes").
+
+**Status** (feature `git_status`): the branch shows in the status bar and next to the project in the title bar
+(`main*` when the work tree has changes, `↑2 ↓1` against the upstream, MERGING and the like during an operation);
+clicking it opens the branch picker when the build has one. The sidebar colours files by state with git's letter at
+the right: M modified, A added, D deleted, R renamed, ? untracked, U conflict, ! ignored; a folder holding changes
+is tinted and gets a dot.

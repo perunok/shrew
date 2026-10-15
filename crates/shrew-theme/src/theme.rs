@@ -420,6 +420,28 @@ fn derive(u: &UiSpec, s: &SyntaxSpec, scheme: Scheme, high_contrast: bool) -> (U
         &[mode_normal, mode_insert],
     );
     let ansi = ansi(u, bg, text, text_muted, text_faint, &[danger, success, warning, accent], &syntax, dark);
+    // ----- git: gutter -----
+    // readable as text on the background, the chrome (sidebar) and its selected row; the gutter is the background
+    let on_chrome =
+        |c: Rgb| [bg, u.gutter.unwrap_or(bg), surface, surface_hover].iter().fold(c, |c, &b| c.readable_on(b, need));
+    let git_added = u.git_added.unwrap_or_else(|| on_chrome(sy(Role::DiffAdded)));
+    let git_deleted = u.git_deleted.unwrap_or_else(|| on_chrome(sy(Role::DiffRemoved)));
+    // a changed line must not pass for an added or deleted one: the theme's diff color, else its warning, blue or
+    // yellow, whichever stands apart
+    let apart = |c: &Rgb| [git_added, git_deleted].iter().all(|o| c.hue_distance(*o) >= 25.0 || c.contrast(*o) >= 1.5);
+    let git_modified = u.git_modified.unwrap_or_else(|| {
+        let tries = [sy(Role::DiffChanged), warning, ansi[4], ansi[3]].map(on_chrome);
+        tries.iter().copied().find(apart).unwrap_or(tries[0])
+    });
+    let git_renamed = u.git_renamed.unwrap_or_else(|| on_chrome(ansi[6]));
+    // new files: the added green leaning to the theme's cyan, so "?" and "A" read apart at a glance
+    let git_untracked = u.git_untracked.unwrap_or_else(|| on_chrome(git_added.mix(ansi[6], 0.35)));
+    let git_ignored = u.git_ignored.unwrap_or(text_faint);
+    let git_conflict = u.git_conflict.unwrap_or_else(|| on_chrome(ansi[5]));
+    let diff_add_bg = u.diff_add_bg.unwrap_or_else(|| tint(bg, git_added, d(0.13, 0.15), &[text], need));
+    let diff_del_bg = u.diff_del_bg.unwrap_or_else(|| tint(bg, git_deleted, d(0.11, 0.14), &[text], need));
+    let diff_add_word = u.diff_add_word.unwrap_or_else(|| tint(bg, git_added, d(0.28, 0.32), &[text], need));
+    let diff_del_word = u.diff_del_word.unwrap_or_else(|| tint(bg, git_deleted, d(0.24, 0.30), &[text], need));
     let ui = Ui {
         bg,
         surface,
@@ -468,6 +490,17 @@ fn derive(u: &UiSpec, s: &SyntaxSpec, scheme: Scheme, high_contrast: bool) -> (U
         popup: u.popup.unwrap_or(surface_raised),
         popup_border: u.popup_border.unwrap_or(border),
         shadow: u.shadow.unwrap_or(Rgb::BLACK),
+        git_added,
+        git_modified,
+        git_deleted,
+        git_renamed,
+        git_untracked,
+        git_ignored,
+        git_conflict,
+        diff_add_bg,
+        diff_del_bg,
+        diff_add_word,
+        diff_del_word,
         ansi_black: ansi[0],
         ansi_red: ansi[1],
         ansi_green: ansi[2],

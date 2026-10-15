@@ -201,6 +201,36 @@ pub struct Config {
     /// `[sidebar] width`, logical pixels.
     pub sidebar_width: Option<f32>,
     pub terminal: TerminalConfig,
+    // ----- git: gutter -----
+    pub git: GitConfig,
+}
+
+// ----- git: gutter -----
+/// `[git]`: the gutter's change markers and the inline blame.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct GitConfig {
+    /// `"index"` or `"head"`: what the change markers compare the buffer with.
+    pub gutter_base: Option<String>,
+    /// Milliseconds the cursor rests on a line before its inline blame shows.
+    pub blame_delay: Option<u64>,
+}
+
+pub const DEFAULT_BLAME_DELAY_MS: u64 = 300;
+
+impl GitConfig {
+    /// The markers compare with HEAD (else the index).
+    pub fn gutter_head(&self) -> bool {
+        self.gutter_base.as_deref() == Some("head")
+    }
+    pub fn blame_delay(&self) -> u64 {
+        self.blame_delay.unwrap_or(DEFAULT_BLAME_DELAY_MS)
+    }
+    fn merge(&mut self, o: &GitConfig) {
+        if o.gutter_base.is_some() {
+            self.gutter_base.clone_from(&o.gutter_base);
+        }
+        self.blame_delay = o.blame_delay.or(self.blame_delay);
+    }
 }
 
 /// `[titlebar] left / right / hidden`: item names as written (the app knows which exist and sanitises them).
@@ -298,6 +328,7 @@ impl Config {
             self.sidebar_width = over.sidebar_width;
         }
         self.terminal.merge(&over.terminal);
+        self.git.merge(&over.git);
     }
 }
 

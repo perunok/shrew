@@ -34,6 +34,9 @@ pub struct Hits {
     /// The scrollbar track and the line count it maps to.
     pub scrollbar: Option<(Rect, usize)>,
     pub sidebar: crate::sidebar::Hits,
+    // ----- git -----
+    #[cfg(feature = "git")]
+    pub git: crate::git::Hits,
 }
 
 /// UI state that lives between frames and is not the editor's.
@@ -288,6 +291,9 @@ fn editor(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors, 
         }
         scene.text(scroll.col_x(lay, start_col as f32), scroll.line_y(lay, l), &lb.disp, fg, &lb.spans);
     }
+    // ----- git: who changed the cursor line, after its end -----
+    #[cfg(feature = "git")]
+    crate::git::blame_inline::draw(scene, st, lay, c, scroll, first, end);
     scene.pop_clip();
 
     // gutter
@@ -304,6 +310,9 @@ fn editor(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors, 
             scene.text(x.round(), scroll.line_y(lay, l), &num, TextStyle::new(col), &[]);
         }
     }
+    // ----- git: change markers -----
+    #[cfg(feature = "git")]
+    crate::git::gutter::draw_marks(scene, st, lay, c, scroll, first, end);
     scene.pop_clip();
 
     if b.doc.path.is_none() && !b.doc.dirty && b.doc.is_empty() && ed.buffers.len() == 1 && st.loading.is_empty() {
@@ -330,6 +339,12 @@ fn editor(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors, 
         scene.text(r.x, r.y, &ui.preedit, TextStyle::new(c.foreground).underline(c.accent), &[]);
     }
     scene.pop_clip();
+    // ----- git: the hunk peek over the text, marks along the scrollbar -----
+    #[cfg(feature = "git")]
+    {
+        crate::git::gutter::draw_peek(scene, st, &mut ui.hits.git, lay, c, scroll);
+        crate::git::gutter::draw_scrollbar(scene, st, lay, c, last + 1);
+    }
     scrollbar(scene, ui, lay, c, scroll, last + 1);
     scene.layer(0);
 }
@@ -821,6 +836,9 @@ fn status(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors) 
     if st.mcp_running() {
         item(scene, "◆ MCP", c.accent_alt);
     }
+    // ----- git: the branch -----
+    #[cfg(feature = "git")]
+    crate::git::status_ui::draw_status(scene, st, &mut ui.hits.git, lay, c, &mut right, y);
     if let Some((label, tone)) = st.update_label() {
         let w = (columns(&label) as f32 + 2.0) * cw;
         right -= w;

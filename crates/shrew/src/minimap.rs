@@ -269,6 +269,9 @@ pub fn draw(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors
         let (x, _) = g.x_span(col, 1);
         scene.rect(Rect::new(x, g.line_y(l as f32), tick, g.line_px), c.cursor);
     }
+    // ----- git: change marks at the left edge -----
+    #[cfg(feature = "git")]
+    crate::git::gutter::draw_minimap(scene, st, &g, lay, c);
     // what the editor shows
     let alpha = if mm.hover { BOX_ALPHA_HOVER } else { BOX_ALPHA };
     scene.rect(g.viewport(scroll.top), c.foreground.with_alpha(alpha));

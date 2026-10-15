@@ -5,6 +5,8 @@ use shrew_render::Color;
 use shrew_theme::{Rgb, Theme};
 
 #[derive(Clone, Copy, Debug)]
+// without git, its colors are unused
+#[cfg_attr(not(feature = "git"), allow(dead_code))]
 pub struct Colors {
     pub dark: bool,
     pub background: Color,
@@ -53,6 +55,21 @@ pub struct Colors {
     /// The terminal's 16 ANSI colors (see [`shrew_theme::Ui::ansi`]).
     #[cfg_attr(not(feature = "terminal"), allow(dead_code))]
     pub ansi: [Color; 16],
+    // ----- git: gutter -----
+    /// Dim hints (the inline blame).
+    pub faint: Color,
+    /// Change markers, file states and diff backgrounds: the theme's tokens of the same names.
+    pub git_added: Color,
+    pub git_modified: Color,
+    pub git_deleted: Color,
+    pub git_renamed: Color,
+    pub git_untracked: Color,
+    pub git_ignored: Color,
+    pub git_conflict: Color,
+    pub diff_add_bg: Color,
+    pub diff_del_bg: Color,
+    pub diff_add_word: Color,
+    pub diff_del_word: Color,
 }
 
 impl Colors {
@@ -102,6 +119,18 @@ impl Colors {
             mode_visual_fg: k(u.mode_visual_fg),
             scrollbar: k(u.scrollbar),
             ansi: u.ansi().map(k),
+            faint: k(u.text_faint),
+            git_added: k(u.git_added),
+            git_modified: k(u.git_modified),
+            git_deleted: k(u.git_deleted),
+            git_renamed: k(u.git_renamed),
+            git_untracked: k(u.git_untracked),
+            git_ignored: k(u.git_ignored),
+            git_conflict: k(u.git_conflict),
+            diff_add_bg: k(u.diff_add_bg),
+            diff_del_bg: k(u.diff_del_bg),
+            diff_add_word: k(u.diff_add_word),
+            diff_del_word: k(u.diff_del_word),
         }
     }
 }

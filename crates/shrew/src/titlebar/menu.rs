@@ -1,4 +1,4 @@
-//! The application menu: File, Edit, Selection, View, Go, Terminal, Help, built from the named commands when it
+//! The application menu: File, Edit, Selection, View, Go, Git, Terminal, Help, built from the named commands when it
 //! opens (a command this build lacks is left out, an empty menu too), each entry with the chord that runs it right
 //! now. Opened by the title bar's menu button, F10 or Alt+F/E/V/G/H; driven by arrows, Enter, Esc and typing the
 //! start of an entry, or by the mouse. The title bar's right-click menu is the same widget with one, flat list.
@@ -129,6 +129,26 @@ static MENUS: &[(&str, char, &[&str])] = &[
             "-",
             "jump_back|Back",
             "jump_forward|Forward",
+        ],
+    ),
+    // ----- git -----
+    (
+        "Git",
+        'i',
+        &[
+            "git_branches|Branches…",
+            "-",
+            "git_next_hunk|Next Change",
+            "git_prev_hunk|Previous Change",
+            "git_preview_hunk|Preview Change",
+            "-",
+            "git_stage_hunk|Stage Change",
+            "git_unstage_hunk|Unstage Change",
+            "git_revert_hunk|Revert Change",
+            "-",
+            "git_toggle_gutter|Change Markers",
+            "git_gutter_base|Compare With HEAD / Index",
+            "git_toggle_blame_inline|Inline Blame",
         ],
     ),
     (
@@ -435,6 +455,8 @@ impl MenuState {
 pub fn build(ed: &Editor) -> Vec<Menu> {
     MENUS
         .iter()
+        // ----- git: its menu only where it is compiled in -----
+        .filter(|&&(title, ..)| title != "Git" || ed.features.available(Feature::GitGutter))
         .map(|&(title, mnemonic, names)| Menu { title, mnemonic, entries: entries_of(ed, names) })
         .filter(|m| !m.entries.is_empty())
         .collect()
@@ -477,6 +499,9 @@ fn checked(ed: &Editor, cmd: Command) -> bool {
         "system_titlebar" => !f(Feature::CustomTitlebar),
         "toggle_sidebar" => f(Feature::Sidebar),
         "toggle_minimap" => f(Feature::Minimap),
+        // ----- git -----
+        "git_toggle_gutter" => f(Feature::GitGutter),
+        "git_toggle_blame_inline" => f(Feature::GitBlameInline),
         _ => false,
     }
 }

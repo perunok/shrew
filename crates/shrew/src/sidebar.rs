@@ -48,6 +48,9 @@ pub fn draw(scene: &mut Scene, st: &mut State, hits: &mut Hits, lay: &Layout, c:
     let active = st.ed.buf().doc.path.clone();
     let x0 = area.x + 3.0 * pad;
     let head_h = (ch + 3.0 * pad).round();
+    // ----- git: file states -----
+    #[cfg(feature = "git")]
+    let deco = st.ed.tree.as_ref().and_then(|t| crate::git::status_ui::tree_deco(&st.git, &st.ed.features, &t.root));
     let Some(t) = st.ed.tree.as_mut() else {
         // no project: say how to get one
         let lines =
@@ -118,7 +121,19 @@ pub fn draw(scene: &mut Scene, st: &mut State, hits: &mut Hits, lay: &Layout, c:
         if current {
             style = style.bold();
         }
+        // ----- git: the state colours the name; its letter goes at the right -----
+        #[cfg(feature = "git")]
+        let (style, name_end) = match deco.as_ref().and_then(|d| d.row(&row.path, row.dir, row.ignored, c)) {
+            Some(m) => {
+                (TextStyle { color: m.color, ..style }, crate::git::status_ui::draw_row_mark(scene, m, rect, ty, lay))
+            }
+            None => (style, rect.right()),
+        };
+        #[cfg(not(feature = "git"))]
+        let name_end = rect.right();
+        scene.push_clip(Rect::new(rect.x, rect.y, (name_end - rect.x).max(0.0), rect.h));
         scene.text(x + 2.0 * cw, ty, &row.name, style, &spans);
+        scene.pop_clip();
         hits.rows.push((rect, i));
     }
     scene.pop_clip();

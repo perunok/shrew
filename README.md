@@ -87,6 +87,13 @@ Every shot is the real editor, rendered headless from shrew's own source code. R
   scrollback, vim, htop and less work, a vim-style normal mode to search and copy, and Ctrl+click on
   `src/main.rs:12:5` in the output opens it. Nothing runs until you open one. See
   **[docs/KEYBINDINGS.md](docs/KEYBINDINGS.md#terminal)**.
+- **Git in the gutter.** Change markers against the index (or HEAD) follow every keystroke, in the gutter, the
+  minimap and the scrollbar. `]c` / `[c` (Ctrl+. / Ctrl+Shift+.) move between changes, `ghp` peeks at the old
+  lines with the changed words marked, `ghs` / `ghu` / `ghr` stage, unstage and revert the change or the selected
+  lines. The cursor line's author and commit show faintly at its end after a pause, the branch sits in the status
+  bar and the title bar, and the sidebar colours files by their state. Reads run in-process (gix, pure Rust), off
+  the UI thread; nothing runs outside a repository. See
+  **[docs/KEYBINDINGS.md](docs/KEYBINDINGS.md#git)**.
 - **Updates itself.** shrew checks GitHub Releases once a day and shows an update button in the status bar. The
   download is verified against its sha256 before it replaces the binary.
 - **Pure Rust.** It builds with `cargo` alone: no C compiler, no system `-dev` packages. GPU drivers, Wayland and
@@ -140,6 +147,9 @@ the table below for your build and config.
 | `minimap` | Sublime-style minimap at the right of the editor: click or drag to scroll (see `[minimap]`) | on | |
 | `terminal` | Built-in terminal panel (Ctrl+\`), started on first use (see `[terminal]`) | on | `terminal` |
 | `settings` | Settings panel (Ctrl+,, `:settings`) and the gear in the status bar | on | |
+| `git_gutter` | Git change markers in the gutter, minimap and scrollbar; `]c` / `[c`, peek, stage, unstage and revert changes (see `[git]`) | on | `git` |
+| `git_blame_inline` | Who last changed the cursor line, faintly at its end after a pause | on | `git` |
+| `git_status` | The branch in the status bar and title bar, file states in the sidebar | on | `git` |
 
 Keys also work without the underscore (`:set nolinenumbers`). The usual vim spellings work too: `:set nu`, `rnu`,
 `hls`, `list`, `et`, `ts=2`, `so=8`.
@@ -154,7 +164,7 @@ mcp = true
 ```
 
 **Compile-time.** The `shrew` package's (the `srw` binary's) default cargo features are `syntax`, `picker`,
-`clipboard`, `mcp`, `update`, `embed-font`, `project` and `terminal`. A minimal build:
+`clipboard`, `mcp`, `update`, `embed-font`, `project`, `terminal` and `git`. A minimal build:
 
 ```sh
 cargo build --release -p shrew --no-default-features                     # just the editor

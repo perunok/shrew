@@ -225,6 +225,12 @@ fn activate(st: &mut State, item: Item) {
         }
         Item::Tabs => return,
         Item::Close => return st.titlebar.actions.push(WindowAction::Close),
+        // ----- git -----
+        Item::Branch => {
+            #[cfg(feature = "git")]
+            crate::git::status_ui::branch_clicked(st);
+            return;
+        }
         Item::Project => Command::from_name("recent_projects").unwrap_or(Command::OpenFile),
         _ => match item.info().command.and_then(Command::from_name) {
             Some(c) => c,
@@ -238,6 +244,9 @@ fn activate(st: &mut State, item: Item) {
 pub fn shown(item: Item) -> bool {
     if item.is_window_button() {
         return own_window_buttons();
+    }
+    if item == Item::Branch {
+        return cfg!(feature = "git");
     }
     match (item, item.info().command) {
         (_, Some(name)) => Command::from_name(name).is_some(),
@@ -319,7 +328,7 @@ mod tests {
         // uncomment a layout below it and save: the bar follows
         keys(&mut st, "o<C-u>left = [\"tabs\", \"menu\"]<Esc>:w<CR>");
         // (the items it leaves out go where the default puts them)
-        let left = vec![Item::Tabs, Item::Menu, Item::Sidebar, Item::Project];
+        let left = vec![Item::Tabs, Item::Menu, Item::Sidebar, Item::Project, Item::Branch];
         assert_eq!(st.titlebar.layout.left, left, "{:?}", st.ed.message);
         std::fs::remove_dir_all(&dir).ok();
     }

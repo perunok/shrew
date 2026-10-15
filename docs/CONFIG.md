@@ -105,7 +105,8 @@ README has [the full table with defaults](../README.md#features). The keys are:
 `vim`, `syntax`, `bracket_match`, `auto_pairs`, `auto_indent`, `line_numbers`, `relative_numbers`, `current_line`,
 `indent_guides`, `whitespace`, `search_highlight`, `word_highlight`, `smooth_scroll`, `cursor_animation`, `picker`,
 `palette`, `clipboard`, `mcp`, `update_check`, `vimrc`, `sublime_import`, `custom_titlebar`, `sidebar`,
-`compact_folders`, `project_search`, `symbols`, `recent`, `minimap`, `terminal`, `settings`.
+`compact_folders`, `project_search`, `symbols`, `recent`, `minimap`, `terminal`, `settings`, `git_gutter`,
+`git_blame_inline`, `git_status`.
 
 ```toml
 [features]
@@ -350,6 +351,20 @@ Terminals start in the editor's folder (`:cd` changes it) with `TERM=xterm-256co
 `TERM_PROGRAM=shrew` and `SHREW_INSTANCE` (the window's single-instance socket, so `srw file` there opens the file in
 that window). The 16 ANSI colors come from the theme: set `ansi-red`, `ansi-bright-blue` and so on in a theme's
 `[ui]` table, or let shrew derive them from its syntax colors ([THEMES.md](THEMES.md#ui-tokens)).
+
+## `[git]`
+
+Git in the editor (cargo feature `git`; the features `git_gutter`, `git_blame_inline` and `git_status`). Keys are in
+[KEYBINDINGS.md](KEYBINDINGS.md#git).
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `gutter_base` | `"index"` or `"head"` | `"index"` | What the change markers compare the buffer with. The index: staged changes drop out of the markers, as in VS Code and Sublime Merge. HEAD: everything since the last commit. The palette's *Git: Compare Markers With HEAD / the Index* switches and saves it |
+| `blame_delay` | integer 0–5000 | `300` | Milliseconds the cursor rests on a line before its inline blame shows |
+
+Nothing runs for a file outside a repository, and nothing more than one lookup for an untracked, ignored or binary
+one. In a repository, the buffer is diffed on a background thread 30 ms after you stop typing (at least every 150 ms
+while you type on); the repository is watched (a few file stamps every 3 s) only while the window has the focus.
 
 ## Full example
 

@@ -316,6 +316,11 @@ impl ApplicationHandler<UserEvent> for App {
         if self.st.cursor_blink && self.ui.focused {
             self.redraw();
         }
+        // ----- git: the markers' debounce, the inline blame's pause -----
+        #[cfg(feature = "git")]
+        if crate::git::tick(&mut self.st, now) {
+            self.redraw();
+        }
     }
 
     fn about_to_wait(&mut self, el: &ActiveEventLoop) {
@@ -341,6 +346,11 @@ impl ApplicationHandler<UserEvent> for App {
         }
         if self.st.cursor_blink && self.ui.focused {
             at(self.next_blink(Instant::now()));
+        }
+        // ----- git -----
+        #[cfg(feature = "git")]
+        if let Some(t) = crate::git::deadline(&self.st) {
+            at(t);
         }
         el.set_control_flow(match next {
             Some(t) => ControlFlow::WaitUntil(t),
@@ -380,6 +390,9 @@ impl ApplicationHandler<UserEvent> for App {
                 }
                 #[cfg(feature = "terminal")]
                 self.st.terminal_window_focus(f);
+                // ----- git: repositories are only watched while focused -----
+                #[cfg(feature = "git")]
+                self.st.git.set_focused(f);
                 self.blink_epoch = Instant::now();
                 self.redraw();
             }
@@ -796,6 +809,11 @@ impl App {
         if let Some(&(_, i)) = hits.tabs.iter().find(|(r, _)| r.contains(x, y)) {
             self.st.ed.switch_to(i);
             self.st.after_input();
+            return self.input(now);
+        }
+        // ----- git: the hunk peek's buttons, gutter markers, the branch in the status bar -----
+        #[cfg(feature = "git")]
+        if crate::git::press(&mut self.st, &self.ui.hits.git, &lay, self.ui.anim.scroll, x, y) {
             return self.input(now);
         }
         if crate::minimap::press(&mut self.st, &mut self.ui, &lay, x, y) {

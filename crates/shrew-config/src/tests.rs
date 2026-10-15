@@ -305,6 +305,22 @@ fn minimap_section() {
     assert_eq!(c.editor.minimap_width, None);
 }
 
+// ----- git: gutter -----
+#[test]
+fn git_section() {
+    let (c, w) = parse("[git]\ngutter_base = \"head\"\nblame_delay = 500\n[features]\ngit_blame_inline = false\n", "c");
+    assert!(w.is_empty(), "{w:?}");
+    assert!(c.git.gutter_head());
+    assert_eq!(c.git.blame_delay(), 500);
+    assert_eq!(c.feature(Feature::GitBlameInline), Some(false));
+    let d = Config::default();
+    assert!(!d.git.gutter_head());
+    assert_eq!(d.git.blame_delay(), DEFAULT_BLAME_DELAY_MS);
+    let (c, w) = parse("[git]\ngutter_base = \"worktree\"\nblame_delay = -1\nbogus = 1\n", "c");
+    assert_eq!(w.len(), 3, "{w:?}");
+    assert_eq!(c.git, GitConfig::default());
+}
+
 #[test]
 fn terminal_section() {
     let text = "[terminal]\nshell = \"/bin/zsh\"\nheight = 20\ncopy_on_select = false\n\n[terminal.keys]\n\

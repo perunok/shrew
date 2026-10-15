@@ -98,6 +98,10 @@ pub struct State {
     pub imports: Vec<shrew_config::ImportReport>,
     /// `[mcp] port` from config.toml, when set: the MCP server listens there.
     pub mcp_port: Option<u16>,
+    // ----- git -----
+    /// Git: the service, repositories, markers, blame and status (nothing runs until a file is looked up).
+    #[cfg(feature = "git")]
+    pub git: crate::git::Git,
 }
 
 impl State {
@@ -127,6 +131,9 @@ impl State {
             colors: Colors::from_theme(&shrew_theme::Theme::default()),
             config_path: loaded.path.clone(),
             config_seen: None,
+            // ----- git -----
+            #[cfg(feature = "git")]
+            git: crate::git::Git::new(wake.clone(), &loaded.config.git),
             wake,
             loading: Vec::new(),
             waits: Vec::new(),
@@ -222,6 +229,11 @@ impl State {
         if crate::titlebar::key(self, k) {
             return;
         }
+        // ----- git: Esc closes the hunk peek -----
+        #[cfg(feature = "git")]
+        if crate::git::key(self, k) {
+            return self.after_input();
+        }
         self.ed.handle_key(k);
         self.after_input();
     }
@@ -255,6 +267,9 @@ impl State {
         self.check_theme_saved();
         self.sync_preview();
         self.ed.sync_tree();
+        // ----- git -----
+        #[cfg(feature = "git")]
+        crate::git::sync(self);
         self.save_recent();
         if self.close_warned && self.ed.buffers.iter().all(|b| !b.doc.dirty) {
             self.close_warned = false;
@@ -313,6 +328,11 @@ impl State {
             #[cfg(not(feature = "terminal"))]
             Event::Terminal(..) => self.ed.error("the terminal is not compiled into this build"),
             Event::OpenSettings(section) => self.open_settings(&section),
+            // ----- git -----
+            #[cfg(feature = "git")]
+            Event::Git(cmd) => crate::git::command(self, cmd),
+            #[cfg(not(feature = "git"))]
+            Event::Git(_) => self.ed.error("git is not compiled into this build"),
         }
     }
 
@@ -328,6 +348,9 @@ impl State {
             #[cfg(feature = "terminal")]
             Feature::Terminal if !on => self.terminals.close_all(),
             Feature::Settings if !on => self.settings.close(),
+            // ----- git -----
+            #[cfg(feature = "git")]
+            Feature::GitGutter | Feature::GitBlameInline | Feature::GitStatus => crate::git::feature_changed(self, f),
             _ => {}
         }
     }
@@ -447,6 +470,11 @@ impl State {
         #[cfg(feature = "terminal")]
         {
             changed |= self.poll_terminals();
+        }
+        // ----- git -----
+        #[cfg(feature = "git")]
+        {
+            changed |= crate::git::poll(self);
         }
         changed
     }
@@ -673,6 +701,9 @@ impl State {
         }
         #[cfg(feature = "terminal")]
         self.terminals.set_config(loaded.config.terminal.clone());
+        // ----- git -----
+        #[cfg(feature = "git")]
+        self.git.configure(&loaded.config.git);
         self.ed.info("config reloaded");
         self.show_warnings(&warnings);
     }
@@ -800,6 +831,12 @@ fn mark_unavailable(ed: &mut Editor) {
     }
     if !cfg!(feature = "terminal") {
         f.set_unavailable(Feature::Terminal);
+    }
+    // ----- git -----
+    if !cfg!(feature = "git") {
+        f.set_unavailable(Feature::GitGutter);
+        f.set_unavailable(Feature::GitBlameInline);
+        f.set_unavailable(Feature::GitStatus);
     }
 }
 

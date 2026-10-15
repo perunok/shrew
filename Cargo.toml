@@ -8,6 +8,7 @@ members = [
     "crates/shrew-config",
     "crates/shrew-mcp",
     "crates/shrew-update",
+    "crates/shrew-git",
     "crates/shrew",
 ]
 

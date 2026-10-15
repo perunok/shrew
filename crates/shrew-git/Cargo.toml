@@ -1,0 +1,21 @@
+[package]
+name = "shrew-git"
+description = "Git backend for shrew: in-process reads (gix), diffs (imara-diff), writes and network through the git program."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# Reads only: no network, no credentials, pure-Rust zlib (zlib-rs) and SHA-1 (sha1-checked).
+gix = { version = "0.89", default-features = false, features = ["sha1", "status", "blob-diff", "revision", "index", "dirwalk", "max-performance-safe"] }
+imara-diff = "0.2"
+memchr = "2"
+ropey.workspace = true
+log.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+# kill(2) for cancelling a git process group (bindings only, no C compiled)
+libc = "0.2"
+
+[dev-dependencies]
+tempfile = "3"

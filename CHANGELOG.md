@@ -37,6 +37,18 @@ new version when it tags a release.
   `scripts/demo-repo.sh`).
 - `srw --screenshot ... --stats` benchmarks a diff tab's scrolling too.
 
+### Changed
+
+- The release binary grows from about 18 MB to about 22 MB with git support (reading repositories in process costs
+  about 4.5 MB). Build without the `git` cargo feature to get the smaller binary back.
+- While the window has the focus inside a git repository, one background thread checks a few files every 3 seconds
+  to notice changes made outside shrew; nothing runs when the window is not focused or outside a repository.
+
+### Fixed
+
+- The MCP stdio bridge treats a stopped shrew as "not running" on macOS too (a broken pipe, where Linux reports a
+  refused connection), so assistants get the clear message instead of a socket error.
+
 ## [0.1.0] - 2026-10-15
 
 ### Added

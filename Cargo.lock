@@ -4040,7 +4040,7 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
 name = "shrew"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "alacritty_terminal",
  "arboard",
@@ -4065,7 +4065,7 @@ dependencies = [
 
 [[package]]
 name = "shrew-config"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dirs",
  "serde_json",
@@ -4075,7 +4075,7 @@ dependencies = [
 
 [[package]]
 name = "shrew-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "ignore",
  "regex",
@@ -4088,7 +4088,7 @@ dependencies = [
 
 [[package]]
 name = "shrew-git"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "gix",
  "imara-diff",
@@ -4101,7 +4101,7 @@ dependencies = [
 
 [[package]]
 name = "shrew-mcp"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dirs",
  "getrandom 0.3.4",
@@ -4118,7 +4118,7 @@ dependencies = [
 
 [[package]]
 name = "shrew-render"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "bytemuck",
  "cosmic-text",
@@ -4134,7 +4134,7 @@ dependencies = [
 
 [[package]]
 name = "shrew-syntax"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "log",
  "ropey",
@@ -4145,7 +4145,7 @@ dependencies = [
 
 [[package]]
 name = "shrew-theme"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde_json",
  "toml_edit",
@@ -4153,7 +4153,7 @@ dependencies = [
 
 [[package]]
 name = "shrew-update"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "log",
  "rustls",

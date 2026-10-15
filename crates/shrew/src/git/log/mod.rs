@@ -96,8 +96,8 @@ pub struct View {
     pub shown: Vec<usize>,
     pub more: bool,
     pub loading: bool,
-    /// The next answer replaces the rows (a reload) instead of adding to them.
-    replace: bool,
+    /// Bumped by a reload: answers to older requests are dropped.
+    generation: u64,
     pub error: Option<String>,
     /// Into `shown`.
     pub selected: usize,
@@ -129,7 +129,7 @@ impl View {
             shown: Vec::new(),
             more: true,
             loading: false,
-            replace: false,
+            generation: 0,
             error: None,
             selected: 0,
             top: 0,
@@ -180,8 +180,12 @@ impl View {
         self.follow = true;
     }
 
-    fn add(&mut self, page: Page) {
-        if std::mem::take(&mut self.replace) {
+    /// Takes a page asked for at `skip` (0: a reload, which replaces the rows). False when it no longer fits.
+    fn add(&mut self, page: Page, skip: usize) -> bool {
+        if skip != 0 && skip != self.rows.len() {
+            return false;
+        }
+        if skip == 0 {
             let keep = self.current().map(|r| r.commit.id);
             self.rows = page.rows;
             self.refilter();
@@ -195,6 +199,7 @@ impl View {
         self.more = page.more;
         self.loading = false;
         self.error = None;
+        true
     }
 
     pub fn move_by(&mut self, d: isize) {
@@ -326,7 +331,10 @@ fn open_kind(st: &mut State, repo: PathBuf, kind: Kind) {
 fn request(st: &mut State, id: u64, skip: usize) {
     let Some(v) = st.git.views.get_mut(id) else { return };
     v.loading = true;
-    v.replace = skip == 0;
+    if skip == 0 {
+        v.generation += 1;
+    }
+    let generation = v.generation;
     let repo = v.repo.clone();
     let req = match &v.kind {
         Kind::Log { all } => {
@@ -334,7 +342,7 @@ fn request(st: &mut State, id: u64, skip: usize) {
         }
         Kind::History { path } => Request::FileHistory { repo, path: path.clone(), skip, limit: PAGE },
     };
-    st.git.send(req, Purpose::Log(id));
+    st.git.send(req, Purpose::Log(id, generation, skip));
 }
 
 /// Reads the rows again from the top (keeping the selected commit).
@@ -355,11 +363,16 @@ pub fn more(st: &mut State, id: u64) {
     }
 }
 
-pub fn page(st: &mut State, id: u64, r: shrew_git::Result<Page>) {
+pub fn page(st: &mut State, (id, generation, skip): (u64, u64, usize), r: shrew_git::Result<Page>) {
     let Some(v) = st.git.views.get_mut(id) else { return };
+    if generation != v.generation {
+        return; // a reload came since
+    }
     match r {
         Ok(p) => {
-            v.add(p);
+            if !v.add(p, skip) {
+                return;
+            }
             if v.search_more {
                 v.search_more = false;
                 let needle = v.last_search.clone();

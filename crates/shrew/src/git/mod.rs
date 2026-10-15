@@ -47,8 +47,8 @@ enum Purpose {
     Status,
     /// Refs for a picker (or just to keep).
     Refs(Option<Choice>),
-    /// A page of the log or file history shown in the view of this buffer.
-    Log(u64),
+    /// A page of the log or file history for the view of this buffer: its generation and the rows skipped.
+    Log(u64, u64, usize),
     /// Commit details for the view of this buffer.
     Details(u64),
     /// The last commit's message, to amend it.
@@ -349,13 +349,13 @@ fn event(st: &mut State, ev: Event) {
             Err(e) => st.ed.error(format!("git: {}", e.message)),
         },
         Reply::Log(r) => {
-            if let Some(Purpose::Log(id)) = purpose {
-                log::page(st, id, r.map(|p| log::Page::from_log(&p)));
+            if let Some(Purpose::Log(id, g, skip)) = purpose {
+                log::page(st, (id, g, skip), r.map(|p| log::Page::from_log(&p)));
             }
         }
         Reply::FileHistory(r) => {
-            if let Some(Purpose::Log(id)) = purpose {
-                log::page(st, id, r.map(|p| log::Page::from_history(&p)));
+            if let Some(Purpose::Log(id, g, skip)) = purpose {
+                log::page(st, (id, g, skip), r.map(|p| log::Page::from_history(&p)));
             }
         }
         Reply::CommitDetails(r) => match (purpose, r) {
@@ -524,11 +524,11 @@ fn active_rel(st: &State) -> Option<String> {
     st.git.rel_path(st.ed.buf().doc.path.as_deref()?)
 }
 
-/// Stage, unstage, discard or open: the panel's selected row when the panel shows, else the active file.
+/// Stage, unstage, discard or open: the selected row when the panel has the keys (its menu), else the active file.
 fn file_command(st: &mut State, repo: PathBuf, cmd: Command) {
     use Command::*;
     let p = &st.git.panel;
-    if panel::draw::shown(st) && !p.rows.is_empty() {
+    if p.focused && panel::draw::shown(st) && !p.rows.is_empty() {
         let i = p.selected;
         let action = match cmd {
             GitStage => p.stage_action(i),
@@ -727,6 +727,8 @@ pub fn show_files(st: &mut State) {
         st.ed.run(Command::ToggleSidebar);
         st.process_events();
     }
+    st.ed.sync_tree();
+    st.ed.sidebar_focus = st.ed.tree.is_some();
 }
 
 // ----- input -----

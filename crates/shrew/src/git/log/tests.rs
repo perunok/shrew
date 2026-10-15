@@ -30,7 +30,7 @@ fn row(n: u8, author: &str, summary: &str) -> Row {
 
 fn view(rows: Vec<Row>) -> View {
     let mut v = View::new(1, PathBuf::from("/r"), Kind::Log { all: false });
-    v.add(Page { rows, more: true });
+    assert!(v.add(Page { rows, more: true }, 0));
     v
 }
 
@@ -38,11 +38,11 @@ fn view(rows: Vec<Row>) -> View {
 fn pages_add_up_and_a_reload_replaces_them() {
     let mut v = view((1..=3).map(|n| row(n, "ann", "x")).collect());
     assert_eq!(v.shown, vec![0, 1, 2]);
-    v.add(Page { rows: vec![row(4, "bob", "y")], more: false });
+    assert!(v.add(Page { rows: vec![row(4, "bob", "y")], more: false }, 3));
     assert_eq!((v.rows.len(), v.more), (4, false));
+    assert!(!v.add(Page { rows: vec![row(5, "x", "y")], more: false }, 2), "a page that no longer fits is dropped");
     v.selected = 2;
-    v.replace = true;
-    v.add(Page { rows: vec![row(9, "new", "z"), row(3, "ann", "x"), row(4, "bob", "y")], more: true });
+    v.add(Page { rows: vec![row(9, "new", "z"), row(3, "ann", "x"), row(4, "bob", "y")], more: true }, 0);
     assert_eq!(v.rows.len(), 3);
     assert_eq!(v.current().unwrap().commit.id, oid(3), "the selected commit stays selected");
 }

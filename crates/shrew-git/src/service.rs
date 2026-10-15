@@ -12,7 +12,9 @@
 //! | write | `Op` (one at a time, in order)                                 |
 //!
 //! Pending requests coalesce: a `Gutter` for a buffer replaces the pending one for that buffer (only the
-//! newest version is diffed), as do `Status` and `Refs` per repository and `Discover` per path.
+//! newest version is diffed and answered). `Status` and `Refs` per repository, `Discover` per path and `Blame`
+//! per file coalesce too, but the one that runs answers every ticket it replaced, so separate parts of a UI
+//! asking for the same thing each get their reply.
 //!
 //! **Change detection.** A repository becomes *watched* when its status is requested. While the window is
 //! focused ([`GitService::set_focused`]) the read lane looks at a few file stamps of each watched repository
@@ -392,6 +394,8 @@ struct Job {
     ticket: Option<Ticket>,
     key: Option<Key>,
     work: Work,
+    /// Tickets of coalesced requests this job answers as well.
+    also: Vec<Ticket>,
 }
 
 #[derive(Default)]
@@ -484,7 +488,7 @@ impl GitService {
             Request::Blame { repo, path, .. } => (BLAME, Some(Key::Blame(repo.clone(), path.clone()))),
             Request::Op { .. } => (WRITE, None),
         };
-        Shared::push(&self.shared, lane, Job { ticket: Some(ticket), key, work: Work::Req(req) });
+        Shared::push(&self.shared, lane, Job { ticket: Some(ticket), key, work: Work::Req(req), also: Vec::new() });
         ticket
     }
 
@@ -499,6 +503,13 @@ impl GitService {
     pub fn cancel(&self, ticket: Ticket) {
         for lane in &self.shared.lanes {
             let mut st = lock(&lane.state);
+            for j in st.items.iter_mut() {
+                j.also.retain(|t| *t != ticket);
+                // a request others were coalesced into still runs for them
+                if j.ticket == Some(ticket) && !j.also.is_empty() {
+                    j.ticket = Some(j.also.remove(0));
+                }
+            }
             st.items.retain(|j| j.ticket != Some(ticket));
             if let Some((_, c, Some(t))) = &st.current
                 && *t == ticket
@@ -518,7 +529,12 @@ impl GitService {
                 Shared::push(
                     &self.shared,
                     READ,
-                    Job { ticket: None, key: Some(Key::Refresh(None)), work: Work::Refresh { repo: None, full: true } },
+                    Job {
+                        ticket: None,
+                        key: Some(Key::Refresh(None)),
+                        work: Work::Refresh { repo: None, full: true },
+                        also: Vec::new(),
+                    },
                 );
             }
         }
@@ -536,6 +552,7 @@ impl GitService {
                     ticket: None,
                     key: Some(Key::Refresh(Some(repo.clone()))),
                     work: Work::Refresh { repo: Some(repo), full: true },
+                    also: Vec::new(),
                 },
             );
         }
@@ -573,6 +590,11 @@ impl Shared {
         let mut st = lock(&l.state);
         if let Some(key) = job.key.clone() {
             if let Some(i) = st.items.iter().position(|j| j.key.as_ref() == Some(&key)) {
+                let mut job = job;
+                if !matches!(key, Key::Gutter(_)) {
+                    let old = &st.items[i];
+                    job.also = old.ticket.into_iter().chain(old.also.iter().copied()).collect();
+                }
                 let old = std::mem::replace(&mut st.items[i], job);
                 // a coalesced status keeps the widest options of both
                 if let (Work::Req(Request::Status { options: old_o, .. }), Work::Req(Request::Status { options, .. })) =
@@ -693,22 +715,29 @@ impl Worker {
     }
 
     fn handle(&mut self, job: Job, cancel: &Cancel) {
-        let ticket = job.ticket;
+        let (ticket, also) = (job.ticket, job.also);
         let req = match job.work {
             Work::Refresh { repo, full } => return self.refresh(repo, full),
             Work::Req(r) => r,
         };
+        let shared = self.shared.clone();
+        // the reply goes to the request's ticket and to every ticket coalesced into it
+        let send = |repo: Option<PathBuf>, reply: Reply| {
+            for t in &also {
+                shared.emit(Some(*t), repo.clone(), reply.clone());
+            }
+            shared.emit(ticket, repo, reply);
+        };
         if let Request::Discover { path } = req {
             let repo = self.discover(&path);
-            return self.shared.emit(ticket, None, Reply::Discovered { path, repo });
+            return send(None, Reply::Discovered { path, repo });
         }
         let workdir = req.repo().expect("every other request names a repository").to_path_buf();
         let repo = match self.repo(&workdir) {
             Ok(r) => r,
-            Err(e) => return self.shared.emit(ticket, Some(workdir), error_reply(&req, e)),
+            Err(e) => return send(Some(workdir), error_reply(&req, e)),
         };
-        let shared = self.shared.clone();
-        let emit = |reply: Reply| shared.emit(ticket, Some(workdir.clone()), reply);
+        let emit = |reply: Reply| send(Some(workdir.clone()), reply);
         match req {
             Request::Discover { .. } => unreachable!(),
             Request::Gutter { path, buffer, version, text, base, .. } => {
@@ -777,6 +806,7 @@ impl Worker {
                         ticket: None,
                         key: Some(Key::Refresh(Some(workdir.clone()))),
                         work: Work::Refresh { repo: Some(workdir.clone()), full: true },
+                        also: Vec::new(),
                     },
                 );
             }

@@ -131,6 +131,38 @@ fn gutter_hunks_and_coalescing() {
 }
 
 #[test]
+fn coalesced_requests_answer_every_ticket() {
+    let t = repo_or_skip!();
+    t.write("f.txt", "a\n");
+    t.commit_all("base");
+    let (svc, rx) = service(None);
+    let info = discover(&svc, &rx, &t.abs("f.txt")).unwrap();
+    // a slow log keeps the read lane busy while the same status and refs are asked for twice
+    let log = svc.send(Request::Log { repo: info.workdir.clone(), query: LogQuery::default() });
+    let status =
+        |svc: &GitService| svc.send(Request::Status { repo: info.workdir.clone(), options: StatusOptions::default() });
+    let mut open: std::collections::HashSet<Ticket> = [
+        log,
+        status(&svc),
+        status(&svc),
+        svc.send(Request::Refs { repo: info.workdir.clone() }),
+        svc.send(Request::Refs { repo: info.workdir.clone() }),
+        svc.send(Request::Discover { path: t.abs("f.txt") }),
+        svc.send(Request::Discover { path: t.abs("f.txt") }),
+    ]
+    .into();
+    let cancelled = status(&svc);
+    svc.cancel(cancelled);
+    wait(&svc, &rx, |e| {
+        assert_ne!(e.ticket, Some(cancelled), "a cancelled ticket is not answered");
+        if let Some(t) = e.ticket {
+            open.remove(&t);
+        }
+        open.is_empty().then_some(())
+    });
+}
+
+#[test]
 fn watching_follows_focus() {
     let t = repo_or_skip!();
     t.write("f.txt", "a\n");

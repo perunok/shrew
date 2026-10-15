@@ -35,7 +35,7 @@ one value in `config.toml`, so the choice survives a restart. Your comments, ord
 
 **Contents:** [`[editor]`](#editor) · [`[theme]`](#theme) · [`[font]`](#font) · [`[features]`](#features) ·
 [`[keys]`](#keys) · [`[import]`](#import) · [`[mcp]`](#mcp) · [`[update]`](#update) · [`[titlebar]`](#titlebar) ·
-[`[sidebar]`](#sidebar) · [`[minimap]`](#minimap) · [`[terminal]`](#terminal) · [Full example](#full-example)
+[`[sidebar]`](#sidebar) · [`[minimap]`](#minimap) · [`[terminal]`](#terminal) · [`[git]`](#git) · [Full example](#full-example)
 
 ## `[editor]`
 
@@ -354,13 +354,16 @@ that window). The 16 ANSI colors come from the theme: set `ansi-red`, `ansi-brig
 
 ## `[git]`
 
-Git in the editor (cargo feature `git`; the features `git_gutter`, `git_blame_inline` and `git_status`). Keys are in
-[KEYBINDINGS.md](KEYBINDINGS.md#git).
+Git (cargo feature `git`; the features `git_gutter`, `git_blame_inline`, `git_status` and `git_panel`). Keys are in
+[KEYBINDINGS.md](KEYBINDINGS.md#git) and [the diff view's](KEYBINDINGS.md#diff-view).
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `gutter_base` | `"index"` or `"head"` | `"index"` | What the change markers compare the buffer with. The index: staged changes drop out of the markers, as in VS Code and Sublime Merge. HEAD: everything since the last commit. The palette's *Git: Compare Markers With HEAD / the Index* switches and saves it |
 | `blame_delay` | integer 0–5000 | `300` | Milliseconds the cursor rests on a line before its inline blame shows |
+| `diff_layout` | `"split"` or `"unified"` | `"split"` | The diff view: side by side, or one column with removed lines above added ones (`t` in a diff) |
+| `diff_context` | integer 0–1000 | `3` | The diff view: unchanged lines shown around each change; longer runs fold into one row (`<`, `>`) |
+| `diff_ignore_whitespace` | bool | `false` | The diff view: lines that differ only in spaces and tabs count as unchanged (`w`) |
 
 Nothing runs for a file outside a repository, and nothing more than one lookup for an untracked, ignored or binary
 one. In a repository, the buffer is diffed on a background thread 30 ms after you stop typing (at least every 150 ms
@@ -437,4 +440,9 @@ copy_on_select = true
 
 [terminal.keys]
 "<C-S-e>" = "focus_editor"
+
+[git]
+gutter_base = "head"
+diff_layout = "unified"
+diff_context = 5
 ```

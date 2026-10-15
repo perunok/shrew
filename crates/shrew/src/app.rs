@@ -66,6 +66,11 @@ enum Drag {
     Minimap,
     /// A slider in the Settings panel.
     Settings,
+    // ----- git -----
+    /// Rows or the scrollbar of a diff tab.
+    #[cfg(feature = "git")]
+    Diff,
+    // -----
 }
 
 #[derive(Default)]
@@ -390,9 +395,9 @@ impl ApplicationHandler<UserEvent> for App {
                 }
                 #[cfg(feature = "terminal")]
                 self.st.terminal_window_focus(f);
-                // ----- git: repositories are only watched while focused -----
+                // ----- git: watch repositories only while focused; diffs re-read what changed meanwhile -----
                 #[cfg(feature = "git")]
-                self.st.git.set_focused(f);
+                crate::git::focus(&mut self.st, f);
                 self.blink_epoch = Instant::now();
                 self.redraw();
             }
@@ -716,6 +721,12 @@ impl App {
                 if self.drag == Drag::Sidebar {
                     self.st.persist_sidebar_width();
                 }
+                // ----- git -----
+                #[cfg(feature = "git")]
+                if self.drag == Drag::Diff {
+                    crate::git::diffview::release(&mut self.st);
+                }
+                // -----
                 self.drag = Drag::None;
                 self.autoscroll = None;
                 self.input(now);
@@ -811,10 +822,19 @@ impl App {
             self.st.after_input();
             return self.input(now);
         }
-        // ----- git: the hunk peek's buttons, gutter markers, the branch in the status bar -----
+        // ----- git: a diff tab in the editor's place; the hunk peek's buttons, gutter markers, the branch in
+        // the status bar -----
         #[cfg(feature = "git")]
-        if crate::git::press(&mut self.st, &self.ui.hits.git, &lay, self.ui.anim.scroll, x, y) {
-            return self.input(now);
+        {
+            let mods = self.mods();
+            if crate::git::diffview::press(&mut self.st, x, y, mods, now) {
+                self.drag = Drag::Diff;
+                self.st.after_input();
+                return self.input(now);
+            }
+            if crate::git::press(&mut self.st, &self.ui.hits.git, &lay, self.ui.anim.scroll, x, y) {
+                return self.input(now);
+            }
         }
         if crate::minimap::press(&mut self.st, &mut self.ui, &lay, x, y) {
             self.drag = Drag::Minimap;
@@ -895,6 +915,14 @@ impl App {
                 self.st.after_input();
                 self.redraw();
             }
+            // ----- git -----
+            #[cfg(feature = "git")]
+            Drag::Diff => {
+                if crate::git::diffview::drag(&mut self.st, x, y) {
+                    self.redraw();
+                }
+            }
+            // -----
             Drag::None => {}
         }
         let (redraw, bar_icon) =
@@ -905,6 +933,15 @@ impl App {
         }
         let on_edge = self.st.ed.picker.is_none() && self.ui.hits.sidebar.edge.is_some_and(|r| r.contains(x, y));
         let on_link = self.st.ed.about.is_some() && self.ui.hits.about_links.iter().any(|(r, _)| r.contains(x, y));
+        // ----- git -----
+        #[cfg(feature = "git")]
+        let (on_link, diff) = (
+            on_link || (self.st.ed.picker.is_none() && crate::git::diffview::hover(&self.st, x, y)),
+            crate::git::diffview::is_active(&self.st),
+        );
+        #[cfg(not(feature = "git"))]
+        let diff = false;
+        // -----
         let icon = if let Some(icon) = bar_icon {
             icon
         } else if on_link {
@@ -914,6 +951,7 @@ impl App {
         } else if self.st.ed.picker.is_none()
             && self.st.ed.about.is_none()
             && !self.st.settings.is_open()
+            && !diff
             && lay.text_rect().contains(x, y)
             && !self.ui.hits.scrollbar.is_some_and(|(t, _)| t.contains(x, y))
         {
@@ -1043,6 +1081,20 @@ impl App {
             }
             return;
         }
+        // ----- git: a diff tab scrolls its rows -----
+        #[cfg(feature = "git")]
+        {
+            let cols = match delta {
+                MouseScrollDelta::LineDelta(x, _) => -x * WHEEL_LINES,
+                MouseScrollDelta::PixelDelta(d) => -(d.x as f32) / lay.cw,
+            };
+            let shift = self.mods().shift;
+            if crate::git::diffview::wheel(&mut self.st, px, py, lines, cols, shift) {
+                self.redraw();
+                return;
+            }
+        }
+        // -----
         match delta {
             MouseScrollDelta::LineDelta(x, y) => {
                 self.ui.frac = 0.0;

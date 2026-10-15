@@ -136,12 +136,19 @@ static MENUS: &[(&str, char, &[&str])] = &[
         "Git",
         'i',
         &[
+            "git_panel|Source Control",
             "git_branches|Branches…",
+            "-",
+            "git_diff_file|Diff File",
+            "git_diff_file_head|Diff File Against HEAD",
+            "git_diff_all|Diff All Changes",
+            "git_diff_staged|Diff Staged Changes",
+            "git_diff_commit|Diff Commit…",
+            "git_diff_compare|Compare Branches or Commits…",
             "-",
             "git_next_hunk|Next Change",
             "git_prev_hunk|Previous Change",
             "git_preview_hunk|Preview Change",
-            "-",
             "git_stage_hunk|Stage Change",
             "git_unstage_hunk|Unstage Change",
             "git_revert_hunk|Revert Change",
@@ -149,6 +156,7 @@ static MENUS: &[(&str, char, &[&str])] = &[
             "git_toggle_gutter|Change Markers",
             "git_gutter_base|Compare With HEAD / Index",
             "git_toggle_blame_inline|Inline Blame",
+            "git_diff_layout|Split / Unified Diff",
         ],
     ),
     (
@@ -455,10 +463,10 @@ impl MenuState {
 pub fn build(ed: &Editor) -> Vec<Menu> {
     MENUS
         .iter()
-        // ----- git: its menu only where it is compiled in -----
-        .filter(|&&(title, ..)| title != "Git" || ed.features.available(Feature::GitGutter))
         .map(|&(title, mnemonic, names)| Menu { title, mnemonic, entries: entries_of(ed, names) })
         .filter(|m| !m.entries.is_empty())
+        // ----- git: no Git menu in a build without git -----
+        .filter(|m| cfg!(feature = "git") || m.title != "Git")
         .collect()
 }
 

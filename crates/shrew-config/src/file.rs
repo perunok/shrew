@@ -234,28 +234,40 @@ pub fn parse(text: &str, source: &str) -> (Config, Vec<Warning>) {
                 let Some(t) = cx.table(item, key) else { continue };
                 terminal(&mut cx, t, &mut config.terminal);
             }
-            // ----- git: gutter -----
+            // ----- git -----
             "git" => {
                 let Some(t) = cx.table(item, key) else { continue };
-                for (k, v) in t.iter() {
-                    match k {
-                        "gutter_base" => match cx.str(v, "git.gutter_base") {
-                            Some(b @ ("index" | "head")) => config.git.gutter_base = Some(b.to_string()),
-                            Some(_) => cx.warn(v, "git.gutter_base: expected \"index\" or \"head\"".into()),
-                            None => {}
-                        },
-                        "blame_delay" => {
-                            config.git.blame_delay = cx.int(v, "git.blame_delay", 0..=5000).map(|n| n as u64)
-                        }
-                        _ => cx.warn(v, format!("unknown key git.{k}")),
-                    }
-                }
+                git(&mut cx, t, &mut config.git);
             }
+            // -----
             _ => cx.warn(item, format!("unknown section or key {key:?}")),
         }
     }
     (config, cx.warnings)
 }
+
+// ----- git -----
+fn git(cx: &mut Ctx, t: &dyn TableLike, c: &mut crate::GitConfig) {
+    for (k, v) in t.iter() {
+        match k {
+            "gutter_base" => match cx.str(v, "git.gutter_base") {
+                Some(b @ ("index" | "head")) => c.gutter_base = Some(b.to_string()),
+                Some(_) => cx.warn(v, "git.gutter_base: expected \"index\" or \"head\"".into()),
+                None => {}
+            },
+            "blame_delay" => c.blame_delay = cx.int(v, "git.blame_delay", 0..=5000).map(|n| n as u64),
+            "diff_layout" => match cx.str(v, "git.diff_layout") {
+                Some(s @ ("split" | "unified")) => c.diff_layout = Some(s.to_string()),
+                Some(s) => cx.warn(v, format!("git.diff_layout: {s:?} is not \"split\" or \"unified\"")),
+                None => {}
+            },
+            "diff_context" => c.diff_context = cx.int(v, "git.diff_context", 0..=1000).map(|n| n as u32),
+            "diff_ignore_whitespace" => c.diff_ignore_whitespace = cx.bool(v, "git.diff_ignore_whitespace"),
+            _ => cx.warn(v, format!("unknown key git.{k}")),
+        }
+    }
+}
+// -----
 
 fn terminal(cx: &mut Ctx, t: &dyn TableLike, c: &mut crate::TerminalConfig) {
     for (k, v) in t.iter() {
@@ -493,13 +505,19 @@ pub fn default_config_text() -> String {
 # "<C-S-e>" = "focus_editor"
 # "<C-PageUp>" = ""
 
-# Git (features git_gutter and git_blame_inline). Nothing runs outside a git repository.
+# Git. Nothing runs outside a git repository.
 [git]
 # What the gutter's change markers compare the buffer with: "index" (staged changes drop out, like
 # VS Code) or "head" (the last commit). Palette: Git: Compare Markers With HEAD / the Index.
 # gutter_base = "index"
 # Milliseconds the cursor rests on a line before its inline blame shows (0-5000).
 # blame_delay = 300
+# The diff view (palette: Git: Diff File, :Gdiff) opens with these; t, < > and w change them there.
+# "split" (side by side) or "unified".
+# diff_layout = "split"
+# Unchanged lines shown around each change; the rest fold into one row.
+# diff_context = 3
+# diff_ignore_whitespace = false
 "#;
     s
 }

@@ -99,7 +99,8 @@ pub struct State {
     /// `[mcp] port` from config.toml, when set: the MCP server listens there.
     pub mcp_port: Option<u16>,
     // ----- git -----
-    /// Git: the service, repositories, markers, blame and status (nothing runs until a file is looked up).
+    /// Git: the service, repositories, markers, blame, status and diff views (nothing runs until a file is
+    /// looked up or a git command runs).
     #[cfg(feature = "git")]
     pub git: crate::git::Git,
 }
@@ -229,9 +230,10 @@ impl State {
         if crate::titlebar::key(self, k) {
             return;
         }
-        // ----- git: Esc closes the hunk peek -----
+        // ----- git: Esc closes the hunk peek; a diff tab takes the keys the editor would (but not its prompt,
+        // pickers or chords) -----
         #[cfg(feature = "git")]
-        if crate::git::key(self, k) {
+        if crate::git::key(self, k, menu) {
             return self.after_input();
         }
         self.ed.handle_key(k);
@@ -247,6 +249,12 @@ impl State {
         if self.terminal_text(s) {
             return;
         }
+        // ----- git: nothing types into a diff tab; its keys come as keys -----
+        #[cfg(feature = "git")]
+        if crate::git::diffview::is_active(self) && self.ed.prompt.is_none() && self.ed.picker.is_none() {
+            return s.chars().for_each(|c| self.key(KeyPress::ch(c)));
+        }
+        // -----
         if self.ed.mapping_pending() {
             self.ed.flush_pending_mappings();
         }
@@ -269,7 +277,7 @@ impl State {
         self.ed.sync_tree();
         // ----- git -----
         #[cfg(feature = "git")]
-        crate::git::sync(self);
+        crate::git::after_input(self);
         self.save_recent();
         if self.close_warned && self.ed.buffers.iter().all(|b| !b.doc.dirty) {
             self.close_warned = false;
@@ -329,12 +337,35 @@ impl State {
             Event::Terminal(..) => self.ed.error("the terminal is not compiled into this build"),
             Event::OpenSettings(section) => self.open_settings(&section),
             // ----- git -----
-            #[cfg(feature = "git")]
-            Event::Git(cmd) => crate::git::command(self, cmd),
-            #[cfg(not(feature = "git"))]
-            Event::Git(_) => self.ed.error("git is not compiled into this build"),
+            Event::Git(cmd, arg) => self.git_command(cmd, arg),
         }
     }
+
+    // ----- git -----
+
+    /// A git command (see `git::command`).
+    fn git_command(&mut self, cmd: shrew_core::Command, arg: Option<String>) {
+        #[cfg(feature = "git")]
+        crate::git::command(self, cmd, arg);
+        #[cfg(not(feature = "git"))]
+        {
+            let _ = (cmd, arg);
+            self.ed.error("git is not compiled into this build");
+        }
+    }
+
+    /// A git list to open (`value: None`) or a row picked in one (see `git::choice`).
+    pub(crate) fn git_choice(&mut self, choice: shrew_core::Choice, value: Option<String>) {
+        #[cfg(feature = "git")]
+        crate::git::choice(self, choice, value);
+        #[cfg(not(feature = "git"))]
+        {
+            let _ = (choice, value);
+            self.ed.error("git is not compiled into this build");
+        }
+    }
+
+    // -----
 
     /// Starts or stops what depends on a feature.
     fn feature_changed(&mut self, f: Feature) {

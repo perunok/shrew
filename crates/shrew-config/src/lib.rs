@@ -201,20 +201,28 @@ pub struct Config {
     /// `[sidebar] width`, logical pixels.
     pub sidebar_width: Option<f32>,
     pub terminal: TerminalConfig,
-    // ----- git: gutter -----
+    // ----- git -----
     pub git: GitConfig,
+    // -----
 }
 
-// ----- git: gutter -----
-/// `[git]`: the gutter's change markers and the inline blame.
+// ----- git -----
+
+/// `[git]`: the change markers, the inline blame and the diff view's defaults.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct GitConfig {
     /// `"index"` or `"head"`: what the change markers compare the buffer with.
     pub gutter_base: Option<String>,
     /// Milliseconds the cursor rests on a line before its inline blame shows.
     pub blame_delay: Option<u64>,
+    /// `"split"` (side by side) or `"unified"`.
+    pub diff_layout: Option<String>,
+    /// Unchanged lines shown around each change; the rest fold.
+    pub diff_context: Option<u32>,
+    pub diff_ignore_whitespace: Option<bool>,
 }
 
+pub const DEFAULT_DIFF_CONTEXT: u32 = 3;
 pub const DEFAULT_BLAME_DELAY_MS: u64 = 300;
 
 impl GitConfig {
@@ -225,13 +233,29 @@ impl GitConfig {
     pub fn blame_delay(&self) -> u64 {
         self.blame_delay.unwrap_or(DEFAULT_BLAME_DELAY_MS)
     }
+    pub fn diff_layout(&self) -> &str {
+        self.diff_layout.as_deref().unwrap_or("split")
+    }
+    pub fn diff_context(&self) -> u32 {
+        self.diff_context.unwrap_or(DEFAULT_DIFF_CONTEXT)
+    }
+    pub fn diff_ignore_whitespace(&self) -> bool {
+        self.diff_ignore_whitespace.unwrap_or(false)
+    }
     fn merge(&mut self, o: &GitConfig) {
         if o.gutter_base.is_some() {
             self.gutter_base.clone_from(&o.gutter_base);
         }
         self.blame_delay = o.blame_delay.or(self.blame_delay);
+        if o.diff_layout.is_some() {
+            self.diff_layout = o.diff_layout.clone();
+        }
+        self.diff_context = o.diff_context.or(self.diff_context);
+        self.diff_ignore_whitespace = o.diff_ignore_whitespace.or(self.diff_ignore_whitespace);
     }
 }
+
+// -----
 
 /// `[titlebar] left / right / hidden`: item names as written (the app knows which exist and sanitises them).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

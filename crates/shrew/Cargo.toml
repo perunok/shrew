@@ -31,7 +31,8 @@ embed-font = ["shrew-render/embed-font"]
 project = ["shrew-core/project"]
 # Built-in terminal panel (alacritty_terminal: VT parser, grid and PTY; pure Rust).
 terminal = ["dep:alacritty_terminal", "dep:regex"]
-# Git: change markers, hunk staging, inline blame, branch and file status (gix reads, the git program for writes).
+# Git: change markers, hunk staging, inline blame, the diff view, the Source Control panel, log and blame
+# (gix reads in-process, writes through the git program).
 git = ["dep:shrew-git"]
 
 [dependencies]

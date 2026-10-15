@@ -405,7 +405,7 @@ fn control(
             let swatches: Vec<Color> = match choice {
                 Choice::Theme => vec![c.background, c.foreground, c.accent, c.accent_alt, c.selection],
                 Choice::Accent => vec![c.accent],
-                Choice::Font => Vec::new(),
+                Choice::Font | Choice::GitCommit | Choice::GitRef => Vec::new(),
             };
             dropdown(scene, &show(st), &swatches, ctl, lay, c)
         }

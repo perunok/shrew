@@ -94,6 +94,11 @@ Every shot is the real editor, rendered headless from shrew's own source code. R
   bar and the title bar, and the sidebar colours files by their state. Reads run in-process (gix, pure Rust), off
   the UI thread; nothing runs outside a repository. See
   **[docs/KEYBINDINGS.md](docs/KEYBINDINGS.md#git)**.
+- **Git diffs.** A diff tab (`:Gdiff`, the Git menu, the palette) shows a file, the staged or unstaged changes, a
+  commit or two branches side by side or unified, with syntax colors, changed words marked and unchanged lines
+  folded. It follows your unsaved edits as you type; `s`, `u` and `X` stage, unstage or revert a change or the
+  selected lines. Diffs run on gix (pure Rust) in the background; see
+  [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md#diff-view).
 - **Updates itself.** shrew checks GitHub Releases once a day and shows an update button in the status bar. The
   download is verified against its sha256 before it replaces the binary.
 - **Pure Rust.** It builds with `cargo` alone: no C compiler, no system `-dev` packages. GPU drivers, Wayland and

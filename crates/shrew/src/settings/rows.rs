@@ -70,7 +70,8 @@ impl Section {
             }
             Section::Layout => "The parts of the window around the text.",
             Section::Git => {
-                "Change markers, staging hunks, inline blame and the branch. Nothing runs outside a git repository."
+                "Change markers, inline blame, the branch, the diff view and the Source Control panel. Nothing runs \
+                 outside a git repository."
             }
             Section::Keybindings => {
                 "The chords that work right now and your own mappings (config.toml [keys], your vimrc, Sublime). \
@@ -705,6 +706,7 @@ fn git(rows: &mut Vec<Row>) {
     ));
     rows.push(heading(S, "Status"));
     rows.push(feature(S, Feature::GitStatus, "Branch and file states"));
+    git_diff(rows);
 }
 
 /// The terminal panel's settings (`[terminal]`); they apply to the open terminals where they can.
@@ -927,6 +929,78 @@ fn updates(rows: &mut Vec<Row>) {
         |st| st.ed.events.push(Event::InstallUpdate),
     ));
 }
+
+/// The diff view's defaults (`[git] diff_*`).
+fn git_diff(rows: &mut Vec<Row>) {
+    use Section::Git as S;
+    rows.push(heading(S, "Diff view"));
+    #[cfg(not(feature = "git"))]
+    rows.push(text(S, "Git", "", "not compiled into this build"));
+    #[cfg(feature = "git")]
+    {
+        use shrew_core::diffview::Layout;
+        rows.push(Row::new(
+            S,
+            "git.diff_layout",
+            "Layout",
+            "Side by side, or one column with removed lines above added ones (t in a diff switches).",
+            Kind::Options {
+                options: Box::new(|_| {
+                    vec![("split".into(), "Side by side".into()), ("unified".into(), "Unified".into())]
+                }),
+                get: Box::new(|st| st.git.diff.defaults.layout.name().to_string()),
+                show: Box::new(|st| match st.git.diff.defaults.layout {
+                    Layout::Split => "Side by side".into(),
+                    Layout::Unified => "Unified".into(),
+                }),
+                set: Box::new(|st, v| {
+                    let layout = Layout::from_name(&v).unwrap_or_default();
+                    st.git.diff.defaults.layout = layout;
+                    save_with(st, |p| shrew_config::persist_value(p, "git", "diff_layout", layout.name()));
+                }),
+                default: "split".into(),
+            },
+        ));
+        rows.push(number(
+            S,
+            "git.diff_context",
+            "Context lines",
+            "Unchanged lines shown around each change; longer runs fold into one row (< and > in a diff).",
+            (0.0, 50.0, 1.0),
+            shrew_config::DEFAULT_DIFF_CONTEXT as f64,
+            |st| st.git.diff.defaults.context.min(50) as f64,
+            |st, v| {
+                st.git.diff.defaults.context = v as u32;
+                save_with(st, |p| shrew_config::persist_value(p, "git", "diff_context", v as i64));
+            },
+        ));
+        rows.push(toggle(
+            S,
+            "git.diff_ignore_whitespace",
+            "Ignore white space",
+            "Lines that differ only in spaces and tabs count as unchanged (w in a diff).",
+            false,
+            |st| st.git.diff.defaults.ignore_ws,
+            |st, on| {
+                st.git.diff.defaults.ignore_ws = on;
+                save_with(st, |p| shrew_config::persist_value(p, "git", "diff_ignore_whitespace", on));
+            },
+        ));
+        rows.push(action(
+            S,
+            "git.diff_all",
+            "Changes",
+            "Every file that differs from the index, in one tab.",
+            "Diff",
+            |st| {
+                st.settings.close();
+                st.ed.run(shrew_core::Command::GitDiffAll);
+            },
+        ));
+    }
+}
+
+// -----
 
 fn about(rows: &mut Vec<Row>) {
     use Section::About as S;

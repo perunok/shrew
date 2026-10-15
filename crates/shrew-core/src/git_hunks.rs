@@ -167,7 +167,7 @@ impl Editor {
         if !self.features.on(f) && cmd != Command::GitGutterBase {
             return self.error(format!("git markers are off (:set {})", features::info(f).key));
         }
-        self.events.push(Event::Git(cmd));
+        self.events.push(Event::Git(cmd, None));
     }
 }
 
@@ -286,15 +286,18 @@ mod tests {
         let mut ed = editor(30);
         ed.events.clear();
         keys(&mut ed, "ghs");
-        assert_eq!(ed.events, vec![Event::Git(Command::GitStageHunk)]);
+        assert_eq!(ed.events, vec![Event::Git(Command::GitStageHunk, None)]);
         ed.events.clear();
         keys(&mut ed, "Vjghr");
-        assert_eq!(ed.events, vec![Event::Git(Command::GitRevertHunk)]);
+        assert_eq!(ed.events, vec![Event::Git(Command::GitRevertHunk, None)]);
         assert_eq!(ed.git_target_lines(), (0..2, true), "the selection is still there for the app");
         keys(&mut ed, "<Esc>");
         ed.events.clear();
         keys(&mut ed, "ghp:git_unstage_hunk<CR>");
-        assert_eq!(ed.events, vec![Event::Git(Command::GitPreviewHunk), Event::Git(Command::GitUnstageHunk)]);
+        assert_eq!(
+            ed.events,
+            vec![Event::Git(Command::GitPreviewHunk, None), Event::Git(Command::GitUnstageHunk, None)]
+        );
         assert_eq!(ed.git_target_lines(), (1..2, false));
     }
 }

@@ -6,20 +6,22 @@
 //!   or selected lines (feature `git_gutter`).
 //! - [`blame_inline`]: who last changed the cursor line, at its end after a pause (feature `git_blame_inline`).
 //! - [`status_ui`]: the branch in the status bar and title bar, file states in the sidebar (feature `git_status`).
+//! - [`diffview`]: the diff tab (file, staged, unstaged, commit and branch diffs; split or unified).
 //!
 //! Cost: nothing starts before the first file or project is looked up (one idle thread then), and nothing more
 //! runs for files outside a repository. The service watches the repositories in use only while the window has the
 //! focus, and the UI thread never waits on it: replies arrive through the wake callback and [`poll`].
 
 pub mod blame_inline;
+pub mod diffview;
 pub mod gutter;
 pub mod status_ui;
 #[cfg(test)]
 mod tests;
 
 use crate::state::{State, Waker};
-use shrew_core::Command;
 use shrew_core::features::Feature;
+use shrew_core::{Choice, Command, KeyPress};
 use shrew_git::{GitService, Reply, RepoInfo, Request, Status, StatusOptions, Ticket};
 use shrew_render::Rect;
 use std::collections::{HashMap, HashSet};
@@ -86,6 +88,7 @@ pub struct Git {
     pub gutter: gutter::Gutters,
     pub blame: blame_inline::InlineBlame,
     pub status_ui: status_ui::StatusUi,
+    pub diff: diffview::Views,
     /// `[git] gutter_base = "head"`.
     pub head_base: bool,
     pub blame_delay: Duration,
@@ -105,6 +108,7 @@ impl Git {
             gutter: Default::default(),
             blame: Default::default(),
             status_ui: Default::default(),
+            diff: Default::default(),
             head_base: false,
             blame_delay: Duration::ZERO,
         };
@@ -119,6 +123,7 @@ impl Git {
             self.gutter.base_changed();
         }
         self.blame_delay = Duration::from_millis(cfg.blame_delay());
+        self.diff.configure(cfg);
     }
 
     /// Window focus: the service only watches repositories while focused, and re-reads them when it comes back.
@@ -164,7 +169,7 @@ impl Git {
     }
 
     /// Starts watching `repo` (its status comes now and whenever it changes).
-    fn watch(&mut self, repo: &Path) {
+    pub fn watch(&mut self, repo: &Path) {
         if self.watching.insert(repo.to_path_buf()) {
             let options = StatusOptions::default();
             self.link.send(Request::Status { repo: repo.to_path_buf(), options });
@@ -255,6 +260,8 @@ pub fn sync(st: &mut State) {
     {
         used.insert(repo);
     }
+    // and every diff tab's
+    used.extend(diffview::repos(st));
     for r in &used {
         st.git.watch(r);
     }
@@ -271,6 +278,7 @@ pub fn poll(st: &mut State) -> bool {
     };
     let mut changed = false;
     for ev in events {
+        diffview::event(st, &ev);
         let repo = ev.repo.clone();
         changed |= !matches!(ev.reply, Reply::Progress(_));
         match ev.reply {
@@ -309,11 +317,17 @@ pub fn poll(st: &mut State) -> bool {
             _ => {}
         }
     }
+    changed |= diffview::poll(st);
     changed |= tick(st, Instant::now());
     if changed {
         sync(st);
     }
     changed
+}
+
+/// Queues a request (the service starts on the first).
+pub fn send(st: &mut State, req: Request) -> Ticket {
+    st.git.link.send(req)
 }
 
 /// Runs the timers that are due (the gutter's debounce, the blame's pause). True when it did something.
@@ -330,11 +344,12 @@ pub fn deadline(st: &State) -> Option<Instant> {
 
 /// Work in flight or timers pending (`--screenshot` waits for them).
 pub fn busy(st: &State) -> bool {
-    any_on(st)
+    let markers = any_on(st)
         && (!st.git.asking.is_empty()
             || st.git.gutter.busy()
             || st.git.blame.busy()
-            || st.git.watching.iter().any(|r| !st.git.status.contains_key(r)))
+            || st.git.watching.iter().any(|r| !st.git.status.contains_key(r)));
+    markers || diffview::busy(st)
 }
 
 /// `--keys`: waits (a few seconds at most) until discovery, the markers and hunk commands are done, so the next
@@ -347,9 +362,32 @@ pub fn settle_markers(st: &mut State) {
     }
 }
 
-/// [`shrew_core::Event::Git`]: a hunk command.
-pub fn command(st: &mut State, cmd: Command) {
-    gutter::command(st, cmd);
+/// [`shrew_core::Event::Git`]: a git command from the palette, a menu, a key or `:G…`, with its argument.
+pub fn command(st: &mut State, cmd: Command, arg: Option<String>) {
+    use Command::*;
+    match cmd {
+        GitDiffFile | GitDiffFileHead | GitDiffAll | GitDiffStaged | GitDiffCommit | GitDiffCompare
+        | GitDiffToggleLayout => diffview::command(st, cmd, arg),
+        _ => gutter::command(st, cmd),
+    }
+}
+
+/// A git list (commits, refs) to open (`value: None`) or a row picked in it.
+pub fn choice(st: &mut State, choice: Choice, value: Option<String>) {
+    diffview::choice(st, choice, value);
+}
+
+/// The window gained or lost the focus: the service only watches repositories while focused, and views re-read
+/// what changed meanwhile.
+pub fn focus(st: &mut State, focused: bool) {
+    st.git.set_focused(focused);
+    diffview::focus(st, focused);
+}
+
+/// After every key, click or event: markers, blame and status follow the buffers, and so do diff views.
+pub fn after_input(st: &mut State) {
+    sync(st);
+    diffview::after_input(st);
 }
 
 /// A feature was switched: what it showed goes away at once, or comes back on the next sync.
@@ -365,9 +403,10 @@ pub fn feature_changed(st: &mut State, f: Feature) {
     sync(st);
 }
 
-/// A key the git parts take before the editor (Esc closes the hunk peek). True when taken.
-pub fn key(st: &mut State, k: shrew_core::KeyPress) -> bool {
-    gutter::key(st, k)
+/// A key the git parts take before the editor: Esc closes the hunk peek, a diff tab takes the keys the editor
+/// would (not while a title bar `menu` is open). True when taken.
+pub fn key(st: &mut State, k: KeyPress, menu: bool) -> bool {
+    gutter::key(st, k) || (!menu && diffview::key(st, k))
 }
 
 /// A left click: the peek's buttons, a gutter marker, the status bar's branch. True when taken.

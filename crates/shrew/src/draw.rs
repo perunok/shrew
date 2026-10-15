@@ -118,7 +118,7 @@ pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: 
         smooth_scroll: ui.animate && st.ed.features.on(Feature::SmoothScroll),
         cursor_animation: ui.animate && st.ed.features.on(Feature::CursorAnimation),
     };
-    #[cfg_attr(not(feature = "terminal"), allow(unused_mut))]
+    #[cfg_attr(not(any(feature = "terminal", feature = "git")), allow(unused_mut))]
     let mut animating = ui.anim.step(&target, now);
     let scroll = ui.anim.scroll;
     st.sync_syntax(scroll.first_line(), lay.rows + 2);
@@ -139,8 +139,21 @@ pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: 
     {
         ui.focused = window_focused && !st.terminals.has_focus();
     }
-    editor(scene, st, ui, lay, &c, scroll);
-    crate::minimap::draw(scene, st, ui, lay, &c, scroll);
+    // ----- git: a diff tab draws in the editor's place -----
+    #[cfg(feature = "git")]
+    let diff = crate::git::diffview::is_active(st);
+    #[cfg(not(feature = "git"))]
+    let diff = false;
+    if diff {
+        #[cfg(feature = "git")]
+        {
+            animating |= crate::git::diffview::draw(scene, st, ui, lay, &c, now);
+        }
+    } else {
+        editor(scene, st, ui, lay, &c, scroll);
+        crate::minimap::draw(scene, st, ui, lay, &c, scroll);
+    }
+    // -----
     #[cfg(feature = "terminal")]
     {
         ui.focused = window_focused;
@@ -820,7 +833,12 @@ fn status(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors) 
     let head = b.sel.primary().head.min(rope.len_chars());
     let line = text::line_of(rope, head);
     let col = b.doc.col_of(head, ed.settings.tab_width.max(1));
-    item(scene, &format!("{}:{}", line + 1, col + 1), c.panel_foreground);
+    let pos = format!("{}:{}", line + 1, col + 1);
+    // ----- git: a diff tab shows where its cursor is -----
+    #[cfg(feature = "git")]
+    let pos = crate::git::diffview::position(st).unwrap_or(pos);
+    // -----
+    item(scene, &pos, c.panel_foreground);
     if let Some(lang) = st.language() {
         item(scene, &lang, c.panel_muted);
     }

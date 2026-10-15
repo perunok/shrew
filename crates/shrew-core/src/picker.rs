@@ -32,6 +32,12 @@ pub enum Choice {
     Theme,
     Accent,
     Font,
+    // ----- git: diff view (no preview; the app fills and answers these) -----
+    /// A commit to diff against its parent.
+    GitCommit,
+    /// A branch, tag or commit to compare (picked twice: the old side, then the new one).
+    GitRef,
+    // -----
 }
 
 impl Choice {
@@ -41,6 +47,8 @@ impl Choice {
             Choice::Theme => "themes",
             Choice::Accent => "accents",
             Choice::Font => "fonts",
+            Choice::GitCommit => "commits",
+            Choice::GitRef => "refs",
         }
     }
 }

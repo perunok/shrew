@@ -106,6 +106,15 @@ pub enum Command {
     GitGutterBase,
     GitToggleGutter,
     GitToggleBlameInline,
+    // ----- git: diff view (the app's `git::diffview`) -----
+    GitDiffFile,
+    GitDiffFileHead,
+    GitDiffAll,
+    GitDiffStaged,
+    GitDiffCommit,
+    GitDiffCompare,
+    GitDiffToggleLayout,
+    // -----
 }
 
 use Command::*;
@@ -213,6 +222,15 @@ pub static COMMANDS: &[(Command, &str, &str)] = &[
     (GitGutterBase, "git_gutter_base", "Git: Compare Markers With HEAD / the Index"),
     (GitToggleGutter, "git_toggle_gutter", "Git: Toggle Change Markers"),
     (GitToggleBlameInline, "git_toggle_blame_inline", "Git: Toggle Inline Blame"),
+    // ----- git: diff view -----
+    (GitDiffFile, "git_diff_file", "Git: Diff File (Index ↔ Working Tree)"),
+    (GitDiffFileHead, "git_diff_file_head", "Git: Diff File Against HEAD"),
+    (GitDiffAll, "git_diff_all", "Git: Diff All Unstaged Changes"),
+    (GitDiffStaged, "git_diff_staged", "Git: Diff Staged Changes"),
+    (GitDiffCommit, "git_diff_commit", "Git: Diff Commit…"),
+    (GitDiffCompare, "git_diff_compare", "Git: Compare Branches or Commits…"),
+    (GitDiffToggleLayout, "git_diff_layout", "Git: Toggle Diff Layout (Split / Unified)"),
+    // -----
 ];
 
 impl Command {

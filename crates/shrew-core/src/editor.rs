@@ -147,10 +147,11 @@ pub enum Event {
     Terminal(Command, Option<String>),
     /// Open the Settings panel (Ctrl+,, `:settings [section]`), on a section when the name is not empty.
     OpenSettings(String),
-    // ----- git: gutter -----
-    /// A hunk command (preview, stage, unstage, revert, the gutter's base) for the app's git integration; the lines
-    /// it acts on are [`Editor::git_target_lines`].
-    Git(Command),
+    // ----- git -----
+    /// A git command for the app, which owns the repositories: a hunk command (its lines are
+    /// [`Editor::git_target_lines`]), a diff (`:Gdiff [rev]`, with its argument), the panel, log and blame.
+    Git(Command, Option<String>),
+    // -----
 }
 
 #[derive(Clone, Debug)]
@@ -354,6 +355,7 @@ impl Editor {
         self.push_jump();
         let reuse = self.buffers.len() == 1
             && self.buffers[0].doc.path.is_none()
+            && self.buffers[0].doc.title.is_none()
             && !self.buffers[0].doc.dirty
             && self.buffers[0].doc.is_empty();
         if reuse {
@@ -1116,7 +1118,17 @@ impl Editor {
             GitPreviewHunk | GitStageHunk | GitUnstageHunk | GitRevertHunk | GitGutterBase => self.git_command(cmd),
             GitToggleGutter => self.toggle_feature(Feature::GitGutter),
             GitToggleBlameInline => self.toggle_feature(Feature::GitBlameInline),
+            // ----- git: diff view -----
+            GitDiffFile | GitDiffFileHead | GitDiffAll | GitDiffStaged | GitDiffCommit | GitDiffCompare
+            | GitDiffToggleLayout => self.git(cmd, None),
+            // -----
         }
+    }
+
+    /// Hands a git command to the app.
+    pub fn git(&mut self, cmd: Command, arg: Option<String>) {
+        self.picker = None;
+        self.events.push(Event::Git(cmd, arg));
     }
 
     /// Hands a terminal command to the app, unless the terminal feature is off.
@@ -2119,6 +2131,13 @@ impl Editor {
             "Ex" | "Explore" | "Lex" | "NERDTree" => self.focus_sidebar(true),
             "term" | "terminal" => self.terminal(Command::NewTerminal, arg_opt.map(String::from)),
             "settings" | "preferences" | "prefs" => self.events.push(Event::OpenSettings(arg.to_string())),
+            // ----- git: diff view (fugitive's names; a revision argument diffs against it) -----
+            "Gdiff" | "Gdiffsplit" | "Gvdiffsplit" | "Ghdiffsplit" | "git_diff_file" => {
+                self.git(Command::GitDiffFile, arg_opt.map(String::from))
+            }
+            "git_diff_commit" | "Gshow" => self.git(Command::GitDiffCommit, arg_opt.map(String::from)),
+            "git_diff_compare" => self.git(Command::GitDiffCompare, arg_opt.map(String::from)),
+            // -----
             "syntax" => match arg {
                 "on" | "enable" => self.set_option("syntax"),
                 "off" => self.set_option("nosyntax"),

@@ -43,9 +43,15 @@ pub fn run(cli: &Cli, out: &std::path::Path) -> Result<(), String> {
             }
             line_start = k.key == shrew_core::Key::Enter || !focused;
         }
-        // ----- git: a key waits for the change markers of the text before it, as a person would -----
+        // ----- git: a key waits for the change markers of the text before it and for a diff still
+        // loading, as a person would -----
         #[cfg(feature = "git")]
-        crate::git::settle_markers(&mut st);
+        {
+            crate::git::settle_markers(&mut st);
+            if crate::git::busy(&st) {
+                settle(&mut st, &mut r, &mut scene, &mut ui, &layout);
+            }
+        }
         st.key(k);
         if st.font_changed {
             st.font_changed = false;
@@ -87,7 +93,7 @@ fn settle(
         let picker_busy = st.ed.picker.as_ref().is_some_and(|p| p.loading);
         #[cfg(feature = "terminal")]
         let picker_busy = picker_busy || st.terminals_busy();
-        // ----- git: discovery, markers, status and blame in flight -----
+        // ----- git: discovery, markers, status, blame and diffs in flight -----
         #[cfg(feature = "git")]
         let picker_busy = picker_busy || crate::git::busy(st);
         if !picker_busy && !syntax_busy(st) {

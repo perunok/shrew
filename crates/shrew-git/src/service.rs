@@ -839,7 +839,7 @@ impl Worker {
         let info = lock(&self.shared.repos).get(&workdir?).cloned()?;
         // a path inside `.git` has no repository of its own
         let repo = self.repo(&info.workdir).ok()?;
-        let is_root = std::fs::canonicalize(path).is_ok_and(|p| p == info.workdir);
+        let is_root = crate::canonicalize(path).is_ok_and(|p| p == info.workdir);
         (is_root || repo.rel_path(path).is_some()).then_some(info)
     }
 

@@ -121,8 +121,31 @@ impl std::fmt::Debug for Repo {
     }
 }
 
+/// `fs::canonicalize` without Windows' verbatim prefix. Windows returns `\\?\C:\repo`, which the `git` program rejects
+/// as `GIT_DIR` ("not a git repository") and which never equals the plain `C:\repo` other code compares it with, so every
+/// path shrew-git and its callers compare or hand to git goes through this.
+pub fn canonicalize(p: &Path) -> std::io::Result<PathBuf> {
+    std::fs::canonicalize(p).map(simplify_path)
+}
+
+/// Drops a Windows verbatim prefix: `\\?\C:\a` becomes `C:\a` and `\\?\UNC\host\share\a` becomes `\\host\share\a`. Anything
+/// else (every Unix path, `\\?\Volume{..}` paths that have no plain form) is returned unchanged.
+pub fn simplify_path(p: PathBuf) -> PathBuf {
+    let Some(s) = p.to_str() else { return p };
+    if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+        return PathBuf::from(format!(r"\\{rest}"));
+    }
+    if let Some(rest) = s.strip_prefix(r"\\?\") {
+        let b = rest.as_bytes();
+        if b.len() >= 2 && b[0].is_ascii_alphabetic() && b[1] == b':' && (b.len() == 2 || b[2] == b'\\') {
+            return PathBuf::from(rest);
+        }
+    }
+    p
+}
+
 fn canonical(p: &Path) -> PathBuf {
-    std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf())
+    canonicalize(p).unwrap_or_else(|_| p.to_path_buf())
 }
 
 impl Repo {
@@ -485,6 +508,30 @@ impl Stamp {
             index: self.index != older.index,
             refs: self.refs != older.refs,
             config: self.config != older.config,
+        }
+    }
+}
+
+#[cfg(test)]
+mod path_tests {
+    use super::simplify_path;
+    use std::path::PathBuf;
+
+    fn s(p: &str) -> String {
+        simplify_path(PathBuf::from(p)).display().to_string()
+    }
+
+    #[test]
+    fn windows_verbatim_prefixes_are_dropped() {
+        assert_eq!(s(r"\\?\C:\Users\me\repo\.git"), r"C:\Users\me\repo\.git");
+        assert_eq!(s(r"\\?\d:"), "d:");
+        assert_eq!(s(r"\\?\UNC\host\share\repo"), r"\\host\share\repo");
+    }
+
+    #[test]
+    fn everything_else_is_left_alone() {
+        for p in ["/home/me/repo", r"C:\Users\me", r"\\host\share\x", r"\\?\Volume{1234}\x", r"\\?\1:\x", "", "."] {
+            assert_eq!(s(p), p);
         }
     }
 }

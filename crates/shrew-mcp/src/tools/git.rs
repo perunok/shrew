@@ -202,7 +202,7 @@ fn open(host: &dyn Host, path: Option<&str>) -> Result<Ctx, String> {
 }
 
 fn canon(p: &std::path::Path) -> PathBuf {
-    std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf())
+    shrew_git::canonicalize(p).unwrap_or_else(|_| p.to_path_buf())
 }
 
 impl Ctx {

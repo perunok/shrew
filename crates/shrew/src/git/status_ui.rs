@@ -273,7 +273,7 @@ pub fn tree_deco(git: &Git, features: &Features, root: &Path) -> Option<TreeDeco
     let mut cache = ui.tree.borrow_mut();
     let fresh = cache.as_ref().is_some_and(|t| t.generation == ui.generation && t.root == root && t.repo == repo);
     if !fresh {
-        let canon = std::fs::canonicalize(root).ok()?;
+        let canon = shrew_git::canonicalize(root).ok()?;
         let prefix = canon
             .strip_prefix(&repo)
             .ok()?

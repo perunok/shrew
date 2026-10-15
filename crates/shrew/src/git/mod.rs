@@ -253,7 +253,7 @@ impl Git {
 
 /// `file` relative to the canonical `workdir`, `/`-separated (its folder is resolved through symlinks once).
 fn rel_path(workdir: &Path, file: &Path) -> Option<String> {
-    let dir = std::fs::canonicalize(file.parent()?).ok()?;
+    let dir = shrew_git::canonicalize(file.parent()?).ok()?;
     let full = dir.join(file.file_name()?);
     let rel = full.strip_prefix(workdir).ok()?;
     let parts: Option<Vec<&str>> = rel.components().map(|c| c.as_os_str().to_str()).collect();

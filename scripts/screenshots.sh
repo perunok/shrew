@@ -7,6 +7,8 @@
 #   scripts/screenshots.sh            # all of them
 #   scripts/screenshots.sh about      # only the shots whose name contains "about"
 #
+# The git shots run in a throwaway repository built by scripts/demo-repo.sh.
+#
 # Needs a GPU driver (Vulkan or GL) like the editor itself. Look at the PNGs before committing them.
 set -euo pipefail
 
@@ -19,6 +21,8 @@ bin=$root/target/release/srw
 size=1280x800
 out=docs/screenshots
 mkdir -p "$out"
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
 
 # shot OUT KEYS [FILES...]
 shot() {
@@ -63,9 +67,27 @@ shot $out/menu.png "<C-S-e><Esc><A-v>" crates/shrew/src/layout.rs crates/shrew/s
 # the minimap: each line in its syntax colors, the visible lines boxed, the search's matches marked
 shot $out/minimap.png ":theme tokyo-night<CR>/self.mode<CR>" "$core/editor.rs:700"
 
+# git: a deterministic demo repository (scripts/demo-repo.sh) with a working tree in every state, built only when a
+# git shot is asked for. The shots run inside it, so the title bar names the project "calc".
+gitshot() {
+  local file=$1 keys=$2
+  shift 2
+  case $file in *"$only"*) ;; *) return 0 ;; esac
+  [ -d "$tmp/calc" ] || "$root/scripts/demo-repo.sh" "$tmp/calc"
+  echo "  $file"
+  (cd "$tmp/calc" && "$bin" --screenshot "$root/$file" --size "$size" --keys "$keys" "$@")
+}
+echo "Git"
+# the sidebar's file states, the gutter's marks and the cursor line's author
+gitshot $out/git-gutter.png ":set sidebar<CR>:24<CR>" src/parser.rs
+# a change peeked at, the changed words marked
+gitshot $out/git-peek.png ":34<CR>zt\$ghp" src/parser.rs
+gitshot $out/git-diff.png ":Gdiff<CR>" src/parser.rs
+gitshot $out/git-panel.png "<C-S-g>cParser: report the line of an error" src/parser.rs
+gitshot $out/git-log.png ":git_log_all<CR>jjjjjj<CR>" src/parser.rs
+gitshot $out/git-blame.png ":git_blame<CR>:20<CR>zt" src/parser.rs
+
 # a 50 MB, one-million-line file, at line 500,000 with a search
-tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
 case huge-file.png in *"$only"*)
   # in a folder with a stable name: the title bar shows it as the project
   mkdir -p "$tmp/big"

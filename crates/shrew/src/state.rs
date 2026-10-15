@@ -164,7 +164,11 @@ impl State {
         };
         st.titlebar.configure(&loaded.config.titlebar);
         #[cfg(feature = "git")]
-        crate::git::default_mappings(&mut st.ed);
+        {
+            crate::git::default_mappings(&mut st.ed);
+            // the window waits for nothing git: it wakes the service after its first frame (`start_deferred`)
+            st.git.active = headless;
+        }
         #[cfg(feature = "syntax")]
         {
             st.ed.symbols = Some(crate::symbols::provider(st.wake.clone()));
@@ -560,6 +564,11 @@ impl State {
             self.set_mcp(true);
         }
         self.load_recent();
+        #[cfg(feature = "git")]
+        {
+            self.git.active = true;
+            crate::git::sync(self);
+        }
     }
 
     // ----- recent files and projects -----

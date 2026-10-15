@@ -29,6 +29,13 @@ new version when it tags a release.
   with *Accept Current / Incoming / Both / Compare*, `]x` / `[x`, and mark resolved. Enter on a change, a file of a
   commit in the log (or `d` for the whole commit) and a click on the blame column open the diff view.
 - A Git menu, a Git section in Settings and git colour tokens (`git-added` ... `diff-del-word`) for every theme.
+- MCP git tools (with the `mcp` and `git` cargo features): `git_status`, `git_diff` (unstaged, staged, HEAD or a
+  commit), `git_log` (paged, or one file's history), `git_blame` (a line range, the open buffer's text) and
+  `git_show_commit`. Read-only: there is no tool that stages, commits or pushes.
+- [docs/GIT.md](docs/GIT.md): how git works in shrew, what each view does, performance and troubleshooting; git
+  screenshots in the README gallery (`scripts/screenshots.sh` builds a deterministic demo repository for them with
+  `scripts/demo-repo.sh`).
+- `srw --screenshot ... --stats` benchmarks a diff tab's scrolling too.
 
 ## [0.1.0] - 2026-10-15
 

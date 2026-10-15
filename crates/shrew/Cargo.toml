@@ -33,7 +33,7 @@ project = ["shrew-core/project"]
 terminal = ["dep:alacritty_terminal", "dep:regex"]
 # Git: change markers, hunk staging, inline blame, the diff view, the Source Control panel, log and blame
 # (gix reads in-process, writes through the git program).
-git = ["dep:shrew-git"]
+git = ["dep:shrew-git", "shrew-mcp?/git"]
 
 [dependencies]
 shrew-core = { path = "../shrew-core", default-features = false }
@@ -41,7 +41,7 @@ shrew-render = { path = "../shrew-render", default-features = false }
 shrew-config = { path = "../shrew-config" }
 shrew-theme = { path = "../shrew-theme" }
 shrew-syntax = { path = "../shrew-syntax", optional = true }
-shrew-mcp = { path = "../shrew-mcp", optional = true }
+shrew-mcp = { path = "../shrew-mcp", optional = true, default-features = false }
 shrew-update = { path = "../shrew-update", optional = true }
 shrew-git = { path = "../shrew-git", optional = true }
 winit.workspace = true

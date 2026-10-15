@@ -19,6 +19,20 @@ open them in the background. open_file and goto show a place to the user. run_co
 (\"%s/foo/bar/g\", \"set nonumber\", \"w\") and returns shrew's status message. search and list_files cover the \
 project (respecting .gitignore); results are capped.";
 
+/// Added to the instructions when this build has the git tools.
+#[cfg(feature = "git")]
+const GIT_INSTRUCTIONS: &str = " git_status, git_diff, git_log, git_blame and git_show_commit read the project's git \
+repository (read-only: nothing is staged, committed or fetched). They see saved files, except git_blame, which uses \
+the text open in shrew; ask git_status first to learn the branch and what changed, and give git_diff and git_show_commit \
+a path to keep answers short.";
+
+pub fn instructions() -> String {
+    #[cfg(feature = "git")]
+    return format!("{INSTRUCTIONS}{GIT_INSTRUCTIONS}");
+    #[cfg(not(feature = "git"))]
+    INSTRUCTIONS.to_string()
+}
+
 pub const PARSE_ERROR: i64 = -32700;
 pub const INVALID_REQUEST: i64 = -32600;
 pub const METHOD_NOT_FOUND: i64 = -32601;
@@ -82,7 +96,7 @@ pub fn handle(host: &dyn Host, msg: Value) -> Option<Value> {
                     "protocolVersion": version,
                     "capabilities": { "tools": { "listChanged": false } },
                     "serverInfo": { "name": "shrew", "title": "shrew", "version": crate::app_version() },
-                    "instructions": INSTRUCTIONS
+                    "instructions": instructions()
                 }),
             )
         }

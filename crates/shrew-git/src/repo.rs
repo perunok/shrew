@@ -382,10 +382,10 @@ impl Repo {
 
     /// Resolves a revision (`HEAD~2`, a branch, a tag, an id prefix) to a commit.
     pub fn resolve(&self, rev: &str) -> Result<Oid> {
-        let id = self
-            .git
-            .rev_parse_single(rev)
-            .map_err(|e| Error::new(ErrorKind::NotFound, format!("unknown revision {rev}: {e}")))?;
+        let id = self.git.rev_parse_single(rev).map_err(|e| {
+            log::debug!("rev-parse {rev}: {e}");
+            Error::new(ErrorKind::NotFound, format!("unknown revision {rev}"))
+        })?;
         let commit = id.object()?.peel_to_commit().map_err(Error::from)?;
         Ok(Oid::from_gix(&commit.id))
     }

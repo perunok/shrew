@@ -192,3 +192,21 @@ fn nothing_starts_outside_a_repository() {
     assert!(st.git.statuses.is_empty() && st.git.watching.is_empty(), "nothing watched");
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn nothing_git_starts_before_the_first_frame() {
+    let Some(dir) = repo(&[("a.txt", "one\n")]) else { return };
+    let mut st = state();
+    // the real app starts inactive and wakes git after its first frame (`State::start_deferred`)
+    st.git.active = false;
+    st.open_at(&dir.join("a.txt"), None, None);
+    st.after_input();
+    st.poll();
+    assert!(st.git.link.service.is_none(), "a lookup started before the first frame");
+    assert!(st.ed.hunks().is_empty());
+    // the first frame is up: the lookup starts, and the markers follow
+    st.git.active = true;
+    st.after_input();
+    keys(&mut st, "Ox<Esc>");
+    wait(&mut st, "markers", |st| !st.ed.hunks().is_empty());
+}

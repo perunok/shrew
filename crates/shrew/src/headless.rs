@@ -118,12 +118,36 @@ fn syntax_busy(_: &State) -> bool {
     false
 }
 
+/// A diff tab scrolls itself, a row or a page per frame and back to the top now and then. False when the active tab
+/// is not a diff (or this build has no git).
+#[cfg(feature = "git")]
+fn scroll_diff(st: &mut State, step: isize, frame: usize) -> bool {
+    if !crate::git::diffview::is_active(st) {
+        return false;
+    }
+    let keys = match (step, frame % 40) {
+        (_, 0) => "gg",
+        (1, _) => "<C-e>",
+        _ => "<C-f>",
+    };
+    for k in KeyPress::parse_seq(keys) {
+        st.key(k);
+    }
+    st.poll();
+    true
+}
+
+#[cfg(not(feature = "git"))]
+fn scroll_diff(_: &mut State, _: isize, _: usize) -> bool {
+    false
+}
+
 fn bench(st: &mut State, r: &mut Renderer, scene: &mut Scene, ui: &mut Ui, lay: &Layout) {
     let mut run = |name: &str, step: isize, st: &mut State| {
         let mut builds = Vec::new();
         let mut cpus = Vec::new();
-        for _ in 0..60 {
-            if step != 0 {
+        for i in 0..60 {
+            if step != 0 && !scroll_diff(st, step, i) {
                 let b = st.ed.buf_mut();
                 let last = shrew_core::text::last_line(b.rope());
                 let top = b.view.top as isize + step;

@@ -102,6 +102,9 @@ fn buffer_text(host: &dyn Host, name: &'static str) -> String {
     })
 }
 
+#[cfg(feature = "git")]
+mod git;
+
 // ---------------------------------------------------------------------------
 // protocol
 // ---------------------------------------------------------------------------
@@ -149,29 +152,39 @@ fn tools_are_listed_with_schemas_and_hints() {
     let list = protocol::tool_list();
     let tools = list["tools"].as_array().unwrap();
     let names: Vec<_> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
+    let git: &[&str] = if cfg!(feature = "git") {
+        &["git_status", "git_diff", "git_log", "git_blame", "git_show_commit"]
+    } else {
+        &[]
+    };
     assert_eq!(
         names,
         [
-            "list_buffers",
-            "get_active_buffer",
-            "read_buffer",
-            "open_file",
-            "edit_buffer",
-            "replace_lines",
-            "write_buffer",
-            "save_buffer",
-            "run_command",
-            "search",
-            "list_files",
-            "goto"
+            &[
+                "list_buffers",
+                "get_active_buffer",
+                "read_buffer",
+                "open_file",
+                "edit_buffer",
+                "replace_lines",
+                "write_buffer",
+                "save_buffer",
+                "run_command",
+                "search",
+                "list_files",
+                "goto"
+            ][..],
+            git
         ]
+        .concat()
     );
     for t in tools {
         assert_eq!(t["inputSchema"]["type"], "object", "{}", t["name"]);
         assert_eq!(t["inputSchema"]["additionalProperties"], false, "{}", t["name"]);
         assert_eq!(t["annotations"]["openWorldHint"], false);
-        let read_only = ["list_buffers", "get_active_buffer", "read_buffer", "search", "list_files"]
-            .contains(&t["name"].as_str().unwrap());
+        let name = t["name"].as_str().unwrap();
+        let read_only = ["list_buffers", "get_active_buffer", "read_buffer", "search", "list_files"].contains(&name)
+            || name.starts_with("git_");
         assert_eq!(t["annotations"]["readOnlyHint"], read_only, "{}", t["name"]);
     }
     let write = tools.iter().find(|t| t["name"] == "write_buffer").unwrap();

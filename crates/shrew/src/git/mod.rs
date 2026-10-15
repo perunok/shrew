@@ -11,7 +11,8 @@
 //!   files, [`ops`] with progress and cancel, the [`log`] tab with its graph, the [`blame_view`] column and
 //!   [`conflict`] regions, with the git prompt ([`ask`]) and text fields ([`textbox`]).
 //!
-//! Cost: nothing starts before the first file or project is looked up (one idle thread then), and nothing more
+//! Cost: nothing starts before the first frame is on screen and a file or project is looked up (one idle thread
+//! then; [`Git::active`]), and nothing more
 //! runs for files outside a repository. The service watches the repositories in use (open files, the sidebar's
 //! project, diff tabs, the Source Control repository) only while the window has the focus, and the UI thread never
 //! waits on it: replies arrive through the wake callback and [`poll`], and every part ignores tickets not its own.
@@ -66,6 +67,7 @@ impl Link {
         let focused = self.focused;
         let wake = self.wake.clone();
         let s = self.service.get_or_insert_with(|| {
+            ::log::info!("git service started");
             let s = GitService::new(wake);
             s.set_focused(focused);
             s
@@ -88,6 +90,9 @@ pub enum Place {
 }
 
 pub struct Git {
+    /// Set once the first frame is on screen (at once when headless): until then [`sync`] looks at nothing, so
+    /// starting up never waits for, or competes with, a repository lookup.
+    pub active: bool,
     pub link: Link,
     /// Folder -> its repository's workdir (`None`: in none), as discovered.
     dirs: HashMap<PathBuf, Option<PathBuf>>,
@@ -121,6 +126,7 @@ pub struct Git {
 impl Git {
     pub fn new(wake: Waker, cfg: &shrew_config::GitConfig) -> Git {
         let mut g = Git {
+            active: false,
             link: Link { wake, service: None, focused: true },
             dirs: HashMap::new(),
             asking: HashSet::new(),
@@ -264,6 +270,9 @@ pub fn any_on(st: &State) -> bool {
 /// After input, a wake or a timer: looks up what the screen shows, asks for what is missing or stale, and keeps
 /// the repositories in use watched (and only those).
 pub fn sync(st: &mut State) {
+    if !st.git.active {
+        return;
+    }
     let markers = any_on(st);
     if !markers {
         if !st.ed.git_hunks.is_empty() {
@@ -330,6 +339,7 @@ pub fn poll(st: &mut State) -> bool {
         None => Vec::new(),
     };
     let mut changed = !events.is_empty();
+    let started = Instant::now();
     for ev in events {
         diffview::event(st, &ev);
         // Source Control never needs the line diffs, which can be big
@@ -380,6 +390,10 @@ pub fn poll(st: &mut State) -> bool {
             Reply::BlameDone(r) => st.git.blame.on_done(ev.ticket, r),
             _ => {}
         }
+    }
+    // the UI thread only files replies away; anything slow here is a bug worth seeing with `--stats`
+    if changed && started.elapsed() > Duration::from_millis(4) {
+        ::log::info!("git: handling replies took {:?} on the UI thread", started.elapsed());
     }
     changed |= diffview::poll(st);
     changed |= tick(st, Instant::now());

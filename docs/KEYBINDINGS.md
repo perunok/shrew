@@ -760,6 +760,7 @@ uncommitted lines read "You • Uncommitted changes").
 clicking it opens the branch picker when the build has one. The sidebar colours files by state with git's letter at
 the right: M modified, A added, D deleted, R renamed, ? untracked, U conflict, ! ignored; a folder holding changes
 is tinted and gets a dot.
+
 ## Source Control
 
 With the `git` cargo feature and the `git_panel` feature (both on by default), shrew works with the repository of the

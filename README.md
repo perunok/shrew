@@ -20,8 +20,8 @@ Small, quick, yours: read [the Shrew Manifesto](#manifesto).
 
 ## Screenshots
 
-Every shot is the real editor, rendered headless from shrew's own source code. Regenerate them with
-`scripts/screenshots.sh`.
+Every shot is the real editor, rendered headless from shrew's own source code (the git ones from a small demo
+repository, `scripts/demo-repo.sh`). Regenerate them with `scripts/screenshots.sh`.
 
 | | |
 |---|---|
@@ -36,6 +36,9 @@ Every shot is the real editor, rendered headless from shrew's own source code. R
 | ![Vim in the terminal](docs/screenshots/terminal-vim.png)<br>**Full-screen programs** work: vim inside shrew's terminal, One Light | ![Settings](docs/screenshots/settings.png)<br>**Settings** (Ctrl+,): every setting by section, saved to `config.toml` |
 | ![Settings in a light theme](docs/screenshots/settings-light.png)<br>**Keys or mouse**: switches, sliders, `/` to search, `r` to reset | ![Everything at once](docs/screenshots/workspace.png)<br>**Everything at once**: title bar, sidebar, minimap and terminal |
 | ![Title bar menu](docs/screenshots/menu.png)<br>**The title bar** holds the tabs, the menus (F10, Alt+V) and the window buttons | ![Minimap](docs/screenshots/minimap.png)<br>**The minimap**: the file in its syntax colors, click or drag to scroll, Tokyo Night |
+| ![Git gutter](docs/screenshots/git-gutter.png)<br>**Git in the gutter**: added, changed and deleted lines, the cursor line's author, file states in the sidebar | ![Git peek](docs/screenshots/git-peek.png)<br>**`ghp` peeks at a change** with the changed words marked; Stage, Revert and Diff are one key or click away |
+| ![Git diff](docs/screenshots/git-diff.png)<br>**The diff view**: side by side, aligned, with changed words and folded context; stage a change with the round button or `s` | ![Source Control](docs/screenshots/git-panel.png)<br>**Source Control** (Ctrl+Shift+G): staged, changed and untracked files, the commit box, sync |
+| ![Git log](docs/screenshots/git-log.png)<br>**The log** draws the commit graph, branch and tag labels; Enter shows a commit's files | ![Git blame](docs/screenshots/git-blame.png)<br>**Blame** as a column: who changed each run of lines, how long ago, unsaved lines marked |
 
 ## Features
 
@@ -100,7 +103,8 @@ Every shot is the real editor, rendered headless from shrew's own source code. R
 - **Git diffs.** A diff tab (Enter on a change in Source Control, `:Gdiff`, the Git menu, the palette) shows a file,
   the staged or unstaged changes, a commit or two branches side by side or unified, with syntax colors, changed words
   marked and unchanged lines folded. It follows your unsaved edits as you type; `s`, `u` and `X` stage, unstage or
-  revert a change or the selected lines. See [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md#diff-view).
+  revert a change or the selected lines. See [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md#diff-view). How it all fits
+  together, and what to check when something looks wrong, is in **[docs/GIT.md](docs/GIT.md)**.
 
   All of it reads the repository inside shrew (gix, pure Rust) off the UI thread, and writes through the `git`
   program, so your hooks and credentials just work. Nothing runs outside a repository.
@@ -182,7 +186,9 @@ cargo build --release -p shrew --no-default-features                     # just 
 cargo build --release -p shrew --no-default-features --features syntax   # plus highlighting
 ```
 
-A feature that is compiled out shows as unavailable in the Features list, and `:set` on it explains why. With
+`git` is its own switch for everything git: without it (`--no-default-features --features syntax,mcp`, say) the
+change markers, diffs, Source Control and the MCP git tools are gone, along with gix and imara-diff. A feature that
+is compiled out shows as unavailable in the Features list, and `:set` on it explains why. With
 `embed-font` off, shrew uses a system monospace font instead of the bundled JetBrains Mono (about 830 KB).
 `shrew-syntax` also has an opt-in feature: `sublime-user` loads extra `.sublime-syntax` files from Sublime's
 `Packages/User`. Color schemes (`.sublime-color-scheme`, `.tmTheme`) are always readable: see
@@ -397,7 +403,9 @@ files (reloaded when saved), or convert a Sublime `.sublime-color-scheme` or Tex
 shrew can expose its open buffers to AI assistants over the
 [Model Context Protocol](https://modelcontextprotocol.io). Assistants can list, read and search buffers, open files,
 edit text (each edit is one undo step, and nothing is saved unless the assistant calls save), run commands and move
-the cursor.
+the cursor. In a git repository they also get five read-only tools (`git_status`, `git_diff`, `git_log`,
+`git_blame`, `git_show_commit`); nothing an assistant calls can stage, commit or push. See
+[docs/GIT.md](docs/GIT.md#assistants-mcp).
 
 1. Turn it on: `:set mcp`, or toggle **MCP** in the Features list. The server listens on `127.0.0.1` only and uses a
    private token.
@@ -451,10 +459,16 @@ below):
 | What | Measured |
 | --- | --- |
 | Start to first frame | about 50-65 ms (median 60 ms over 15 starts), most of it Vulkan initialisation, which runs while the window is created |
-| CPU while idle | 0: no render loop, no timers, nothing polls (0 CPU ticks over 10 s with a file open) |
+| CPU while idle | 0: no render loop and no timers (0-2 CPU ticks of 10 ms over 20 s with a file open, the same with git on or off). In a git repository one thread wakes every 3 s to compare a few file timestamps, only while the window has the focus |
 | Redrawing an unchanged frame at 1080p | about 0.2 ms of CPU (0.1 ms with the minimap off) |
 | A frame where every visible line is shaped anew (scrolling a page at 1080p) | about 1.1 ms |
 | A 50 MB, 1,000,000-line buffer | every interactive operation far below one 16 ms frame (`crates/shrew-core/tests/perf.rs`) |
+| Git: change markers while typing | the diff of a 10,000-line file takes under 1 ms on a worker thread (keystroke to marks: median 0.55-0.7 ms, p95 under 0.8 ms) and runs 30 ms after you stop typing, so a keystroke never waits for it |
+| Git: status | shrew's own repository about 1 ms; 10,000 files 6-9 ms and 20,000 files 12-16 ms (35 ms with a cold file cache), about what `git status` takes; a refresh after saving a file in the 20,000-file repository 14-18 ms end to end, all off the UI thread |
+| Git: log | the first 200 commits of a 20,000-commit history in 0.5 ms (1.3 ms cold), the page at row 10,000 in 7-10 ms |
+| Git: blame | the first lines of a 5,000-line file blamed over 200 commits after 3-18 ms, all of it in 110-220 ms (the column fills in as `git blame` streams) |
+| Git: the diff view | a full 1080p frame of a 1,100-line diff (split or unified) about 0.45 ms of CPU, a row scrolled about 0.15 ms, a page 0.4-0.5 ms |
+| Git: start | no difference: first frame at a median 58 ms with a file in a repository, 55 ms outside one and 58 ms with the git features off (15 starts each); git is not touched before the first frame |
 | Vim compatibility | 839 differential cases agree with Vim 9.1 (`crates/shrew-core/tests/vim_diff.rs`) |
 | Binary size | 17.1 MiB on Linux x86_64 with every feature; about 12 MiB without the optional ones (see below) |
 
@@ -468,6 +482,11 @@ How:
   cursor movement do not re-shape text.
 - **Background syntax.** Grammars load lazily on a worker thread. Highlighting is incremental, and lines that are
   not highlighted yet are drawn plain instead of blocking the frame.
+- **Git never blocks.** Reads run in-process on a worker thread (gix and imara-diff, no `git` process for status, log or
+  the change markers), writes and the network in the `git` program. Requests for the same buffer or repository
+  coalesce, so typing re-diffs only the newest text, and the window thread only files replies away (a reply that
+  took over 4 ms to file shows in `srw -f --stats`). The service starts on the first lookup, outside a repository
+  there is nothing more to do, and unfocused it stops watching. More in [docs/GIT.md](docs/GIT.md#performance).
 - **Cheap edits.** A rope makes edits O(log n) even in very large files. Undo stores change sets, not snapshots.
 - **Fast start.** The GPU is opened on a background thread while the config is read and the window is created,
   glyphs are rasterised for exactly as long as that takes, and the font is embedded, so the first frame never waits
@@ -492,6 +511,7 @@ cargo build --release -p shrew
 | `cargo run --release -p shrew -- [files]` | Run the editor (the binary is `srw`) |
 | `cargo test --workspace` | Unit and integration tests; `vim_diff` runs against `vim` (or `nvim`) when one is on `PATH` |
 | `cargo test --release -p shrew-core --test perf -- --ignored --nocapture` | Latency checks on a 50 MB buffer |
+| `cargo test --release -p shrew-git --test perf -- --ignored --nocapture` | Git timings: gutter diff and keystroke latency, status of 10,000 and 20,000 files, log, blame |
 | `cargo clippy --workspace --all-targets -- -D warnings` | Lints (CI fails on any warning) |
 | `cargo fmt --all` | Format (`rustfmt.toml`: 120 columns) |
 | `scripts/check-pure-rust.sh` | Fails if any dependency compiles or links C |
@@ -512,6 +532,7 @@ shrew is a Cargo workspace of small crates. Only the app crate knows about windo
 | [`shrew-theme`](crates/shrew-theme) | Themes as data: 33 built-in UI + syntax palettes, 18 accents, custom themes, Sublime/TextMate scheme import, WCAG contrast audit. |
 | [`shrew-config`](crates/shrew-config) | `config.toml` (comment-preserving writes), and the vimrc and Sublime Text importers. |
 | [`shrew-mcp`](crates/shrew-mcp) | MCP server: a loopback Streamable-HTTP endpoint inside the app and the `--mcp-stdio` bridge. |
+| [`shrew-git`](crates/shrew-git) | Git without a UI: gix reads (status, log, blame, blobs), imara-diff line and word diffs, the `git` program for writes and network, and a background service the app talks to. |
 | [`shrew-update`](crates/shrew-update) | Self-update from GitHub Releases: pure-Rust TLS (rustls + RustCrypto), sha256 check, atomic swap. |
 | [`shrew`](crates/shrew) | The app (`srw`): winit window and event loop, the single-instance `srw` command, drawing, wiring the crates together. |
 
@@ -520,6 +541,7 @@ shrew is a Cargo workspace of small crates. Only the app crate knows about windo
 - [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md): every key, ex command and named command.
 - [docs/CONFIG.md](docs/CONFIG.md): every `config.toml` setting, and the vimrc and Sublime import.
 - [docs/THEMES.md](docs/THEMES.md): themes, accents, custom themes, importing color schemes, fonts.
+- [docs/GIT.md](docs/GIT.md): git in shrew: how it works, what each view does, performance, troubleshooting.
 - [docs/CLI.md](docs/CLI.md): the `srw` command, single instance, `$EDITOR`.
 - [CHANGELOG.md](CHANGELOG.md): what changed in each release.
 

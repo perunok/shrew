@@ -5,9 +5,15 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+default = ["git"]
+# The git_* tools (status, diff, log, blame, show commit), read-only, through shrew-git.
+git = ["dep:shrew-git"]
+
 [dependencies]
 # The editing engine only; syntax and the file picker are the app's business.
 shrew-core = { path = "../shrew-core", default-features = false }
+shrew-git = { path = "../shrew-git", optional = true }
 regex.workspace = true
 ignore.workspace = true
 serde.workspace = true

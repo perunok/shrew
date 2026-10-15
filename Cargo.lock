@@ -4110,6 +4110,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shrew-core",
+ "shrew-git",
  "tempfile",
  "tiny_http",
  "ureq",

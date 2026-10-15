@@ -11,6 +11,14 @@
 //! - Edits are never saved by themselves, and each is one undo step.
 //! - `run_command` cannot quit shrew, change its working directory or install updates.
 
+#[cfg(feature = "git")]
+mod git;
+
+#[cfg(all(test, feature = "git"))]
+pub(crate) fn git_iso_for_tests(time: i64, offset: i32) -> String {
+    git::iso(time, offset)
+}
+
 use crate::project::{self, Filter, Hit};
 use crate::text;
 use serde_json::{Map, Value, json};
@@ -80,6 +88,7 @@ pub(crate) fn with_editor_timeout<R: Send + 'static>(
 // tool specs
 // ---------------------------------------------------------------------------
 
+#[derive(Clone, Copy)]
 pub struct ToolSpec {
     pub name: &'static str,
     pub title: &'static str,
@@ -115,184 +124,193 @@ fn int(desc: &str) -> Value {
     json!({ "type": "integer", "minimum": 1, "description": desc })
 }
 
+/// Every tool: the buffer tools, plus the git tools when this build has them.
 pub fn tools() -> &'static [ToolSpec] {
-    static TOOLS: &[ToolSpec] = &[
-        ToolSpec {
-            name: "list_buffers",
-            title: "List open buffers",
-            description: "Buffers open in shrew: id, path, unsaved changes (dirty), language, line count, and which one is on screen. Also shrew's working directory.",
-            read_only: true,
-            destructive: false,
-            input: || schema(json!({}), &[]),
-        },
-        ToolSpec {
-            name: "get_active_buffer",
-            title: "The buffer on screen",
-            description: "The buffer the user is looking at: path, cursor line/column, the selected text (with positions), the editor mode, and the lines around the cursor. Use it for \"this file\", \"here\" or \"the selection\".",
-            read_only: true,
-            destructive: false,
-            input: || {
-                schema(
-                    json!({ "context": { "type": "integer", "minimum": 0, "maximum": 200, "description": "Lines to show above and below the cursor (default 5)." } }),
-                    &[],
-                )
-            },
-        },
-        ToolSpec {
-            name: "read_buffer",
-            title: "Read a buffer or file",
-            description: "Lines of a buffer as shrew holds them (unsaved edits included), numbered like `cat -n`; a file that is not open is read from disk (inside the working directory). Default: the first 2000 lines. Line numbers are for reference, not part of the text.",
-            read_only: true,
-            destructive: false,
-            input: || {
-                target_schema(
-                    json!({ "start_line": int("First line (1-based, default 1)."), "end_line": int("Last line, inclusive (default: start_line + 1999).") }),
-                    &[],
-                )
-            },
-        },
-        ToolSpec {
-            name: "open_file",
-            title: "Open a file in shrew",
-            description: "Opens a file in shrew (or switches to it when open) so the user sees it, optionally at a line. A missing file opens as a new, empty buffer.",
-            read_only: false,
-            destructive: false,
-            input: || {
-                schema(
-                    json!({ "path": { "type": "string", "description": "File path, relative to shrew's working directory or absolute." }, "line": int("Line to show (1-based).") }),
-                    &["path"],
-                )
-            },
-        },
-        ToolSpec {
-            name: "edit_buffer",
-            title: "Edit a buffer",
-            description: "Replaces old_string with new_string, exactly (whitespace and indentation included). old_string must occur once unless replace_all is true: include enough surrounding lines to make it unique. Applied in shrew as one undo step and NOT saved. Read the lines first.",
-            read_only: false,
-            destructive: false,
-            input: || {
-                target_schema(
-                    json!({
-                        "old_string": { "type": "string", "description": "Text to replace (exact, without line numbers)." },
-                        "new_string": { "type": "string", "description": "Replacement text." },
-                        "replace_all": { "type": "boolean", "description": "Replace every occurrence (default false)." }
-                    }),
-                    &["old_string", "new_string"],
-                )
-            },
-        },
-        ToolSpec {
-            name: "replace_lines",
-            title: "Replace lines",
-            description: "Replaces lines start_line..end_line (1-based, inclusive) with text. end_line = start_line - 1 inserts before start_line; start_line = line count + 1 appends; empty text deletes. One undo step, NOT saved.",
-            read_only: false,
-            destructive: false,
-            input: || {
-                target_schema(
-                    json!({
-                        "start_line": int("First line to replace."),
-                        "end_line": { "type": "integer", "minimum": 0, "description": "Last line to replace, inclusive." },
-                        "text": { "type": "string", "description": "The new lines (a final line break is added if missing)." }
-                    }),
-                    &["start_line", "end_line", "text"],
-                )
-            },
-        },
-        ToolSpec {
-            name: "write_buffer",
-            title: "Replace a buffer's text",
-            description: "Replaces the whole text of a buffer (or creates a new file's buffer inside the working directory). Prefer edit_buffer for small changes. One undo step, NOT saved.",
-            read_only: false,
-            destructive: true,
-            input: || {
-                target_schema(
-                    json!({ "content": { "type": "string", "description": "The complete new text." } }),
-                    &["content"],
-                )
-            },
-        },
-        ToolSpec {
-            name: "save_buffer",
-            title: "Save to disk",
-            description: "Writes a buffer to its file (or every buffer with unsaved changes when all is true).",
-            read_only: false,
-            destructive: true,
-            input: || {
-                target_schema(
-                    json!({ "all": { "type": "boolean", "description": "Save every buffer with unsaved changes." } }),
-                    &[],
-                )
-            },
-        },
-        ToolSpec {
-            name: "run_command",
-            title: "Run an ex command",
-            description: "Runs an ex command line in shrew as if typed after `:` (e.g. \"%s/foo/bar/g\", \"s/a/b/\", \"set nonumber\", \"w\", \"42\", \"bn\") on the buffer on screen, or on path/id after switching to it. Returns shrew's status message. Quitting, :cd and :update are refused.",
-            read_only: false,
-            destructive: true,
-            input: || {
-                target_schema(
-                    json!({ "command": { "type": "string", "description": "The command line, without the leading ':'." } }),
-                    &["command"],
-                )
-            },
-        },
-        ToolSpec {
-            name: "search",
-            title: "Search",
-            description: "Regex search (Rust regex syntax; ^ and $ match at line breaks). Default: every file in the project (respecting .gitignore), using shrew's text for open buffers. With path/id or scope \"buffer\": one buffer or file. Returns path:line:col: line, one hit per line, capped.",
-            read_only: true,
-            destructive: false,
-            input: || {
-                target_schema(
-                    json!({
-                        "pattern": { "type": "string", "description": "Regular expression." },
-                        "scope": { "type": "string", "enum": ["project", "buffer"], "description": "\"project\" (default) or \"buffer\" (path/id, else the one on screen)." },
-                        "ignore_case": { "type": "boolean", "description": "Case-insensitive (default false)." },
-                        "glob": { "type": "string", "description": "Only files matching this glob (\"*.rs\", \"src/**/*.ts\") or containing this text in their path." },
-                        "limit": { "type": "integer", "minimum": 1, "maximum": 1000, "description": "Most hits (default 100)." }
-                    }),
-                    &["pattern"],
-                )
-            },
-        },
-        ToolSpec {
-            name: "list_files",
-            title: "List project files",
-            description: "Files under shrew's working directory (respecting .gitignore, hidden files skipped), as relative paths. Filter with a glob (\"*.rs\", \"src/**/mod.rs\") or a piece of the path.",
-            read_only: true,
-            destructive: false,
-            input: || {
-                schema(
-                    json!({
-                        "filter": { "type": "string", "description": "Glob or path substring." },
-                        "limit": { "type": "integer", "minimum": 1, "maximum": 5000, "description": "Most files (default 500)." }
-                    }),
-                    &[],
-                )
-            },
-        },
-        ToolSpec {
-            name: "goto",
-            title: "Move the cursor",
-            description: "Shows a place to the user: switches to the buffer (opening the file if needed) and puts the cursor at line/col, or selects up to end_line/end_col (exclusive). Columns count characters, 1-based.",
-            read_only: false,
-            destructive: false,
-            input: || {
-                target_schema(
-                    json!({
-                        "line": int("Line (1-based)."),
-                        "col": int("Column (1-based, default: the first non-blank)."),
-                        "end_line": int("Select up to this line."),
-                        "end_col": int("Select up to this column (exclusive; default 1).")
-                    }),
-                    &["line"],
-                )
-            },
-        },
-    ];
-    TOOLS
+    static ALL: std::sync::OnceLock<Vec<ToolSpec>> = std::sync::OnceLock::new();
+    ALL.get_or_init(|| {
+        #[allow(unused_mut)]
+        let mut all = CORE.to_vec();
+        #[cfg(feature = "git")]
+        all.extend_from_slice(git::TOOLS);
+        all
+    })
 }
+
+static CORE: &[ToolSpec] = &[
+    ToolSpec {
+        name: "list_buffers",
+        title: "List open buffers",
+        description: "Buffers open in shrew: id, path, unsaved changes (dirty), language, line count, and which one is on screen. Also shrew's working directory.",
+        read_only: true,
+        destructive: false,
+        input: || schema(json!({}), &[]),
+    },
+    ToolSpec {
+        name: "get_active_buffer",
+        title: "The buffer on screen",
+        description: "The buffer the user is looking at: path, cursor line/column, the selected text (with positions), the editor mode, and the lines around the cursor. Use it for \"this file\", \"here\" or \"the selection\".",
+        read_only: true,
+        destructive: false,
+        input: || {
+            schema(
+                json!({ "context": { "type": "integer", "minimum": 0, "maximum": 200, "description": "Lines to show above and below the cursor (default 5)." } }),
+                &[],
+            )
+        },
+    },
+    ToolSpec {
+        name: "read_buffer",
+        title: "Read a buffer or file",
+        description: "Lines of a buffer as shrew holds them (unsaved edits included), numbered like `cat -n`; a file that is not open is read from disk (inside the working directory). Default: the first 2000 lines. Line numbers are for reference, not part of the text.",
+        read_only: true,
+        destructive: false,
+        input: || {
+            target_schema(
+                json!({ "start_line": int("First line (1-based, default 1)."), "end_line": int("Last line, inclusive (default: start_line + 1999).") }),
+                &[],
+            )
+        },
+    },
+    ToolSpec {
+        name: "open_file",
+        title: "Open a file in shrew",
+        description: "Opens a file in shrew (or switches to it when open) so the user sees it, optionally at a line. A missing file opens as a new, empty buffer.",
+        read_only: false,
+        destructive: false,
+        input: || {
+            schema(
+                json!({ "path": { "type": "string", "description": "File path, relative to shrew's working directory or absolute." }, "line": int("Line to show (1-based).") }),
+                &["path"],
+            )
+        },
+    },
+    ToolSpec {
+        name: "edit_buffer",
+        title: "Edit a buffer",
+        description: "Replaces old_string with new_string, exactly (whitespace and indentation included). old_string must occur once unless replace_all is true: include enough surrounding lines to make it unique. Applied in shrew as one undo step and NOT saved. Read the lines first.",
+        read_only: false,
+        destructive: false,
+        input: || {
+            target_schema(
+                json!({
+                    "old_string": { "type": "string", "description": "Text to replace (exact, without line numbers)." },
+                    "new_string": { "type": "string", "description": "Replacement text." },
+                    "replace_all": { "type": "boolean", "description": "Replace every occurrence (default false)." }
+                }),
+                &["old_string", "new_string"],
+            )
+        },
+    },
+    ToolSpec {
+        name: "replace_lines",
+        title: "Replace lines",
+        description: "Replaces lines start_line..end_line (1-based, inclusive) with text. end_line = start_line - 1 inserts before start_line; start_line = line count + 1 appends; empty text deletes. One undo step, NOT saved.",
+        read_only: false,
+        destructive: false,
+        input: || {
+            target_schema(
+                json!({
+                    "start_line": int("First line to replace."),
+                    "end_line": { "type": "integer", "minimum": 0, "description": "Last line to replace, inclusive." },
+                    "text": { "type": "string", "description": "The new lines (a final line break is added if missing)." }
+                }),
+                &["start_line", "end_line", "text"],
+            )
+        },
+    },
+    ToolSpec {
+        name: "write_buffer",
+        title: "Replace a buffer's text",
+        description: "Replaces the whole text of a buffer (or creates a new file's buffer inside the working directory). Prefer edit_buffer for small changes. One undo step, NOT saved.",
+        read_only: false,
+        destructive: true,
+        input: || {
+            target_schema(
+                json!({ "content": { "type": "string", "description": "The complete new text." } }),
+                &["content"],
+            )
+        },
+    },
+    ToolSpec {
+        name: "save_buffer",
+        title: "Save to disk",
+        description: "Writes a buffer to its file (or every buffer with unsaved changes when all is true).",
+        read_only: false,
+        destructive: true,
+        input: || {
+            target_schema(
+                json!({ "all": { "type": "boolean", "description": "Save every buffer with unsaved changes." } }),
+                &[],
+            )
+        },
+    },
+    ToolSpec {
+        name: "run_command",
+        title: "Run an ex command",
+        description: "Runs an ex command line in shrew as if typed after `:` (e.g. \"%s/foo/bar/g\", \"s/a/b/\", \"set nonumber\", \"w\", \"42\", \"bn\") on the buffer on screen, or on path/id after switching to it. Returns shrew's status message. Quitting, :cd and :update are refused.",
+        read_only: false,
+        destructive: true,
+        input: || {
+            target_schema(
+                json!({ "command": { "type": "string", "description": "The command line, without the leading ':'." } }),
+                &["command"],
+            )
+        },
+    },
+    ToolSpec {
+        name: "search",
+        title: "Search",
+        description: "Regex search (Rust regex syntax; ^ and $ match at line breaks). Default: every file in the project (respecting .gitignore), using shrew's text for open buffers. With path/id or scope \"buffer\": one buffer or file. Returns path:line:col: line, one hit per line, capped.",
+        read_only: true,
+        destructive: false,
+        input: || {
+            target_schema(
+                json!({
+                    "pattern": { "type": "string", "description": "Regular expression." },
+                    "scope": { "type": "string", "enum": ["project", "buffer"], "description": "\"project\" (default) or \"buffer\" (path/id, else the one on screen)." },
+                    "ignore_case": { "type": "boolean", "description": "Case-insensitive (default false)." },
+                    "glob": { "type": "string", "description": "Only files matching this glob (\"*.rs\", \"src/**/*.ts\") or containing this text in their path." },
+                    "limit": { "type": "integer", "minimum": 1, "maximum": 1000, "description": "Most hits (default 100)." }
+                }),
+                &["pattern"],
+            )
+        },
+    },
+    ToolSpec {
+        name: "list_files",
+        title: "List project files",
+        description: "Files under shrew's working directory (respecting .gitignore, hidden files skipped), as relative paths. Filter with a glob (\"*.rs\", \"src/**/mod.rs\") or a piece of the path.",
+        read_only: true,
+        destructive: false,
+        input: || {
+            schema(
+                json!({
+                    "filter": { "type": "string", "description": "Glob or path substring." },
+                    "limit": { "type": "integer", "minimum": 1, "maximum": 5000, "description": "Most files (default 500)." }
+                }),
+                &[],
+            )
+        },
+    },
+    ToolSpec {
+        name: "goto",
+        title: "Move the cursor",
+        description: "Shows a place to the user: switches to the buffer (opening the file if needed) and puts the cursor at line/col, or selects up to end_line/end_col (exclusive). Columns count characters, 1-based.",
+        read_only: false,
+        destructive: false,
+        input: || {
+            target_schema(
+                json!({
+                    "line": int("Line (1-based)."),
+                    "col": int("Column (1-based, default: the first non-blank)."),
+                    "end_line": int("Select up to this line."),
+                    "end_col": int("Select up to this column (exclusive; default 1).")
+                }),
+                &["line"],
+            )
+        },
+    },
+];
 
 // ---------------------------------------------------------------------------
 // arguments
@@ -696,6 +714,8 @@ pub fn call(host: &dyn Host, name: &str, args: &Value) -> ToolResult {
             }
             Ok(ToolOutput::with(text, json!({ "cwd": cwd.to_string_lossy(), "files": files, "truncated": truncated })))
         }
+        #[cfg(feature = "git")]
+        n if git::NAMES.contains(&n) => git::call(host, n, &a),
         other => Err(format!("Unknown tool \"{other}\"")),
     }
 }

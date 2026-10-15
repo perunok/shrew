@@ -462,8 +462,8 @@ impl Repo {
         let full: gix::refs::FullName = format!("refs/heads/{branch}")
             .try_into()
             .map_err(|_| Error::new(ErrorKind::NotFound, format!("invalid branch name {branch}")))?;
-        let has_upstream = self.git.branch_remote_ref_name(full.as_ref(), gix::remote::Direction::Push).is_some()
-            && self.git.branch_remote_name(full.as_ref().shorten(), gix::remote::Direction::Push).is_some();
+        // an upstream is `branch.<name>.merge` (push direction would answer even without one)
+        let has_upstream = self.git.branch_remote_ref_name(full.as_ref(), gix::remote::Direction::Fetch).is_some();
         let remote = match &opts.remote {
             Some(r) => r.clone(),
             None => self.push_remote(&full)?,

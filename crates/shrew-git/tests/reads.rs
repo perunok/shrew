@@ -262,6 +262,10 @@ fn linked_worktree() {
     assert_eq!(r.head().unwrap().branch.as_deref(), Some("feature"));
     assert_ne!(r.info().git_dir, r.info().common_dir);
     assert_eq!(ours(&status(&r)), [" M a.txt"]);
+    // opening from the recorded info (what the service does) finds the same worktree
+    let reopened = Repo::open(r.info()).unwrap();
+    assert_eq!(reopened.workdir(), r.workdir());
+    assert_eq!(ours(&status(&reopened)), [" M a.txt"]);
     // the main checkout is untouched
     assert!(status(&t.repo()).is_clean());
     // writes go to the right worktree
@@ -291,6 +295,8 @@ fn submodules() {
     assert_eq!(r.info().kind, RepoKind::Submodule);
     assert_eq!(r.rel_path(&t.abs("vendor/lib/lib.txt")).as_deref(), Some("lib.txt"));
     assert_eq!(ours(&status(&r)), [" M lib.txt"]);
+    let reopened = Repo::open(r.info()).unwrap();
+    assert_eq!(ours(&status(&reopened)), [" M lib.txt"]);
 }
 
 #[test]

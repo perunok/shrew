@@ -32,7 +32,7 @@ fn repo() -> Option<(tempfile::TempDir, PathBuf, FakeHost)> {
         return None;
     }
     let d = tempfile::tempdir().unwrap();
-    let root = std::fs::canonicalize(d.path()).unwrap().join("proj");
+    let root = shrew_git::canonicalize(d.path()).unwrap().join("proj");
     std::fs::create_dir_all(root.join("src")).unwrap();
     git(&root, &["init", "-q", "-b", "main"]);
     std::fs::write(root.join("a.txt"), "one\ntwo\nthree\n").unwrap();
@@ -210,7 +210,7 @@ fn paths_stay_in_the_repository_and_a_non_repo_is_reported() {
 
     // a working directory that is no repository
     let plain = tempfile::tempdir().unwrap();
-    let p = std::fs::canonicalize(plain.path()).unwrap();
+    let p = shrew_git::canonicalize(plain.path()).unwrap();
     let host = FakeHost::new(move |ed| ed.cwd = p.clone());
     assert!(fails(&host, "git_status", json!({})).contains("not inside a git repository"));
     assert!(fails(&host, "git_log", json!({})).contains("not inside a git repository"));
@@ -222,7 +222,7 @@ fn a_fresh_repository_without_commits_works() {
         return;
     }
     let d = tempfile::tempdir().unwrap();
-    let root = std::fs::canonicalize(d.path()).unwrap();
+    let root = shrew_git::canonicalize(d.path()).unwrap();
     git(&root, &["init", "-q", "-b", "main"]);
     std::fs::write(root.join("f.txt"), "x\n").unwrap();
     let r = root.clone();

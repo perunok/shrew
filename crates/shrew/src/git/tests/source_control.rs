@@ -47,9 +47,14 @@ fn repo(name: &str) -> Option<Repo> {
     let dir = std::env::temp_dir().join(format!("shrew-git-ui-{}-{name}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
-    let dir = dir.canonicalize().unwrap();
+    let dir = shrew_git::canonicalize(&dir).unwrap();
     git(&dir, &["init", "-q", "-b", "main"]);
-    for (k, v) in [("user.name", "Tess"), ("user.email", "tess@example.org"), ("commit.gpgsign", "false")] {
+    for (k, v) in [
+        ("user.name", "Tess"),
+        ("user.email", "tess@example.org"),
+        ("commit.gpgsign", "false"),
+        ("core.autocrlf", "false"),
+    ] {
         git(&dir, &["config", k, v]);
     }
     std::fs::write(dir.join("a.txt"), "one\ntwo\nthree\n").unwrap();

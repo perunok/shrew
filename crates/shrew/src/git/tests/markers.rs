@@ -23,11 +23,12 @@ fn repo(files: &[(&str, &str)]) -> Option<PathBuf> {
         std::env::temp_dir().join(format!("shrew-git-ui-{}-{}", std::process::id(), N.fetch_add(1, Ordering::SeqCst)));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
-    let dir = std::fs::canonicalize(&dir).unwrap();
+    let dir = shrew_git::canonicalize(&dir).unwrap();
     run(&dir, &["init", "-q", "-b", "main"]);
     run(&dir, &["config", "user.name", "Ann"]);
     run(&dir, &["config", "user.email", "ann@example.com"]);
     run(&dir, &["config", "commit.gpgsign", "false"]);
+    run(&dir, &["config", "core.autocrlf", "false"]);
     for (p, text) in files {
         let f = dir.join(p);
         std::fs::create_dir_all(f.parent().unwrap()).unwrap();

@@ -26,7 +26,7 @@ fn discovery() {
     let t = repo_or_skip!();
     t.write("src/deep/a.rs", "fn main() {}\n");
     let r = Repo::discover(&t.abs("src/deep/a.rs")).unwrap().unwrap();
-    assert_eq!(r.workdir(), std::fs::canonicalize(t.path()).unwrap());
+    assert_eq!(r.workdir(), shrew_git::canonicalize(t.path()).unwrap());
     assert_eq!(r.info().kind, RepoKind::Main);
     assert_eq!(r.rel_path(&t.abs("src/deep/a.rs")).as_deref(), Some("src/deep/a.rs"));
     assert_eq!(r.abs_path("src/deep/a.rs"), r.workdir().join("src").join("deep").join("a.rs"));

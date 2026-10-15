@@ -205,6 +205,7 @@ impl Repo {
     /// or `None` when it is outside the worktree or inside `.git`.
     pub fn rel_path(&self, path: &Path) -> Option<String> {
         let abs = if path.is_absolute() { path.to_path_buf() } else { std::env::current_dir().ok()?.join(path) };
+        let abs = simplify_path(abs);
         let rel = match abs.strip_prefix(&self.info.workdir) {
             Ok(r) => r.to_path_buf(),
             Err(_) => {

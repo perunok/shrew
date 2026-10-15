@@ -22,9 +22,14 @@ impl Repo {
         let dir = std::env::temp_dir().join(format!("shrew-diffview-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let r = Repo(dir.canonicalize().unwrap());
+        let r = Repo(shrew_git::canonicalize(&dir).unwrap());
         r.git(&["init", "-q", "-b", "main"]);
-        for (k, v) in [("user.name", "Test"), ("user.email", "t@example.com"), ("commit.gpgsign", "false")] {
+        for (k, v) in [
+            ("user.name", "Test"),
+            ("user.email", "t@example.com"),
+            ("commit.gpgsign", "false"),
+            ("core.autocrlf", "false"),
+        ] {
             r.git(&["config", k, v]);
         }
         r.git(&["config", "core.autocrlf", "false"]);

@@ -501,10 +501,13 @@ fn list(scene: &mut Scene, p: &mut Panel, st: &State, lay: &Layout, c: &Colors) 
     let x = (anchor.right() - w).max(panel.x + cw).round();
     let y = if below >= h || below >= above { anchor.bottom() + pad } else { anchor.y - pad - h };
     let r = Rect::new(x, y.round(), w, h.round());
-    if l.selected < l.top {
-        l.top = l.selected;
-    } else if l.selected >= l.top + n {
-        l.top = l.selected + 1 - n;
+    if l.shown != Some(l.selected) {
+        l.shown = Some(l.selected);
+        if l.selected < l.top {
+            l.top = l.selected;
+        } else if l.selected >= l.top + n {
+            l.top = l.selected + 1 - n;
+        }
     }
     l.top = l.top.min(l.options.len().saturating_sub(n));
     scene.layer(3);

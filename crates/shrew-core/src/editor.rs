@@ -189,9 +189,16 @@ impl Default for Settings {
 #[derive(Default)]
 struct MouseState {
     clicks: u8,
-    /// The unit (char, word, line) range the drag started on.
+    /// The unit (char, word, line) range the drag started on (the anchor's, after a shift+click).
     origin: Option<(usize, usize)>,
     dragging: bool,
+    /// vim: pressed in normal or visual mode. Positions are the char under the pointer, and a drag shows as a
+    /// visual selection while it goes (both ends included), not only once the button is released.
+    visual: bool,
+    /// The press already selected (a double or triple click, a shift+click): no going back to a caret.
+    selecting: bool,
+    /// The selection when the button went down (half-open ranges), the primary replaced as the pointer moves.
+    base: Option<Selection>,
 }
 
 pub struct Editor {
@@ -1187,8 +1194,7 @@ impl Editor {
                 if let Some(t) = &mut self.tree {
                     t.collapse_all();
                 }
-            }
-            // -----
+            } // -----
         }
     }
 
@@ -1729,35 +1735,42 @@ impl Editor {
             return;
         }
         self.commit();
+        // vim normal/visual: `pos` is the char under the pointer and a selection includes it
+        let visual = self.vim() && self.mode != Mode::Insert;
         let b = self.buf();
         let rope = &b.doc.rope;
         let pos = text::grapheme_start(rope, pos.min(rope.len_chars()));
-        let unit = match clicks {
-            2 => {
-                let (a, z) = crate::motion::word_object(rope, pos, false, false);
-                (a, z.max(a))
-            }
-            n if n >= 3 => {
-                let l = text::line_of(rope, pos);
-                let end = if l < text::last_line(rope) { text::line_start(rope, l + 1) } else { rope.len_chars() };
-                (text::line_start(rope, l), end)
-            }
-            _ => (pos, pos),
-        };
-        self.mouse = MouseState { clicks, origin: Some(unit), dragging: true };
+        let unit = mouse_unit(rope, pos, clicks, visual);
         let was_visual = self.mode.is_visual();
+        let mut origin = unit;
+        let r = if mods.shift {
+            let p = b.sel.primary();
+            let anchor = if was_visual { p.anchor.min(p.head) } else { p.anchor };
+            // the anchor stays put, also when the drag goes on
+            origin = mouse_unit(rope, text::grapheme_start(rope, anchor.min(rope.len_chars())), 1, visual);
+            span(origin, unit)
+        } else if clicks > 1 {
+            Range::new(unit.0, unit.1)
+        } else {
+            Range::point(unit.0)
+        };
         if self.mode.is_visual() || self.mode == Mode::Normal {
             self.mode = Mode::Insert; // treat ranges as carets while the mouse is down
         }
-        let r = if mods.shift {
-            let p = self.buf().sel.primary();
-            let anchor = if was_visual { p.anchor.min(p.head) } else { p.anchor };
-            Range::new(anchor, if unit.0 < anchor { unit.0 } else { unit.1 })
-        } else {
-            Range::new(unit.0, unit.1)
-        };
         let b = self.buf_mut();
         b.sel = if mods.ctrl || mods.alt { b.sel.push(r) } else { Selection::single(r) };
+        let selecting = mods.shift || clicks > 1;
+        self.mouse = MouseState {
+            clicks,
+            origin: Some(origin),
+            dragging: true,
+            visual,
+            selecting,
+            base: visual.then(|| self.buf().sel.clone()),
+        };
+        if visual && selecting {
+            self.set_mode(Mode::Visual);
+        }
         self.occurrence_word = clicks == 2;
     }
 
@@ -1765,25 +1778,35 @@ impl Editor {
         if !self.mouse.dragging {
             return;
         }
-        let Some((ua, uz)) = self.mouse.origin else { return };
-        let clicks = self.mouse.clicks;
-        let b = self.buf_mut();
-        let rope = &b.doc.rope;
+        let Some(origin) = self.mouse.origin else { return };
+        let (clicks, visual) = (self.mouse.clicks, self.mouse.visual);
+        let rope = &self.buf().doc.rope;
         let pos = text::grapheme_start(rope, pos.min(rope.len_chars()));
-        let (a, z) = match clicks {
-            2 => crate::motion::word_object(rope, pos.min(rope.len_chars().saturating_sub(1)), false, false),
-            n if n >= 3 => {
-                let l = text::line_of(rope, pos);
-                let end = if l < text::last_line(rope) { text::line_start(rope, l + 1) } else { rope.len_chars() };
-                (text::line_start(rope, l), end)
-            }
-            _ => (pos, pos),
+        let unit = if clicks == 2 {
+            crate::motion::word_object(rope, pos.min(rope.len_chars().saturating_sub(1)), false, false)
+        } else {
+            mouse_unit(rope, pos, clicks, visual)
         };
-        let r = if a < ua { Range::new(uz, a) } else { Range::new(ua, z.max(uz)) };
-        let prim = b.sel.primary_index();
-        let mut ranges: Vec<Range> = b.sel.ranges().to_vec();
-        ranges[prim] = r;
-        b.sel = Selection::new(ranges, prim);
+        let r = span(origin, unit);
+        if !visual {
+            let b = self.buf_mut();
+            let prim = b.sel.primary_index();
+            let mut ranges: Vec<Range> = b.sel.ranges().to_vec();
+            ranges[prim] = r;
+            b.sel = Selection::new(ranges, prim);
+            return;
+        }
+        // vim: visual mode as soon as the pointer leaves the char pressed, a caret again when it comes back
+        let select = self.mouse.selecting || unit != origin;
+        let Some(base) = self.mouse.base.clone() else { return };
+        let prim = base.primary_index();
+        let mut ranges: Vec<Range> = base.ranges().to_vec();
+        ranges[prim] = if select { r } else { Range::point(origin.0) };
+        self.mode = Mode::Insert;
+        self.buf_mut().sel = Selection::new(ranges, prim);
+        if select {
+            self.set_mode(Mode::Visual);
+        }
     }
 
     pub fn mouse_up(&mut self) {
@@ -1791,7 +1814,8 @@ impl Editor {
             return;
         }
         self.mouse.dragging = false;
-        if self.vim() && self.mode == Mode::Insert && self.dot_recording.is_none() {
+        self.mouse.base = None;
+        if self.vim() && self.mouse.visual && self.mode == Mode::Insert {
             let selected = self.buf().sel.ranges().iter().any(|r| !r.is_empty());
             // the cursor stays on the char clicked (leaving insert mode would step it back one)
             let clicked = (!selected).then(|| self.buf().sel.clone());
@@ -1807,6 +1831,47 @@ impl Editor {
 
     pub fn mouse_dragging(&self) -> bool {
         self.mouse.dragging
+    }
+
+    /// A box (column) selection by mouse, from display column `from.1` of line `from.0` (where the button went
+    /// down) to `to` (the pointer): one range per line between the two columns, the pointer's line primary. Lines
+    /// too short to reach the box are left out (unless all are). In vim it is visual-block mode; on the press itself
+    /// (`from == to`) a caret.
+    pub fn mouse_box(&mut self, from: (usize, usize), to: (usize, usize)) {
+        self.pending.clear();
+        if self.picker.is_some() || self.about.is_some() {
+            return;
+        }
+        self.mouse.dragging = false;
+        let tw = self.settings.tab_width.max(1);
+        let rope = &self.buf().doc.rope;
+        let last = text::last_line(rope);
+        let (la, lh) = (from.0.min(last), to.0.min(last));
+        let (a, h) = (text::pos_at_col(rope, la, from.1, tw), text::pos_at_col(rope, lh, to.1, tw));
+        if self.vim() {
+            if a == h {
+                // a caret where it was pressed (back from a box, too)
+                if self.mode.is_visual() {
+                    self.set_mode(Mode::Normal);
+                }
+                let rope = &self.buf().doc.rope;
+                let p = if self.mode == Mode::Insert { h } else { text::clamp_normal(rope, h) };
+                self.buf_mut().sel = Selection::point(p);
+            } else if self.mode == Mode::VisualBlock {
+                self.block = Some((a, h));
+                self.rebuild_block();
+            } else {
+                if self.mode != Mode::Normal {
+                    self.set_mode(Mode::Normal);
+                }
+                self.buf_mut().sel = Selection::single(Range::new(a, h));
+                self.set_mode(Mode::VisualBlock);
+            }
+            return;
+        }
+        let ranges = box_ranges(rope, (la, from.1), (lh, to.1), tw);
+        let primary = ranges.iter().position(|r| text::line_of(rope, r.head) == lh).unwrap_or(0);
+        self.buf_mut().sel = Selection::new(ranges, primary);
     }
 
     /// Scrolls the view without moving the cursor (mouse wheel).
@@ -2933,6 +2998,44 @@ pub(crate) fn vertical(rope: &ropey::Rope, r: Range, delta: isize, tab_width: us
         return (if (delta < 0 && line == 0) || (delta > 0) { p } else { r.head }, col);
     }
     (text::pos_at_col(rope, target, col, tab_width), col)
+}
+
+/// What a press at `pos` covers, half-open: a caret (or in vim the char under the pointer), the word (2 clicks)
+/// or the line (3).
+fn mouse_unit(rope: &ropey::Rope, pos: usize, clicks: u8, chars: bool) -> (usize, usize) {
+    match clicks {
+        2 => {
+            let (a, z) = crate::motion::word_object(rope, pos, false, false);
+            (a, z.max(a))
+        }
+        n if n >= 3 => {
+            let l = text::line_of(rope, pos);
+            let end = if l < text::last_line(rope) { text::line_start(rope, l + 1) } else { rope.len_chars() };
+            (text::line_start(rope, l), end)
+        }
+        _ if chars => (pos, text::grapheme_end(rope, pos)),
+        _ => (pos, pos),
+    }
+}
+
+/// The ranges of a box from (line, display column) `from` to `to`, one per line, half-open. Lines too short to
+/// reach the box's left edge are left out, unless none reach it (then each gets a caret at its end).
+fn box_ranges(rope: &ropey::Rope, from: (usize, usize), to: (usize, usize), tw: usize) -> Vec<Range> {
+    let (left, right) = (from.1.min(to.1), from.1.max(to.1));
+    let lines = from.0.min(to.0)..=from.0.max(to.0);
+    let reaches = |l: usize| text::col_of(rope, text::line_end(rope, l), tw) >= left;
+    let any = lines.clone().any(reaches);
+    let mut out = Vec::with_capacity(lines.size_hint().0);
+    for l in lines.filter(|&l| !any || reaches(l)) {
+        let (a, z) = (text::pos_at_col(rope, l, left, tw), text::pos_at_col(rope, l, right, tw));
+        out.push(if from.1 <= to.1 { Range::new(a, z) } else { Range::new(z, a) });
+    }
+    out
+}
+
+/// The half-open range from the unit a drag started on to the one under the pointer, both whole.
+fn span(origin: (usize, usize), unit: (usize, usize)) -> Range {
+    if unit.0 < origin.0 { Range::new(origin.1, unit.0) } else { Range::new(origin.0, unit.1.max(origin.1)) }
 }
 
 fn feature_label(f: &Features, i: &features::FeatureInfo) -> String {

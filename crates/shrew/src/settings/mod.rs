@@ -57,6 +57,8 @@ pub struct List {
     pub options: Vec<(String, String)>,
     pub selected: usize,
     pub top: usize,
+    /// The highlighted option as last drawn: the list follows it only when it moves, so the wheel can scroll.
+    pub shown: Option<usize>,
 }
 
 pub struct Panel {
@@ -470,7 +472,7 @@ impl State {
                 let options = options(self);
                 let now = get(self);
                 let selected = options.iter().position(|o| o.0 == now).unwrap_or(0);
-                self.panel().list = Some(List { row: i, options, selected, top: 0 });
+                self.panel().list = Some(List { row: i, options, selected, top: 0, shown: None });
             }
             Kind::Action { run, confirm, .. } => {
                 if let Some(text) = confirm

@@ -1,7 +1,7 @@
 //! The application menu: File, Edit, Selection, View, Go, Git, Terminal, Help, built from the named commands when it
 //! opens (a command this build lacks is left out, an empty menu too), each entry with the chord that runs it right
-//! now. Opened by the title bar's menu button, F10 or Alt+F/E/V/G/H; driven by arrows, Enter, Esc and typing the
-//! start of an entry, or by the mouse. The entries are [`MenuItem`]s drawn as a context menu's list
+//! now. Opened by the title bar's menu button, F10 or Alt+F/E/S/V/G/I/T/H (each menu's underlined letter); driven
+//! by arrows, Enter, Esc and typing the start of an entry, or by the mouse. The entries are [`MenuItem`]s drawn as a context menu's list
 //! ([`crate::context_menu`]), so every menu looks the same.
 
 use crate::context_menu::{MenuItem, Run, items_from_spec};
@@ -209,8 +209,8 @@ static MENUS: &[(&str, char, &[&str])] = &[
     ),
 ];
 
-/// Menus Alt+<letter> opens (others open with F10 and the arrows).
-pub const ALT_MNEMONICS: &[char] = &['f', 'e', 'v', 'g', 'h'];
+/// Menus Alt+<letter> opens: every menu's underlined letter (Git is Alt+I: Alt+G is Go).
+pub const ALT_MNEMONICS: &[char] = &['f', 'e', 's', 'v', 'g', 'i', 't', 'h'];
 
 #[derive(Clone, Debug)]
 pub struct Menu {
@@ -246,6 +246,10 @@ pub struct MenuState {
     pub hits: MenuHits,
     /// The first entry shown, when the open menu is taller than the window.
     pub top: usize,
+    /// The largest `top` (the last entries just fit), set when it is drawn.
+    pub max_top: usize,
+    /// The wheel scrolled it: the highlighted entry may go out of view (keys bring it back).
+    pub wheeled: bool,
     typed: String,
     typed_at: Option<Instant>,
 }
@@ -270,6 +274,8 @@ impl MenuState {
             anchor_x,
             hits: MenuHits::default(),
             top: 0,
+            max_top: 0,
+            wheeled: false,
             typed: String::new(),
             typed_at: None,
         };
@@ -317,10 +323,12 @@ impl MenuState {
     pub fn switch_menu(&mut self, menu: usize, focus_items: bool) {
         self.open = menu;
         self.top = 0;
+        self.wheeled = false;
         self.item = if focus_items { self.first_item(menu) } else { None };
     }
 
     pub fn key(&mut self, k: KeyPress, now: Instant) -> Outcome {
+        self.wheeled = false;
         let n = self.menus.len().max(1);
         let m = k.mods;
         if !matches!(k.key, Key::Char(_)) || m.ctrl || m.alt {
@@ -429,6 +437,13 @@ impl MenuState {
             self.item = Some(i);
         }
         before != (self.open, self.item)
+    }
+
+    /// The wheel over the open menu, `rows` entries down (up when negative). True when it scrolled.
+    pub fn wheel(&mut self, rows: isize) -> bool {
+        let top = self.top.saturating_add_signed(rows).min(self.max_top);
+        self.wheeled = true;
+        std::mem::replace(&mut self.top, top) != top
     }
 
     /// A click: an entry runs, a menu opens, anywhere else closes the menu.

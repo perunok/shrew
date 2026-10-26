@@ -2,7 +2,7 @@
 //! the buffer tabs in the middle and configurable items on either side (`[titlebar]`, see [`items`]): the menu
 //! button, sidebar and terminal toggles, the project, go to file, settings, about, and the window buttons. Drag an
 //! empty part to move the window, double-click it to maximize, right-click it for a small menu; the window resizes
-//! from its edges. The menus ([`menu`]) open from the menu button, F10 or Alt+F/E/V/G/H.
+//! from its edges. The menus ([`menu`]) open from the menu button, F10 or Alt with a menu's underlined letter.
 //!
 //! Turning the feature off (`:set nocustom_titlebar`, palette *View: Toggle System Title Bar*, or the bar's
 //! right-click menu) brings the system title bar back at runtime and the tabs move back to their own row. On macOS
@@ -113,7 +113,7 @@ pub fn window_title(ed: &Editor) -> String {
     t + " — shrew"
 }
 
-/// A key while a menu is open, or one that opens a menu (F10, Alt+F/E/V/G/H): true when the title bar took it.
+/// A key while a menu is open, or one that opens a menu (F10, Alt+F/E/S/V/G/I/T/H): true when the title bar took it.
 pub fn key(st: &mut State, k: KeyPress) -> bool {
     if let Some(m) = &mut st.titlebar.menu {
         match m.key(k, Instant::now()) {

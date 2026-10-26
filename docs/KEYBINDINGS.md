@@ -12,7 +12,7 @@ motion, character or register name. "Ctrl" also means ⌘ Cmd on macOS. Vim keys
 
 1. An open menu (a [context menu](#context-menus) or the title bar's), then an open picker (file finder, palette, buffers, features), the Settings or
    About panel or a prompt (`:`, `/`, `?`) takes every key. Then a focused terminal or the sidebar takes the keys
-   they use (see [Terminal](#terminal), [Sidebar](#sidebar)). F10 and Alt+F/E/V/G/H open the menus unless you
+   they use (see [Terminal](#terminal), [Sidebar](#sidebar)). F10 and Alt+F/E/S/V/G/I/T/H open the menus unless you
    mapped them or a terminal has the focus.
 2. Your mappings (`[keys.*]` in `config.toml`, imported vimrc and Sublime bindings) come next. See
    [CONFIG.md](CONFIG.md#keys).
@@ -28,7 +28,7 @@ motion, character or register name. "Ctrl" also means ⌘ Cmd on macOS. Vim keys
 | Ctrl+R | vim / vim off | Redo, insert a register (vim's) / go to symbol; Ctrl+Shift+O works everywhere |
 | Ctrl+O, Tab | vim normal / vim off | Jump back, jump forward (vim's) / Ctrl+O opens a file; Alt+Left, Alt+Right jump everywhere |
 | Ctrl+PageUp / PageDown | editor / terminal | Previous / next buffer / previous / next terminal |
-| Alt+F, Alt+E, Alt+V, Alt+G, Alt+H, F10 | editor / terminal | Open the menus / sent to the program (readline's Alt+F moves a word); the menu button still works |
+| Alt+F, Alt+E, Alt+S, Alt+V, Alt+G, Alt+I, Alt+T, Alt+H, F10 | editor / terminal | Open the menus / sent to the program (readline's Alt+F moves a word); the menu button still works |
 | Ctrl+Shift+E, Ctrl+Shift+F, Ctrl+, … | editor / terminal | The global chord / sent to the program; add it to `[terminal.keys]` to keep it for shrew |
 | `q`, `r`, `R`, `/`, `:` | sidebar, Settings panel | Their own meaning while they have the keys (see each section) |
 | `s`, `u`, `x`, `c`, `b`, Enter | Source Control panel, a log tab | Their own meaning while they have the keys (see [Git](#git)) |
@@ -470,7 +470,7 @@ build does not have are left out.
 | Keys | Action |
 | --- | --- |
 | F10, palette *View: Open Menu* | Open the menu (the focus on the list of menus) |
-| Alt+F / Alt+E / Alt+V / Alt+G / Alt+H | Open File / Edit / View / Go / Help |
+| Alt+F / Alt+E / Alt+S / Alt+V / Alt+G / Alt+I / Alt+T / Alt+H | Open File / Edit / Selection / View / Go / Git / Terminal / Help (the underlined letter) |
 | Up / Down | Previous / next menu, or entry once inside one |
 | Right / Enter | Into the highlighted menu; inside one, Right goes to the next menu |
 | Left | Back to the list of menus |
@@ -478,6 +478,7 @@ build does not have are left out.
 | typing | The next entry starting with what you typed; on the list of menus, a menu's letter opens it |
 | Enter, Space | Run the entry |
 | Esc, F10, a click outside | Close |
+| Wheel | Scroll a menu taller than the window |
 
 ## Context menus
 
@@ -738,15 +739,21 @@ command palette by its title.
 
 | Action | Effect |
 | --- | --- |
-| Click | Place the cursor. In vim, a click keeps normal mode |
+| Click | Place the cursor. In vim, a click keeps normal mode and takes the char under the pointer. Below the last line: the end of the text (vim: the last line) |
 | Double-click | Select a word; dragging then extends by words |
-| Triple-click | Select a line; dragging then extends by lines |
-| Drag | Select. In vim, a drag selection enters visual mode |
-| Shift+click | Extend the selection to the click |
+| Triple-click, click a line number | Select a line; dragging then extends by lines |
+| Drag | Select. In vim, a drag selects in visual mode as it goes (the char under the pointer included) |
+| Drag past an edge of the text | Scroll that way: slowly just past it, faster further out; sideways along long lines |
+| Shift+click | Extend the selection to the click (a drag after it keeps the anchor) |
 | Ctrl+click, Alt+click | Add a cursor (or a selection, when dragging) |
-| Wheel | Scroll without moving the cursor |
+| Middle drag, Shift+Alt+drag | Select a box of columns (vim: visual block). Shift+Alt+click: the box from the cursor to the click |
+| Wheel | Scroll without moving the cursor; while selecting, the selection follows. Touchpads scroll pixel by pixel |
+| Shift+wheel | Scroll sideways (up to the end of the widest line on screen) |
+| Ctrl+wheel | Bigger / smaller font |
+| Drag the scrollbar | The thumb stays where it was grabbed; a click beside it centres it there |
 | Click on the minimap | Scroll so the line under the pointer is centred |
 | Drag on the minimap | Scroll continuously; the viewport box follows the pointer |
+| Wheel over a picker | Scroll its list (the highlighted row stays); click a row to pick it |
 | Click a link in the About panel | Open it in the browser |
 | Right-click | The [context menu](#context-menus) of what is under the pointer; in the text the cursor goes there first, unless you click inside the selection |
 | Middle click | Paste the primary selection (what is selected, in shrew or any program) at the pointer, in any mode (Linux; feature `clipboard`). Selecting text, by mouse or keys, offers it to other programs the same way. On macOS and Windows a middle click in the text does nothing |

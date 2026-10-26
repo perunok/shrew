@@ -56,9 +56,15 @@ impl Anim {
         let (l, c) = t.cursor;
         // typing moves one cell at a time: never make it lag
         let typing = self.cursor.0 == l && (self.cursor.1 - c).abs() <= 1.5;
-        if t.cursor_animation && !typing {
-            approach(&mut self.cursor.0, l, dt, CURSOR_TAU);
-            approach(&mut self.cursor.1, c, dt, CURSOR_TAU);
+        // a jump further than a screen (G, a search, a click after scrolling away) lands at once, not flying in
+        let far = (self.cursor.0 - l).abs() > t.rows.max(1) as f32;
+        if t.cursor_animation && !typing && !far {
+            // while the view scrolls too, the cursor eases with it: on screen it then goes straight to its row
+            // (`j` at the bottom keeps it on the bottom row), instead of overshooting and coming back
+            let line_tau = if self.scroll.top != t.scroll.top { SCROLL_TAU } else { CURSOR_TAU };
+            let col_tau = if self.scroll.left != t.scroll.left { SCROLL_TAU } else { CURSOR_TAU };
+            approach(&mut self.cursor.0, l, dt, line_tau);
+            approach(&mut self.cursor.1, c, dt, col_tau);
         } else {
             self.cursor = t.cursor;
         }
@@ -114,6 +120,32 @@ mod tests {
     }
 
     #[test]
+    fn a_cursor_moving_with_the_view_does_not_wobble_on_screen() {
+        // `j` on the bottom row: the cursor and the view both move a line; on screen the cursor stays put
+        let mut a = Anim::default();
+        let mut now = Instant::now();
+        a.step(&target(80.0, (100.0, 0.0)), now);
+        let mut t = target(81.0, (101.0, 0.0));
+        while a.step(&t, now) {
+            now += Duration::from_millis(16);
+            let row = a.cursor.0 - a.scroll.top;
+            assert!((row - 20.0).abs() < 0.02, "the cursor wandered to screen row {row}");
+        }
+        // a step at the bottom while the view is still moving from the last one: never past the bottom row
+        t = target(83.0, (103.0, 0.0));
+        for _ in 0..3 {
+            a.step(&t, now);
+            now += Duration::from_millis(16);
+            t.scroll.top += 1.0;
+            t.cursor.0 += 1.0;
+        }
+        while a.step(&t, now) {
+            now += Duration::from_millis(16);
+            assert!(a.cursor.0 - a.scroll.top <= 20.0 + 0.02);
+        }
+    }
+
+    #[test]
     fn long_jumps_and_typing_do_not_crawl() {
         let mut a = Anim::default();
         let now = Instant::now();
@@ -125,6 +157,11 @@ mod tests {
         a.step(&target(0.0, (3.0, 4.0)), now);
         assert!(!a.step(&target(0.0, (3.0, 5.0)), now));
         assert_eq!(a.cursor, (3.0, 5.0));
+        // a cursor jump of more than a screen lands at once
+        let mut a = Anim::default();
+        a.step(&target(0.0, (3.0, 4.0)), now);
+        assert!(!a.step(&target(0.0, (900.0, 4.0)), now));
+        assert_eq!(a.cursor, (900.0, 4.0));
         // animations off: everything snaps
         let mut t = target(50.0, (60.0, 9.0));
         t.smooth_scroll = false;

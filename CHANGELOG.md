@@ -48,6 +48,10 @@ new version when it tags a release.
   (`set_language`, `:setf {language}`: the buffer's grammar and comment tokens; *Auto Detect* goes back). A right
   click on the bar opens a menu of the same. A buffer without a language shows *Plain Text*.
 - `collapse_sidebar` (*View: Collapse Folders in Sidebar*).
+- Box (column) selection with the mouse: a middle drag or Shift+Alt+drag (vim: visual block); Shift+Alt+click
+  makes the box from the cursor to the click.
+- Shift+wheel scrolls sideways. The scrollbar's thumb grows and brightens under the pointer. A picker's row under the
+  pointer is highlighted.
 
 ### Fixed
 
@@ -56,6 +60,29 @@ new version when it tags a release.
 
 - Vim mode: a click put the cursor one character left of the one clicked.
 - The pointer is an arrow over the title bar's open menus, not a text cursor.
+- Vim mode: a drag showed INSERT and a bar cursor until the button was released, then gained a character; it now
+  selects in visual mode as it goes, with the character under the pointer. Shift+click takes the clicked character.
+- Shift+click and then dragging moved the anchor to the click.
+- Double-clicking the right half of a word's last letter selected the space after it.
+- Dragging past the edge of the text scrolled 60 lines a second even one pixel out; it now starts at about 12 and
+  speeds up with the distance, also scrolls sideways along long lines, and stops with the last line at the bottom.
+- Touchpads and fine-grained wheels: small movements were dropped in pickers, the About panel, Settings lists, the
+  sidebar, the git panel and log, for Ctrl+zoom and sideways; they now add up. Sideways scrolling stopped nowhere.
+- A picker's list and a Settings dropdown could not be scrolled with the wheel past the highlighted row (pickers
+  moved the highlight one row a notch; Settings lists jumped back).
+- Grabbing the scrollbar's thumb made it jump to centre on the pointer.
+- The wheel while selecting left the selection behind; the pointer flickered to an arrow while selecting over the
+  gutter or the title bar.
+- A click below the last line put the caret at that column of the last line, not at the end of the text.
+- The cursor glide wobbled on screen when the view scrolled with it (`j` on the bottom row), and flew in from far
+  away after long jumps.
+- Alt+S, Alt+I and Alt+T did not open Selection, Git and Terminal although their letters are underlined.
+- Find in project: the "(Tab: *.rs, !tests/)" hint ran into the Alt+R/C/W hints.
+- A menu of the menu bar taller than the window could not be scrolled with the wheel (only keys reached its last
+  entries).
+- A click on a short line while the view was scrolled right left the cursor out of sight; the view now scrolls
+  sideways to it.
+- A smaller window (or the terminal panel opening) left the cursor below the last row.
 
 ## [0.2.0] - 2026-10-15
 

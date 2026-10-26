@@ -58,6 +58,8 @@ pub struct Ui {
     pub picker_seen: Option<(usize, usize, usize)>,
     /// The picker row under the pointer, counted from the top row shown.
     pub picker_hover: Option<usize>,
+    /// The pointer is over the scrollbar, or drags its thumb: the thumb is drawn wider and brighter.
+    pub scrollbar_hot: bool,
     // -----
     pub hits: Hits,
     /// The primary cursor's rect (for the input method's candidate window).
@@ -742,9 +744,13 @@ fn scrollbar(scene: &mut Scene, ui: &mut Ui, lay: &Layout, c: &Colors, scroll: S
     }
     let track = lay.scrollbar;
     let thumb = scrollbar_thumb(lay, track, total, scroll.top);
-    let w = (4.0 * lay.scale).round().max(2.0);
+    let (w, col) = if ui.scrollbar_hot {
+        ((6.0 * lay.scale).round().max(3.0), mix(c.foreground, c.scrollbar, 0.25))
+    } else {
+        ((4.0 * lay.scale).round().max(2.0), c.scrollbar)
+    };
     let x = track.right() - w - (2.0 * lay.scale).round();
-    scene.rounded_rect(Rect::new(x, thumb.y, w, thumb.h), w / 2.0, c.scrollbar, None);
+    scene.rounded_rect(Rect::new(x, thumb.y, w, thumb.h), w / 2.0, col, None);
     ui.hits.scrollbar = Some((track, total));
 }
 
@@ -1168,15 +1174,6 @@ fn grep_header(scene: &mut Scene, g: &GrepState, inner: Rect, qx: f32, y: f32, l
     let gy = lay.centered(y - pad, row_h);
     scene.text(qx, gy, "in", TextStyle::new(c.panel_muted), &[]);
     let gx = qx + 3.0 * cw;
-    if g.opts.globs.is_empty() && g.field != GrepField::Globs {
-        scene.text(gx, gy, "all files   (Tab: *.rs, !tests/)", TextStyle::new(c.panel_muted), &[]);
-    } else {
-        scene.text(gx, gy, &g.opts.globs, TextStyle::new(c.panel_foreground), &[]);
-    }
-    if g.field == GrepField::Globs {
-        let bar = (2.0 * lay.scale).round().max(1.0);
-        scene.rect(Rect::new((gx + columns(&g.opts.globs) as f32 * cw).round(), gy, bar, lay.ch), c.cursor);
-    }
     // chips, right-aligned: on ones in the accent
     let mut x = inner.right() - pad;
     for (label, on) in [("ab", g.opts.word), ("Aa", g.opts.case), (".*", g.opts.regex)] {
@@ -1190,10 +1187,28 @@ fn grep_header(scene: &mut Scene, g: &GrepState, inner: Rect, qx: f32, y: f32, l
         scene.text((x + cw / 2.0).round(), gy, label, TextStyle::new(fg).bold(), &[]);
         x -= cw;
     }
+    // ----- jank hunt: the globs (or their hint) never run under the key hints or the chips -----
+    let hint = g.opts.globs.is_empty() && g.field != GrepField::Globs;
+    let (globs, fg) = if hint {
+        ("all files   (Tab: *.rs, !tests/)", c.panel_muted)
+    } else {
+        (g.opts.globs.as_str(), c.panel_foreground)
+    };
     let keys = "Alt+R Alt+C Alt+W";
     let kx = x - columns(keys) as f32 * cw;
-    if kx > gx + (columns(&g.opts.globs) as f32 + 4.0) * cw {
+    let end = if kx > gx + (columns(globs) as f32 + 2.0) * cw {
         scene.text(kx.round(), gy, keys, TextStyle::new(mix(c.panel_muted, c.popup, 0.6)), &[]);
+        kx - cw
+    } else {
+        x
+    };
+    scene.push_clip(Rect::new(gx, gy, (end - gx).max(0.0), lay.ch));
+    scene.text(gx, gy, globs, TextStyle::new(fg), &[]);
+    scene.pop_clip();
+    // -----
+    if g.field == GrepField::Globs {
+        let bar = (2.0 * lay.scale).round().max(1.0);
+        scene.rect(Rect::new((gx + columns(&g.opts.globs) as f32 * cw).round(), gy, bar, lay.ch), c.cursor);
     }
 }
 

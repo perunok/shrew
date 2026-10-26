@@ -148,6 +148,7 @@ enum WheelWhat {
     #[default]
     Text,
     Picker,
+    Settings,
     About,
     Sidebar,
     #[cfg_attr(not(feature = "git"), allow(dead_code))]
@@ -273,6 +274,9 @@ impl Mouse {
         crate::titlebar::release(st, &ui.hits, x, y);
         if self.drag == Drag::Sidebar {
             st.persist_sidebar_width();
+        }
+        if self.drag == Drag::Scrollbar {
+            ui.scrollbar_hot = ui.hits.scrollbar.is_some_and(|(t, _)| t.contains(x, y));
         }
         // ----- git -----
         #[cfg(feature = "git")]
@@ -550,7 +554,10 @@ impl Mouse {
         #[cfg(not(feature = "git"))]
         let (git_redraw, on_git) = (false, false);
         redraw |= bar || menu || map || git_redraw;
-        // ----- jank hunt: the picker row under the pointer -----
+        // ----- jank hunt: the scrollbar lights up under the pointer; the picker row under it -----
+        let hot = self.drag == Drag::Scrollbar
+            || (self.drag == Drag::None && ui.hits.scrollbar.is_some_and(|(t, _)| t.contains(x, y)));
+        redraw |= std::mem::replace(&mut ui.scrollbar_hot, hot) != hot;
         if st.ed.picker.is_some() {
             let row = ui.hits.picker_rows.iter().find(|(r, _)| r.contains(x, y)).map(|h| h.1 - ui.picker_top);
             redraw |= std::mem::replace(&mut ui.picker_hover, row) != row;
@@ -610,7 +617,8 @@ impl Mouse {
         let bar = crate::titlebar::pointer_left(st);
         let map = lay.is_some_and(|lay| crate::minimap::hover(ui, &lay, None));
         let row = ui.picker_hover.take().is_some();
-        Response::redraw_if(bar | map | row)
+        let hot = self.drag != Drag::Scrollbar && std::mem::take(&mut ui.scrollbar_hot);
+        Response::redraw_if(bar | map | row | hot)
     }
 
     /// The drag autoscroll's timer: scrolls on while the pointer is past the text's top or bottom edge.
@@ -674,7 +682,15 @@ impl Mouse {
             return Response::redraw_if(rows != 0);
         }
         if st.settings.is_open() {
-            st.settings_wheel(dy(WHEEL_LINES * lay.ch, 1.0));
+            let px = dy(WHEEL_LINES * lay.ch, 1.0);
+            // an open list scrolls by whole rows: a touchpad's pixels add up to them
+            let list_row = st.settings.panel.as_ref().filter(|p| p.list.is_some()).map(|p| p.hits.list_row_h.max(1.0));
+            if let Some(row_h) = list_row {
+                let rows = self.steps(WheelWhat::Settings, px / row_h);
+                st.settings_wheel(rows as f32 * row_h);
+                return Response::redraw_if(rows != 0);
+            }
+            st.settings_wheel(px);
             return Response::REDRAW;
         }
         if st.ed.about.is_some() {
@@ -834,12 +850,18 @@ impl Mouse {
     }
 }
 
-/// The char position under the pointer. `round`: the nearest caret position; else the char under it.
+/// The char position under the pointer. `round`: the nearest caret position (the end of the text below the last
+/// line); else the char under it.
 pub fn pos_at(st: &State, ui: &Ui, lay: &Layout, x: f32, y: f32, round: bool) -> Option<usize> {
     let scroll = ui.anim.scroll;
     let rope = &st.ed.buf().doc.rope;
     let last = text::last_line(rope);
-    let line = scroll.line_at(lay, y).clamp(0, last as isize) as usize;
+    let line = scroll.line_at(lay, y);
+    // a caret below the last line goes to the end of the text, as in most editors (vim keeps the column)
+    if round && line > last as isize {
+        return Some(rope.len_chars());
+    }
+    let line = line.clamp(0, last as isize) as usize;
     let col = scroll.col_at(lay, x).max(0.0);
     let col = if round { col.round() } else { col.floor() } as usize;
     Some(text::pos_at_col(rope, line, col, st.ed.settings.tab_width.max(1)))

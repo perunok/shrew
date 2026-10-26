@@ -309,6 +309,35 @@ fn every_menu_opens_with_alt_and_its_underlined_letter() {
 }
 
 #[test]
+fn a_click_below_the_last_line_goes_to_the_end_of_the_text() {
+    let mut s = Sim::with(&["one\ntwo three"]);
+    s.run(":set novim<CR>");
+    let (x, y) = s.cell(10, 1);
+    s.run(&format!("<click:{x},{y}>"));
+    assert_eq!(s.st.ed.buf().sel.primary().head, 13);
+    // vim keeps the column, on the last line
+    s.st.ed.set_feature(shrew_core::Feature::Vim, true);
+    s.run(&format!("<click:{x},{y}>"));
+    assert_eq!(s.st.ed.buf().sel.primary().head, 5);
+}
+
+#[test]
+fn a_settings_list_scrolls_under_a_touchpad() {
+    let mut s = Sim::with(&["text\n"]);
+    s.size = (1000, 420);
+    // Appearance > Light desktop theme: a list of every theme
+    s.run("<C-,>ljjj<CR>");
+    let list = |s: &Sim| s.st.settings.panel.as_ref().and_then(|p| p.list.as_ref().map(|l| (l.top, l.options.len())));
+    let rows = s.st.settings.panel.as_ref().unwrap().hits.list_rows;
+    let Some((before, n)) = list(&s) else { panic!("the list did not open") };
+    assert!(n > rows, "{n} themes, {rows} rows: the list must scroll");
+    for _ in 0..40 {
+        s.wheel(Wheel::Pixels(0.0, -2.0));
+    }
+    assert!(list(&s).unwrap().0 > before, "2 pixels at a time add up to rows");
+}
+
+#[test]
 fn the_wheel_while_selecting_extends_the_selection_and_the_pointer_stays_a_text_beam() {
     let text = lines(300);
     let mut s = Sim::with(&[&text]);

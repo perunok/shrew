@@ -150,6 +150,7 @@ enum WheelWhat {
     #[default]
     Text,
     Picker,
+    Menu,
     Settings,
     About,
     Sidebar,
@@ -280,6 +281,9 @@ impl Mouse {
         }
         if self.drag == Drag::Text {
             st.ed.mouse_up();
+            if let Some(lay) = &lay {
+                reveal_cursor_column(st, lay);
+            }
             st.after_input();
         }
         // a title bar button acts when released over it
@@ -721,6 +725,20 @@ impl Mouse {
 
     pub fn wheel(&mut self, st: &mut State, ui: &mut Ui, lay: Option<Layout>, delta: Wheel) -> Response {
         let Some(lay) = lay else { return Response::NONE };
+        // ----- jank hunt: the menu bar's open menu scrolls when it is taller than the window -----
+        let (px, py) = self.pointer;
+        if let Some(m) = &mut st.titlebar.menu
+            && m.hits.panels.last().is_some_and(|p| p.contains(px, py))
+        {
+            let lines = match delta {
+                Wheel::Lines(_, y) => -y * WHEEL_LINES,
+                Wheel::Pixels(_, y) => -y / crate::context_menu::row_h(&lay),
+            };
+            let rows = self.steps(WheelWhat::Menu, lines);
+            let Some(m) = &mut st.titlebar.menu else { return Response::NONE };
+            return Response::redraw_if(m.wheel(rows));
+        }
+        // -----
         if st.menu_open() {
             return Response::NONE; // nothing scrolls under an open menu
         }
@@ -755,7 +773,6 @@ impl Mouse {
             }
             return Response::redraw_if(lines != 0);
         }
-        let (px, py) = self.pointer;
         #[cfg(feature = "terminal")]
         if st.terminal_wheel(-dy(WHEEL_LINES, lay.ch), px, py, self.mods) {
             return Response::REDRAW;
@@ -958,6 +975,24 @@ fn scroll_cols(st: &mut State, lay: &Layout, cols: isize) -> bool {
 /// The bottom of the text's last whole row (a drag past it scrolls; the cut-off row under it is not a target).
 fn text_bottom(lay: &Layout) -> f32 {
     lay.text.y + lay.rows as f32 * lay.ch
+}
+
+/// Scrolls sideways (only) to show the cursor: a click on a short line while the view is scrolled right lands at
+/// its end, which may be out of sight.
+fn reveal_cursor_column(st: &mut State, lay: &Layout) {
+    let b = st.ed.buf();
+    let head = b.sel.primary().head.min(b.rope().len_chars());
+    let col = b.doc.col_of(head, st.ed.settings.tab_width.max(1));
+    let left = b.view.left;
+    let margin = 4.min(lay.cols / 4);
+    let to = if col < left {
+        col.saturating_sub(margin)
+    } else if col + 1 > left + lay.cols {
+        col + 1 + margin - lay.cols
+    } else {
+        return;
+    };
+    st.ed.scroll(0, to as isize - left as isize);
 }
 
 /// The right edge of the text's whole visible columns (the minimap and the scrollbar are right of it).

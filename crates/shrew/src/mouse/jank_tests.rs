@@ -358,6 +358,39 @@ fn the_wheel_while_selecting_extends_the_selection_and_the_pointer_stays_a_text_
 }
 
 #[test]
+fn the_wheel_scrolls_a_menu_taller_than_the_window() {
+    let mut s = Sim::with(&["text\n"]);
+    s.size = (900, 300);
+    s.run("<M-e>");
+    s.frame();
+    let m = s.st.titlebar.menu.as_ref().unwrap();
+    assert!(m.max_top > 0, "Edit does not fit in 300 pixels");
+    let panel = *m.hits.panels.last().unwrap();
+    let (x, y) = (panel.x + 20.0, panel.y + panel.h / 2.0);
+    s.run(&format!("<wheel:{x},{y},2>"));
+    let m = s.st.titlebar.menu.as_ref().unwrap();
+    assert_eq!(m.top, 6.min(m.max_top), "the hovered entry did not pull it back");
+    s.run(&format!("<wheel:{x},{y},50>"));
+    let m = s.st.titlebar.menu.as_ref().unwrap();
+    assert_eq!(m.top, m.max_top, "no further than the last entry");
+    // a key brings the highlight back into view
+    s.run("<Home>");
+    assert_eq!(s.st.titlebar.menu.as_ref().unwrap().top, 0);
+}
+
+#[test]
+fn a_click_on_a_short_line_while_scrolled_right_shows_the_cursor() {
+    let long = format!("{}\nab\n", "z".repeat(300));
+    let mut s = Sim::with(&[&long]);
+    s.run("<S-wheel:300,200,30>");
+    assert!(s.st.ed.buf().view.left > 100);
+    let (x, y) = s.cell(1, 10);
+    s.run(&format!("<click:{x},{y}>"));
+    assert_eq!(s.st.ed.buf().sel.primary().head, 302, "on the short line's last char");
+    assert_eq!(s.st.ed.buf().view.left, 0, "and in sight");
+}
+
+#[test]
 fn a_middle_drag_or_shift_alt_selects_a_box_of_columns() {
     let mut s = Sim::with(&["abcdef\nab\nabcdef\nabcdef\n"]);
     s.run(":set novim<CR>");

@@ -130,6 +130,8 @@ pub struct Mouse {
     clicks: Option<(Instant, (f32, f32), u8)>,
     /// A text drag goes to the nearest caret position (insert-like modes), not the char under the pointer.
     round: bool,
+    /// A box (column) selection's corner where the button went down: (line, display column).
+    boxed: Option<(usize, usize)>,
     /// The drag autoscroll's next tick, the last one, and the lines and columns it owes (fractions carried over).
     autoscroll: Option<Instant>,
     scrolled_at: Option<Instant>,
@@ -170,6 +172,7 @@ impl Mouse {
             drag: Drag::None,
             clicks: None,
             round: true,
+            boxed: None,
             autoscroll: None,
             scrolled_at: None,
             scroll_owed: (0.0, 0.0),
@@ -233,7 +236,7 @@ impl Mouse {
         match button {
             MouseButton::Left => self.left_press(st, ui, lay, x, y, now),
             MouseButton::Right => self.right_press(st, ui, lay, x, y),
-            MouseButton::Middle => self.middle_press(st),
+            MouseButton::Middle => self.middle_press(st, ui, lay, x, y),
         }
     }
 
@@ -260,9 +263,18 @@ impl Mouse {
             menu = !matches!(out, crate::context_menu::Outcome::Stay);
             crate::context_menu::apply(st, out);
         }
+        // the middle button ends a box drag
+        if button == MouseButton::Middle && self.boxed.is_some() && self.drag == Drag::Text {
+            self.boxed = None;
+            self.drag = Drag::None;
+            self.stop_autoscroll();
+            st.after_input();
+            return Response::INPUT;
+        }
         if button != MouseButton::Left {
             return if menu { Response::INPUT } else { Response::NONE };
         }
+        self.boxed = None;
         if self.drag == Drag::Settings {
             st.settings_release();
         }
@@ -424,6 +436,13 @@ impl Mouse {
         };
         self.clicks = Some((now, (x, y), n));
         let in_gutter = x < lay.text_x();
+        // Shift+Alt+click / drag: a box of columns from the cursor (a middle drag: from the pointer)
+        if self.mods.shift && self.mods.alt && !in_gutter {
+            let b = st.ed.buf();
+            let head = b.sel.primary().head.min(b.rope().len_chars());
+            let corner = (text::line_of(b.rope(), head), b.doc.col_of(head, st.ed.settings.tab_width.max(1)));
+            return self.box_press(st, ui, &lay, x, y, Some(corner));
+        }
         let ed = &st.ed;
         // a caret goes between the chars nearest the pointer; vim's normal mode, words and lines take the char
         // under it (the right half of a word's last letter is still that word)
@@ -484,13 +503,57 @@ impl Mouse {
     }
 
     /// A middle press closes an open menu (and goes no further).
-    fn middle_press(&mut self, st: &mut State) -> Response {
+    fn middle_press(&mut self, st: &mut State, ui: &mut Ui, lay: Option<Layout>, x: f32, y: f32) -> Response {
         if st.menu_open() {
             st.menu = None;
             st.titlebar.menu = None;
             return Response::INPUT;
         }
+        // ----- jank hunt: a middle drag over the text selects a box of columns, as in Sublime -----
+        if let Some(lay) = lay
+            && self.drag == Drag::None
+            && matches!(target_at(st, ui, &lay, x, y), Target::Text(_))
+        {
+            return self.box_press(st, ui, &lay, x, y, None);
+        }
+        // -----
         Response::NONE
+    }
+
+    /// Starts a box selection from `corner` (line, display column; none: the pointer's cell) to (`x`, `y`).
+    fn box_press(
+        &mut self,
+        st: &mut State,
+        ui: &mut Ui,
+        lay: &Layout,
+        x: f32,
+        y: f32,
+        corner: Option<(usize, usize)>,
+    ) -> Response {
+        if st.ed.prompt.is_some() {
+            st.key(KeyPress::plain(Key::Esc));
+        }
+        let ed = &st.ed;
+        self.round = ed.mode == Mode::Insert || !ed.vim();
+        let at = cell_at(st, ui, lay, x, y, self.round);
+        let corner = corner.unwrap_or(at);
+        self.boxed = Some(corner);
+        st.ed.sidebar_focus = false;
+        st.ed.mouse_box(corner, at);
+        st.after_input();
+        self.drag = Drag::Text;
+        Response::INPUT
+    }
+
+    /// A text drag goes on to (`x`, `y`), held inside the text (the autoscroll takes it further).
+    fn drag_text(&mut self, st: &mut State, ui: &Ui, lay: &Layout, x: f32, y: f32) {
+        let tx = x.clamp(lay.text_x(), text_right(lay) - 1.0);
+        let ty = y.clamp(lay.text.y, text_bottom(lay) - 1.0);
+        if let Some(corner) = self.boxed {
+            st.ed.mouse_box(corner, cell_at(st, ui, lay, tx, ty, self.round));
+        } else if let Some(pos) = pos_at(st, ui, lay, tx, ty, self.round) {
+            st.ed.mouse_drag(pos);
+        }
     }
 
     // ----- motion -----
@@ -510,12 +573,8 @@ impl Mouse {
         match self.drag {
             Drag::Text => {
                 // past an edge the selection stops at it (the autoscroll takes it further)
-                let tx = x.clamp(lay.text_x(), text_right(&lay) - 1.0);
-                let ty = y.clamp(lay.text.y, text_bottom(&lay) - 1.0);
-                if let Some(pos) = pos_at(st, ui, &lay, tx, ty, self.round) {
-                    st.ed.mouse_drag(pos);
-                    redraw = true;
-                }
+                self.drag_text(st, ui, &lay, x, y);
+                redraw = true;
                 // past an edge of the text: keep scrolling while the button is held
                 if autoscroll_speed(st, &lay, x, y) != (0.0, 0.0) {
                     self.autoscroll.get_or_insert(now);
@@ -654,11 +713,7 @@ impl Mouse {
         let scroll = ui.target_scroll(&st.ed);
         ui.anim.set_scroll(scroll);
         // the selection follows to the text's edge
-        let tx = x.clamp(lay.text_x(), text_right(&lay) - 1.0);
-        let ty = y.clamp(lay.text.y, text_bottom(&lay) - 1.0);
-        if let Some(pos) = pos_at(st, ui, &lay, tx, ty, self.round) {
-            st.ed.mouse_drag(pos);
-        }
+        self.drag_text(st, ui, &lay, x, y);
         Response::REDRAW
     }
 
@@ -781,11 +836,7 @@ impl Mouse {
             // selecting while the wheel scrolls: the selection follows the text under the still pointer (the view
             // goes there at once, so what is drawn is what is selected)
             ui.anim.set_scroll(ui.target_scroll(&st.ed));
-            let (tx, ty) =
-                (px.clamp(lay.text_x(), text_right(&lay) - 1.0), py.clamp(lay.text.y, text_bottom(&lay) - 1.0));
-            if let Some(pos) = pos_at(st, ui, &lay, tx, ty, self.round) {
-                st.ed.mouse_drag(pos);
-            }
+            self.drag_text(st, ui, &lay, px, py);
         } else if let Wheel::Pixels(..) = delta {
             let s = ui.target_scroll(&st.ed);
             ui.anim.set_scroll(Scroll { top: s.top, left: ui.anim.scroll.left });
@@ -865,6 +916,16 @@ pub fn pos_at(st: &State, ui: &Ui, lay: &Layout, x: f32, y: f32, round: bool) ->
     let col = scroll.col_at(lay, x).max(0.0);
     let col = if round { col.round() } else { col.floor() } as usize;
     Some(text::pos_at_col(rope, line, col, st.ed.settings.tab_width.max(1)))
+}
+
+/// The (line, display column) under the pointer: the nearest column boundary with `round`, else the cell under it.
+/// Past the end of a line the column goes on (a box can be wider than its lines).
+fn cell_at(st: &State, ui: &Ui, lay: &Layout, x: f32, y: f32, round: bool) -> (usize, usize) {
+    let scroll = ui.anim.scroll;
+    let last = text::last_line(st.ed.buf().rope());
+    let line = scroll.line_at(lay, y).clamp(0, last as isize) as usize;
+    let col = scroll.col_at(lay, x).max(0.0);
+    (line, if round { col.round() } else { col.floor() } as usize)
 }
 
 /// Scrolls so the scrollbar's thumb has its top at `thumb_y` (the inverse of [`crate::draw::scrollbar_thumb`]), at

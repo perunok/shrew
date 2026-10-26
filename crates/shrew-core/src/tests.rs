@@ -420,6 +420,30 @@ fn a_vim_drag_is_visual_while_it_goes() {
 }
 
 #[test]
+fn a_mouse_box_selects_columns() {
+    let mut e = sub("abcdef\nab\nabcdef\n|");
+    e.mouse_box((0, 1), (0, 1));
+    assert_eq!(show_all(&e), "a|bcdef\nab\nabcdef\n");
+    // the short middle line does not reach column 3: left out
+    e.mouse_box((0, 3), (2, 5));
+    assert_eq!(show_all(&e), "abc[de]f\nab\nabc[de]f\n");
+    // dragged up and left: the heads at the pointer's line and column
+    e.mouse_box((2, 3), (0, 1));
+    assert_eq!(show_all(&e), "a[bc]def\na[b]\na[bc]def\n");
+    assert_eq!(e.buf().sel.primary().head, 1);
+    keys(&mut e, "X");
+    assert_eq!(e.buf().doc.rope.to_string(), "aXdef\naX\naXdef\n");
+    // vim: visual block
+    let mut e = ed("abcdef\nab\nabcdef");
+    e.mouse_box((0, 1), (0, 1));
+    assert_eq!(e.mode, Mode::Normal);
+    e.mouse_box((0, 1), (2, 3));
+    assert_eq!(e.mode, Mode::VisualBlock);
+    keys(&mut e, "d");
+    assert_eq!(e.buf().doc.rope.to_string(), "aef\na\naef");
+}
+
+#[test]
 fn shift_click_then_drag_keeps_the_anchor() {
     let mut e = sub("foo b|ar\nbaz");
     e.mouse_down(1, 1, Mods { shift: true, ..Mods::default() });

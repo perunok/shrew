@@ -1768,6 +1768,47 @@ impl Editor {
         self.mouse.dragging
     }
 
+    /// A box (column) selection by mouse, from display column `from.1` of line `from.0` (where the button went
+    /// down) to `to` (the pointer): one range per line between the two columns, the pointer's line primary. Lines
+    /// too short to reach the box are left out (unless all are). In vim it is visual-block mode; on the press itself
+    /// (`from == to`) a caret.
+    pub fn mouse_box(&mut self, from: (usize, usize), to: (usize, usize)) {
+        self.pending.clear();
+        if self.picker.is_some() || self.about.is_some() {
+            return;
+        }
+        self.mouse.dragging = false;
+        let tw = self.settings.tab_width.max(1);
+        let rope = &self.buf().doc.rope;
+        let last = text::last_line(rope);
+        let (la, lh) = (from.0.min(last), to.0.min(last));
+        let (a, h) = (text::pos_at_col(rope, la, from.1, tw), text::pos_at_col(rope, lh, to.1, tw));
+        if self.vim() {
+            if a == h {
+                // a caret where it was pressed (back from a box, too)
+                if self.mode.is_visual() {
+                    self.set_mode(Mode::Normal);
+                }
+                let rope = &self.buf().doc.rope;
+                let p = if self.mode == Mode::Insert { h } else { text::clamp_normal(rope, h) };
+                self.buf_mut().sel = Selection::point(p);
+            } else if self.mode == Mode::VisualBlock {
+                self.block = Some((a, h));
+                self.rebuild_block();
+            } else {
+                if self.mode != Mode::Normal {
+                    self.set_mode(Mode::Normal);
+                }
+                self.buf_mut().sel = Selection::single(Range::new(a, h));
+                self.set_mode(Mode::VisualBlock);
+            }
+            return;
+        }
+        let ranges = box_ranges(rope, (la, from.1), (lh, to.1), tw);
+        let primary = ranges.iter().position(|r| text::line_of(rope, r.head) == lh).unwrap_or(0);
+        self.buf_mut().sel = Selection::new(ranges, primary);
+    }
+
     /// Scrolls the view without moving the cursor (mouse wheel).
     pub fn scroll(&mut self, lines: isize, cols: isize) {
         let b = self.buf_mut();
@@ -2894,6 +2935,21 @@ fn mouse_unit(rope: &ropey::Rope, pos: usize, clicks: u8, chars: bool) -> (usize
         _ if chars => (pos, text::grapheme_end(rope, pos)),
         _ => (pos, pos),
     }
+}
+
+/// The ranges of a box from (line, display column) `from` to `to`, one per line, half-open. Lines too short to
+/// reach the box's left edge are left out, unless none reach it (then each gets a caret at its end).
+fn box_ranges(rope: &ropey::Rope, from: (usize, usize), to: (usize, usize), tw: usize) -> Vec<Range> {
+    let (left, right) = (from.1.min(to.1), from.1.max(to.1));
+    let lines = from.0.min(to.0)..=from.0.max(to.0);
+    let reaches = |l: usize| text::col_of(rope, text::line_end(rope, l), tw) >= left;
+    let any = lines.clone().any(reaches);
+    let mut out = Vec::with_capacity(lines.size_hint().0);
+    for l in lines.filter(|&l| !any || reaches(l)) {
+        let (a, z) = (text::pos_at_col(rope, l, left, tw), text::pos_at_col(rope, l, right, tw));
+        out.push(if from.1 <= to.1 { Range::new(a, z) } else { Range::new(z, a) });
+    }
+    out
 }
 
 /// The half-open range from the unit a drag started on to the one under the pointer, both whole.

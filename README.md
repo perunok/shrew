@@ -295,7 +295,7 @@ These are the most useful ones. The full reference, written from the code, is in
 | Alt+Left / Alt+Right | Back / forward along the jump list |
 | Ctrl+\`, Ctrl+Shift+\` | Show / hide the terminal, new terminal |
 | Ctrl+, | Settings |
-| F10, Alt+F / E / V / G / H | Open the menus |
+| F10, Alt+F / E / S / V / G / I / T / H | Open the menus |
 
 **Insert mode, or anywhere with vim off:** Ctrl+C/X/V copy, cut and paste (the whole line when nothing is
 selected). Ctrl+A selects all, Ctrl+F finds, F3 / Shift+F3 go to the next / previous match, Ctrl+D adds the next
@@ -315,7 +315,8 @@ Ctrl+N adds a cursor at the next occurrence of the word, as in vim-visual-multi.
 
 **Mouse:** click to place the cursor, double-click to select a word, triple-click to select a line, and drag to
 select (a drag in vim enters visual mode). Shift+click extends the selection, Ctrl+click or Alt+click adds a cursor,
-and the wheel scrolls. Click or drag the minimap to scroll, click the sidebar to open files, drag its edge or the
+a middle drag or Shift+Alt+drag selects a box of columns, the wheel scrolls (Shift+wheel sideways, Ctrl+wheel
+zooms), and dragging past an edge scrolls on. Click or drag the minimap to scroll, click the sidebar to open files, drag its edge or the
 terminal's top edge to resize them, and Ctrl+click a `file:line` or URL in the terminal to open it. The title bar
 moves the window (double-click maximizes), and links in the About panel open in the browser.
 

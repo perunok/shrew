@@ -356,3 +356,30 @@ fn the_wheel_while_selecting_extends_the_selection_and_the_pointer_stays_a_text_
     s.run(&format!("<up:{x1},4><move:{x1},12>"));
     assert_eq!(s.mouse.icon(), CursorIcon::Default, "an arrow over the bar once the button is up");
 }
+
+#[test]
+fn a_middle_drag_or_shift_alt_selects_a_box_of_columns() {
+    let mut s = Sim::with(&["abcdef\nab\nabcdef\nabcdef\n"]);
+    s.run(":set novim<CR>");
+    let (x0, y0) = s.cell(0, 1);
+    let (x1, y1) = s.cell(2, 4);
+    // cell middles: the box's edges round to the column boundaries nearest the pointer
+    let (x0, x1) = (x0 - 4.0, x1 - 4.0);
+    s.run(&format!("<mdown:{x0},{y0}><move:{x1},{y1}><mup:{x1},{y1}>"));
+    let b = s.st.ed.buf();
+    let got: Vec<(usize, usize)> = b.sel.ranges().iter().map(|r| (r.from(), r.to())).collect();
+    // "ab" is too short for columns 1..4 but reaches column 1: its "b"
+    assert_eq!(got, vec![(1, 4), (8, 9), (11, 14)]);
+    assert_eq!(s.mouse.drag, Drag::None, "the middle button's release ends it");
+    // Shift+Alt+click: from the cursor to the click
+    let (x, y) = s.cell(3, 0);
+    s.run(&format!("<click:{},{y}>", x - 4.0));
+    let (x, y) = s.cell(0, 2);
+    s.run(&format!("<S-A-click:{},{y}>", x - 4.0));
+    assert_eq!(s.st.ed.buf().sel.len(), 4, "a caret span on each of the four lines");
+    // a plain middle click is a caret, nothing selected
+    let (x, y) = s.cell(1, 1);
+    s.run(&format!("<mclick:{},{y}>", x - 4.0));
+    assert_eq!(s.st.ed.buf().sel.len(), 1);
+    assert_eq!(s.st.ed.buf().sel.primary().head, 8);
+}

@@ -80,8 +80,9 @@ pub fn draw(scene: &mut Scene, st: &mut State, hits: &mut Hits, lay: &Layout, c:
     let deco = st.ed.tree.as_ref().and_then(|t| crate::git::status_ui::tree_deco(&st.git, &st.ed.features, &t.root));
     let Some(t) = st.ed.tree.as_mut() else {
         // no project: say how to get one
+        let recent = crate::context_menu::platform_label("Ctrl+Alt+P");
         let lines =
-            [("No folder open", c.panel_foreground), ("srw <folder>", c.panel_muted), ("Ctrl+Alt+P", c.panel_muted)];
+            [("No folder open", c.panel_foreground), ("srw <folder>", c.panel_muted), (recent.as_str(), c.panel_muted)];
         for (i, (s, col)) in lines.iter().enumerate() {
             scene.text(x0, (area.y + head_h + i as f32 * ch).round(), s, TextStyle::new(*col), &[]);
         }

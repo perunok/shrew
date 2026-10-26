@@ -246,7 +246,7 @@ fn panel(scene: &mut Scene, st: &mut State, body: Rect, lay: &Layout, c: &Colors
         let on = head.branch.as_deref().unwrap_or("HEAD");
         let faint = TextStyle::new(mix(c.panel_muted, c.background, 0.75));
         scene.text(tx, ty, "Message", faint, &[]);
-        let hint = format!("Ctrl+Enter commits on {on}");
+        let hint = format!("{} commits on {on}", crate::context_menu::platform_label("Ctrl+Enter"));
         scene.text(tx, ty + ch, &elide_end(&hint, box_cols), faint, &[]);
     }
     for (i, &(a, z)) in rows.iter().enumerate().skip(first).take(shown_rows) {

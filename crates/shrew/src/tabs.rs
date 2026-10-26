@@ -683,11 +683,11 @@ pub fn menu(st: &State, i: usize) -> Option<ContextMenu> {
         on(Command::CloseOthers, |st, _, id| tab(st, Command::CloseOthers, id)).enabled(n > 1).into(),
         on(Command::CloseRight, |st, _, id| tab(st, Command::CloseRight, id)).enabled(i + 1 < n).into(),
         on(Command::CloseSaved, |st, _, id| tab(st, Command::CloseSaved, id))
-            .hint(sublime.then(|| "Ctrl+K U".to_string()))
+            .hint(sublime.then(|| crate::context_menu::platform_label("Ctrl+K U")))
             .enabled(ed.buffers.iter().any(|b| !b.doc.dirty))
             .into(),
         on(Command::CloseAll, |st, _, id| tab(st, Command::CloseAll, id))
-            .hint(sublime.then(|| "Ctrl+K W".to_string()))
+            .hint(sublime.then(|| crate::context_menu::platform_label("Ctrl+K W")))
             .into(),
         MenuItem::Separator,
         on(Command::CopyPath, |st, _, id| tab(st, Command::CopyPath, id)).enabled(file).into(),
@@ -718,8 +718,8 @@ pub fn strip_menu(st: &State) -> Option<ContextMenu> {
         for e in &mut items {
             if let MenuItem::Action(a) = e {
                 match a.label.as_str() {
-                    "Close All" => a.hint = Some("Ctrl+K W".into()),
-                    "Close Saved" => a.hint = Some("Ctrl+K U".into()),
+                    "Close All" => a.hint = Some(crate::context_menu::platform_label("Ctrl+K W")),
+                    "Close Saved" => a.hint = Some(crate::context_menu::platform_label("Ctrl+K U")),
                     _ => {}
                 }
             }

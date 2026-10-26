@@ -830,6 +830,12 @@ pub fn shortcut(ed: &Editor, cmd: Command) -> Option<String> {
     ed.chords().into_iter().find(|&(_, c)| c == cmd).map(|(k, _)| chord_label(k))
 }
 
+/// A written-out chord label ("Ctrl+K W", "Ctrl+Enter") in the platform's names, like [`chord_label`]: Cmd for Ctrl
+/// and Option for Alt on macOS (where the Cmd key is what shrew reads as Ctrl).
+pub fn platform_label(s: &str) -> String {
+    if cfg!(target_os = "macos") { s.replace("Ctrl+", "Cmd+").replace("Alt+", "Option+") } else { s.to_string() }
+}
+
 /// "Ctrl+Shift+P", "Alt+F3" (Cmd for Ctrl on macOS).
 pub fn chord_label(k: KeyPress) -> String {
     let mut s = String::new();

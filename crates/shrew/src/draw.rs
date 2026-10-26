@@ -801,14 +801,22 @@ pub(crate) fn scrollbar_thumb(lay: &Layout, track: Rect, total: usize, top: f32)
 fn welcome(scene: &mut Scene, ed: &Editor, lay: &Layout, c: &Colors) {
     let vim = ed.vim();
     let title = format!("shrew {}", env!("CARGO_PKG_VERSION"));
-    let mut lines: Vec<(&str, &str)> = vec![("Ctrl+P", "open a file"), ("Ctrl+Shift+P", "all commands")];
+    let key = crate::context_menu::platform_label;
+    let mut lines: Vec<(String, &str)> = vec![(key("Ctrl+P"), "open a file"), (key("Ctrl+Shift+P"), "all commands")];
     if vim {
-        lines.extend([(":e <file>", "edit a file"), ("i / Esc", "insert / normal mode"), (":q", "quit")]);
+        lines.extend([
+            (":e <file>".into(), "edit a file"),
+            ("i / Esc".into(), "insert / normal mode"),
+            (":q".into(), "quit"),
+        ]);
     } else {
-        lines.extend([("Ctrl+S", "save"), ("Ctrl+Q", "quit")]);
+        lines.extend([(key("Ctrl+S"), "save"), (key("Ctrl+Q"), "quit")]);
     }
-    lines.push((if vim { ":set novim" } else { ":set vim" }, if vim { "Sublime-style editing" } else { "vim keys" }));
-    let key_w = lines.iter().map(|l| columns(l.0)).max().unwrap_or(0) + 3;
+    lines.push((
+        (if vim { ":set novim" } else { ":set vim" }).into(),
+        if vim { "Sublime-style editing" } else { "vim keys" },
+    ));
+    let key_w = lines.iter().map(|l| columns(&l.0)).max().unwrap_or(0) + 3;
     let w = key_w + lines.iter().map(|l| columns(l.1)).max().unwrap_or(0);
     let h = lines.len() + 2;
     if w as f32 * lay.cw > lay.text.w || (h as f32 * lay.ch) > lay.text.h {

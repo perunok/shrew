@@ -201,15 +201,18 @@ fn watching_follows_focus() {
     // focused: a commit made elsewhere is picked up by polling
     std::thread::sleep(Duration::from_millis(30));
     t.git(&["commit", "-q", "-m", "elsewhere"]);
-    let c = wait(&svc, &rx, |e| match e.reply {
-        Reply::Changed(c) => Some(c),
-        _ => None,
-    });
-    assert!(c.head);
+    // git writes the index before it moves the branch, so a poll can catch the index change first and HEAD on
+    // the next one: wait for HEAD to have moved and the status that shows the commit
+    let mut head_moved = false;
     let s = wait(&svc, &rx, |e| match e.reply {
-        Reply::Status(Ok(s)) => Some(s),
+        Reply::Changed(c) => {
+            head_moved |= c.head;
+            None
+        }
+        Reply::Status(Ok(s)) if s.head.summary.as_deref() == Some("elsewhere") => Some(s),
         _ => None,
     });
+    assert!(head_moved);
     assert!(s.is_clean());
     assert_eq!(s.head.summary.as_deref(), Some("elsewhere"));
 }

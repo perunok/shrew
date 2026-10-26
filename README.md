@@ -108,8 +108,9 @@ repository, `scripts/demo-repo.sh`). Regenerate them with `scripts/screenshots.s
 
   All of it reads the repository inside shrew (gix, pure Rust) off the UI thread, and writes through the `git`
   program, so your hooks and credentials just work. Nothing runs outside a repository.
-- **Updates itself.** shrew checks GitHub Releases once a day and shows an update button in the status bar. The
-  download is verified against its sha256 before it replaces the binary.
+- **Updates itself.** At every start and once a day shrew asks GitHub for the latest release and says when there is
+  a newer one. **Update now** shows the release notes and downloads it with a progress bar, checks it against its
+  sha256, and **Restart to update** brings every open file back, unsaved changes too.
 - **Pure Rust.** It builds with `cargo` alone: no C compiler, no system `-dev` packages. GPU drivers, Wayland and
   X11 are loaded at runtime.
 
@@ -149,7 +150,7 @@ the table below for your build and config.
 | `palette` | Command palette (Ctrl+Shift+P) | on | |
 | `clipboard` | Share yanks and pastes with the system clipboard | on | `clipboard` |
 | `mcp` | MCP server so AI assistants can read and edit open files | **off** | `mcp` |
-| `update_check` | Check GitHub for new releases at startup (at most once a day) | on | `update` |
+| `update_check` | Check GitHub for new releases at startup and once a day | on | `update` |
 | `vimrc` | Read options and mappings from `~/.vimrc` or `init.vim` at startup (see `[import]`) | on | |
 | `sublime_import` | Read Sublime Text's user settings and key bindings at startup (see `[import]`) | on | |
 | `custom_titlebar` | shrew's own title bar: tabs, menus (F10) and window buttons in one row. Off: the system title bar | on | |
@@ -436,15 +437,38 @@ closed (only while MCP is on). To cut off access at any time, run `:set nomcp`.
 
 ## Updates
 
-- shrew checks [GitHub Releases](https://github.com/perunok/shrew/releases) in the background at startup, at most
-  once a day. When a newer version exists, an **update button** appears in the status bar. Click it (or run
-  `:update`, or palette *Shrew: Install Update and Restart*) and shrew downloads the binary for your platform,
-  verifies its sha256, swaps it in atomically and restarts. Ctrl+Shift+U (palette *Shrew: Check for Updates*) checks
-  right away.
-- To turn automatic checks off, set `[update] check = false` or `:set noupdate_check`. To remove the code
-  altogether, build without the `update` cargo feature.
-- If shrew was installed by a package manager, or its binary is not writable, it does not update itself. It tells
-  you to use the package manager instead.
+Each time shrew starts (a few seconds after its window opens) and once a day while it runs, it asks
+[GitHub Releases](https://github.com/perunok/shrew/releases) in the background which version is the latest. When there
+is a newer one, a notification at the bottom right says so, with **Update now** and **Release notes**: at every start
+while you have not installed it, and at most once a day per version while shrew runs. The request carries nothing
+about you or your files, and nothing is downloaded until you ask. The status bar keeps a **⬆ shrew X** button until
+then. Esc or ✕ dismisses the notification; Ctrl+Shift+U opens the update.
+
+- **Update now** (or the status-bar button, `:update`, palette *Shrew: Update shrew…*) opens **Update shrew**: your
+  version and the new one, the release notes, and **Download**. The download shows a progress bar with its size,
+  speed and time left; **Cancel** stops it and deletes the partial file, **Hide** (Esc) lets it go on in the
+  background while the status bar shows the percentage (click it to bring the dialog back). The download is then
+  checked against the release's published sha256.
+- **Restart to update** puts the new binary in place (checked once more on the way) and starts shrew again. Your
+  open files come back with their cursors, selections, scroll positions, the active tab and the project, **unsaved
+  changes too** ("hot exit"): they are kept in `<cache dir>/shrew/session-restart.json` across the restart and come
+  back as unsaved changes, so nothing is written to your files and one undo goes back to what is on disk. Open
+  terminals end (their shells cannot survive the restart; the dialog says so), the MCP server restarts, and programs
+  waiting on `srw --wait` are told their files are closed. After the restart a notification says *Updated to shrew X*,
+  with **What's new**.
+- **Later** keeps the verified download: Settings > Updates and the status bar then offer **Restart to update**. A
+  later start installs nothing by itself.
+- **Help > Check for Updates…** (Ctrl+Shift+U, palette *Shrew: Check for Updates*, `:checkupdate`) checks right
+  away and always answers: up to date, a newer version, or why it could not check.
+- **Settings > Updates**: turn *Check for new releases automatically* off (or `[update] check = false`, or
+  `:set noupdate_check`), **Check now** (the answer shows there), when shrew last checked, your version, and **Update
+  now**, the progress, **Restart to update** or **View release** depending on where the update is. To remove the
+  code altogether, build without the `update` cargo feature.
+- Where shrew cannot update itself (installed by a package manager, a binary in a folder it may not write to, a
+  development build running from cargo's `target/` folder), the notification, the dialog and Settings say why and
+  offer **View release** instead, to download it from the release page.
+- From a script: `srw --self-update` does the same check, download and verification without a window and replaces
+  the binary; a running shrew keeps its old one until it is restarted.
 - Under the hood: `scripts/release.sh X.Y.Z` bumps the version, updates the changelog and tags `vX.Y.Z`. Pushing the
   tag runs [the release workflow](.github/workflows/release.yml). It builds all five targets and drafts a GitHub
   release with the raw binaries, their `.sha256` files and the archives. Once the draft is published, running shrews
@@ -533,7 +557,7 @@ shrew is a Cargo workspace of small crates. Only the app crate knows about windo
 | [`shrew-config`](crates/shrew-config) | `config.toml` (comment-preserving writes), and the vimrc and Sublime Text importers. |
 | [`shrew-mcp`](crates/shrew-mcp) | MCP server: a loopback Streamable-HTTP endpoint inside the app and the `--mcp-stdio` bridge. |
 | [`shrew-git`](crates/shrew-git) | Git without a UI: gix reads (status, log, blame, blobs), imara-diff line and word diffs, the `git` program for writes and network, and a background service the app talks to. |
-| [`shrew-update`](crates/shrew-update) | Self-update from GitHub Releases: pure-Rust TLS (rustls + RustCrypto), sha256 check, atomic swap. |
+| [`shrew-update`](crates/shrew-update) | Self-update from GitHub Releases, UI-free: pure-Rust TLS (rustls + RustCrypto), download with progress and cancel, sha256 check, atomic swap. |
 | [`shrew`](crates/shrew) | The app (`srw`): winit window and event loop, the single-instance `srw` command, drawing, wiring the crates together. |
 
 ## Documentation

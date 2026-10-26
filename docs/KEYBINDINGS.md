@@ -59,7 +59,7 @@ turned off, and "normal" means vim normal mode.
 | Ctrl+Tab, Ctrl+PageDown | Next buffer | always |
 | Ctrl+Shift+Tab, Ctrl+PageUp | Previous buffer | always |
 | Ctrl+Shift+P | Command palette | always |
-| Ctrl+Shift+U | Check for updates | always |
+| Ctrl+Shift+U | Check for updates; with an update in hand (its notification showing, a download going or done), the Update shrew dialog | always |
 | Ctrl+, | Settings panel (Cmd+, on macOS) | always |
 
 ### Editing
@@ -489,7 +489,8 @@ or `:duplicate_line`.
 | `:cd [dir]` / `:pwd` | Make `dir` the project and working directory / show it (for `:e`, Ctrl+P and the sidebar) |
 | `:grep {pattern}`, `:rg`, `:vimgrep` | [Find in project](#find-in-project) |
 | `:Ex`, `:Explore`, `:Lex`, `:NERDTree` | Focus the [sidebar](#sidebar) |
-| `:update` | Install the available update and restart |
+| `:update` | The Update shrew dialog, downloading the new version (checking first when none is known) |
+| `:checkupdate` | Check for updates now (always answers) |
 | `:version` | Show shrew's version |
 | `:about` | The About panel: version, manifesto, license, credits |
 | `:settings [section]`, `:preferences`, `:prefs` | The Settings panel, on a section when one is named (`:settings ai`) |
@@ -582,7 +583,7 @@ command palette by its title.
 | `select_font` | Font: Select… | |
 | `toggle_ligatures` | Font: Toggle Ligatures | |
 | `check_updates` | Shrew: Check for Updates | Ctrl+Shift+U |
-| `update` | Shrew: Install Update and Restart | `:update`, the status-bar button |
+| `update` | Shrew: Update shrew… | `:update`, the status-bar button, Help > Update shrew… |
 | `config` | Shrew: Open Config File | |
 | `mcp` | Shrew: AI Assistants (MCP) Setup | |
 | `about` | About shrew | `:about` |

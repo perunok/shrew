@@ -251,17 +251,26 @@ finds the port and token by itself. See the README's [AI assistants](../README.m
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `check` | bool | `true` | Check GitHub Releases for a newer shrew at startup (at most once a day). Same as the `update_check` feature |
+| `check` | bool | `true` | Check GitHub Releases for a newer shrew at every start and once a day while it runs. Same as the `update_check` feature and Settings > Updates > *Check for new releases automatically* |
 
-Installing an update is never automatic: shrew shows an update button in the status bar and waits for you. A check
-you ask for (Ctrl+Shift+U, palette *Shrew: Check for Updates*) works even when `check = false`.
+Installing an update is never automatic: shrew shows a notification and a status-bar button and waits for you (see
+the README's [Updates](../README.md#updates)). A check you ask for (Ctrl+Shift+U, Help > Check for Updates…,
+Settings > Updates > Check now) works even when `check = false`.
+
+What the checks saw is kept in `<cache dir>/shrew/update-state.json` (when shrew last checked, the latest version,
+the version last announced and when), downloads wait in `<cache dir>/shrew/updates/` until they are installed, and a
+restart to update keeps the open files in `<cache dir>/shrew/session-restart.json` until the new version has read
+it. The cache dir is `~/.cache` (`$XDG_CACHE_HOME`) on Linux, `~/Library/Caches` on macOS, `%LOCALAPPDATA%` on
+Windows.
 
 These environment variables are for testing and mirrors:
 
 | Variable | Effect |
 | --- | --- |
 | `SHREW_UPDATE_REPO` | GitHub `owner/name` to take releases from (default `perunok/shrew`) |
-| `SHREW_UPDATE_FEED_URL` | Any URL serving GitHub's "latest release" JSON |
+| `SHREW_UPDATE_FEED_URL` | Any URL serving GitHub's "latest release" JSON (`file://` works too) |
+| `SHREW_PRETEND_VERSION` | Debug builds only (release builds ignore it): the version the updater thinks it runs, e.g. `0.1.0` to be offered the latest release |
+| `SHREW_UPDATE_DEMO` | Debug builds, `--screenshot` only: show the update UI offline in a stage (`available`, `downloading`, `verifying`, `ready`, `failed`, `unsupported`, `uptodate`, `checkfailed`, `updated`) |
 
 ## `[titlebar]`
 

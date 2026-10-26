@@ -6,6 +6,36 @@ new version when it tags a release.
 
 ## [Unreleased]
 
+### Added
+
+- In-app updates like Slinger's. shrew asks GitHub for the latest release a few seconds after every start and once a
+  day while it runs (an event-loop deadline: no polling); a newer version gets a notification at the bottom right
+  with **Update now** and **Release notes** (at every start until installed, at most once a day per version while
+  running). Help > Check for Updates… (Ctrl+Shift+U, `:checkupdate`) always answers: up to date, a newer version or
+  why it could not check.
+- The **Update shrew** dialog: from and to versions, the release notes (Markdown cleaned up, scrollable), the
+  download with a progress bar, size, speed and time left, **Cancel** and **Hide** (the status bar shows the
+  percentage), the sha256 check, then **Restart to update** or **Later** (the verified download is kept). Keys
+  (Tab, Enter, Esc, j/k) and mouse.
+- Restart to update brings everything back: open files, cursors, scroll, the active tab and the project, and unsaved
+  changes too (hot exit through `<cache dir>/shrew/session-restart.json`), then says *Updated to shrew X* with
+  **What's new**. Terminals end first (the dialog says so).
+- Settings > Updates: *Check for new releases automatically*, **Check now** with the answer inline, when shrew last
+  checked, and Update now / the progress / Restart to update / View release.
+- Installations that cannot update themselves (a package manager's binary, a folder shrew may not write to, a
+  development build in cargo's `target/`) say why and offer **View release**.
+- `srw --self-update`: the same check, download, verification and swap without a window.
+
+### Changed
+
+- The update check is no longer rate-limited to one a day at startup: every start checks (see above). The status-bar
+  button opens the dialog instead of installing at once, and a restart no longer refuses unsaved buffers: they come
+  back unsaved.
+- Git's progress and error toast and the update notifications share one toast look.
+- `shrew-update` is now UI-free and split in steps: `Feed::fetch` (also says which version is the latest),
+  `download` (staged in the cache, cancellable, verified on disk), `apply` (verified again while copied, atomic
+  rename) and an `Updater` with `Phase`s and download speed.
+
 ## [0.2.0] - 2026-10-15
 
 ### Added

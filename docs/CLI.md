@@ -34,6 +34,15 @@ The other options work as before: `--version` (`-V`), `--help` (`-h`), `--featur
 `--mcp-stdio`, `--stats` (with `-f`: frame timings on stderr), and `--screenshot OUT.png [--size WxH] [--scale F]
 [--keys KEYS] [files]` for a headless render.
 
+`srw --self-update` updates shrew without a window: it asks GitHub for the latest release, downloads the binary for
+this platform, checks it against the published sha256 and replaces the `srw` that ran (or the AppImage). It prints
+what it did and exits 0 (also when shrew is up to date), or says why it could not (an installation that cannot
+update itself, no network). A running shrew keeps its old binary until it is restarted. See the README's
+[Updates](../README.md#updates).
+
+Restart to update starts the new version as `srw -f --restore-session <file>`: a hidden option that reopens the
+session the old version saved (see the README).
+
 ## Use shrew as $EDITOR
 
 `-w` makes `srw` wait until every buffer it opened is closed (`:q`, `:wq`, `:bd`, closing the tab, or quitting

@@ -56,7 +56,9 @@ impl Anim {
         let (l, c) = t.cursor;
         // typing moves one cell at a time: never make it lag
         let typing = self.cursor.0 == l && (self.cursor.1 - c).abs() <= 1.5;
-        if t.cursor_animation && !typing {
+        // a jump further than a screen (G, a search, a click after scrolling away) lands at once, not flying in
+        let far = (self.cursor.0 - l).abs() > t.rows.max(1) as f32;
+        if t.cursor_animation && !typing && !far {
             approach(&mut self.cursor.0, l, dt, CURSOR_TAU);
             approach(&mut self.cursor.1, c, dt, CURSOR_TAU);
         } else {
@@ -125,6 +127,11 @@ mod tests {
         a.step(&target(0.0, (3.0, 4.0)), now);
         assert!(!a.step(&target(0.0, (3.0, 5.0)), now));
         assert_eq!(a.cursor, (3.0, 5.0));
+        // a cursor jump of more than a screen lands at once
+        let mut a = Anim::default();
+        a.step(&target(0.0, (3.0, 4.0)), now);
+        assert!(!a.step(&target(0.0, (900.0, 4.0)), now));
+        assert_eq!(a.cursor, (900.0, 4.0));
         // animations off: everything snaps
         let mut t = target(50.0, (60.0, 9.0));
         t.smooth_scroll = false;

@@ -52,6 +52,13 @@ pub struct Ui {
     pub frac: f32,
     pub frac_top: usize,
     pub picker_top: usize,
+    // ----- jank hunt: the wheel scrolls a picker's list, the pointer highlights a row -----
+    /// The picker as last drawn (highlighted row, matches, query length): the list follows the highlight only when
+    /// that changed, so the wheel can scroll it away.
+    pub picker_seen: Option<(usize, usize, usize)>,
+    /// The picker row under the pointer, counted from the top row shown.
+    pub picker_hover: Option<usize>,
+    // -----
     pub hits: Hits,
     /// The primary cursor's rect (for the input method's candidate window).
     pub cursor_rect: Option<Rect>,
@@ -182,6 +189,9 @@ pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: 
     crate::settings::draw(scene, st, lay, &c);
     if st.ed.picker.is_some() {
         picker(scene, &st.ed, ui, lay, &c);
+    } else {
+        ui.picker_seen = None;
+        ui.picker_hover = None;
     }
     if st.ed.about.is_some() {
         about(scene, &mut st.ed, ui, lay, &c);
@@ -731,15 +741,23 @@ fn scrollbar(scene: &mut Scene, ui: &mut Ui, lay: &Layout, c: &Colors, scroll: S
         return;
     }
     let track = lay.scrollbar;
-    let min_h = (24.0 * lay.scale).round();
-    let h = (track.h * lay.rows as f32 / (total + lay.rows) as f32).max(min_h).min(track.h);
-    let frac = (scroll.top / (total.saturating_sub(1).max(1)) as f32).clamp(0.0, 1.0);
-    let y = (track.y + frac * (track.h - h)).round();
+    let thumb = scrollbar_thumb(lay, track, total, scroll.top);
     let w = (4.0 * lay.scale).round().max(2.0);
     let x = track.right() - w - (2.0 * lay.scale).round();
-    scene.rounded_rect(Rect::new(x, y, w, h), w / 2.0, c.scrollbar, None);
+    scene.rounded_rect(Rect::new(x, thumb.y, w, thumb.h), w / 2.0, c.scrollbar, None);
     ui.hits.scrollbar = Some((track, total));
 }
+
+// ----- jank hunt: one thumb for drawing and dragging -----
+/// The scrollbar's thumb (as wide as the track) for `total` lines scrolled to `top`. The mouse inverts this, so a
+/// grabbed thumb stays under the pointer.
+pub(crate) fn scrollbar_thumb(lay: &Layout, track: Rect, total: usize, top: f32) -> Rect {
+    let min_h = (24.0 * lay.scale).round();
+    let h = (track.h * lay.rows as f32 / (total + lay.rows) as f32).max(min_h).min(track.h).round();
+    let frac = (top / (total.saturating_sub(1).max(1)) as f32).clamp(0.0, 1.0);
+    Rect::new(track.x, (track.y + frac * (track.h - h)).round(), track.w, h)
+}
+// -----
 
 fn welcome(scene: &mut Scene, ed: &Editor, lay: &Layout, c: &Colors) {
     let vim = ed.vim();
@@ -1050,13 +1068,18 @@ fn picker(scene: &mut Scene, ed: &Editor, ui: &mut Ui, lay: &Layout, c: &Colors)
     let sep_y = (y + query_h + globs_h).round();
     scene.rect(Rect::new(x, sep_y, w, lay.scale.round().max(1.0)), c.panel_border);
 
-    // results
-    if p.selected < ui.picker_top {
-        ui.picker_top = p.selected;
-    } else if p.selected >= ui.picker_top + max_rows {
-        ui.picker_top = p.selected + 1 - max_rows;
+    // results: the highlighted row is kept in view when it moves (keys, typing), not when the wheel scrolls
+    let seen = (p.selected, p.matches.len(), p.query.len());
+    if ui.picker_seen != Some(seen) {
+        ui.picker_seen = Some(seen);
+        if p.selected < ui.picker_top {
+            ui.picker_top = p.selected;
+        } else if p.selected >= ui.picker_top + max_rows {
+            ui.picker_top = p.selected + 1 - max_rows;
+        }
     }
     ui.picker_top = ui.picker_top.min(p.matches.len().saturating_sub(max_rows));
+    let hover = ui.picker_hover.map(|slot| ui.picker_top + slot);
     let ry0 = sep_y + 1.0 + pad;
     if p.matches.is_empty() {
         let hint = p.hint();
@@ -1079,6 +1102,9 @@ fn picker(scene: &mut Scene, ed: &Editor, ui: &mut Ui, lay: &Layout, c: &Colors)
         let rect = Rect::new(x + pad, ry, w - 2.0 * pad, row_h);
         if row == p.selected {
             scene.rounded_rect(rect, (5.0 * lay.scale).round(), c.panel_selection, None);
+        } else if hover == Some(row) {
+            let bg = mix(c.panel_selection, c.popup, 0.45);
+            scene.rounded_rect(rect, (5.0 * lay.scale).round(), bg, None);
         }
         ui.hits.picker_rows.push((rect, row));
         let ty = lay.centered(ry, row_h);

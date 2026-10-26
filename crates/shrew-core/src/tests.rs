@@ -364,12 +364,70 @@ fn mouse() {
     e.mouse_down(5, 1, Mods::default());
     e.mouse_up();
     assert_eq!((show(&e).as_str(), e.mode), ("foo b|ar\nbaz", Mode::Normal));
+    // positions are the char under the pointer: dragging from `f` to the second `o` selects "foo"
     e.mouse_down(0, 1, Mods::default());
-    e.mouse_drag(3);
+    e.mouse_drag(2);
     e.mouse_up();
     assert_eq!(e.mode, Mode::Visual);
     keys(&mut e, "d");
     assert_eq!(show(&e), "| bar\nbaz");
+}
+
+/// The primary selection's text (both ends included in visual mode).
+fn sel_text(e: &Editor) -> String {
+    let r = e.buf().sel.primary();
+    let to = if e.mode.is_visual() { r.to() + 1 } else { r.to() };
+    e.buf().doc.rope.slice(r.from()..to).to_string()
+}
+
+#[test]
+fn a_vim_drag_is_visual_while_it_goes() {
+    let mut e = ed("foo bar\nbaz");
+    e.mouse_down(1, 1, Mods::default());
+    // still on the char pressed: a caret
+    e.mouse_drag(1);
+    assert_eq!(e.mode, Mode::Insert);
+    // over another char: visual mode at once, both ends included, as on release
+    e.mouse_drag(5);
+    assert_eq!(e.mode, Mode::Visual);
+    assert_eq!(sel_text(&e), "oo ba");
+    // backwards past the anchor: the anchor's char stays in
+    e.mouse_drag(0);
+    assert_eq!(sel_text(&e), "fo");
+    // back on the char pressed: a caret again, and a release there is a click
+    e.mouse_drag(1);
+    assert_eq!(e.mode, Mode::Insert);
+    e.mouse_up();
+    assert_eq!((show(&e).as_str(), e.mode), ("f|oo bar\nbaz", Mode::Normal));
+    // a double click selects the word in visual mode before the button is up
+    e.mouse_down(5, 2, Mods::default());
+    assert_eq!((e.mode, sel_text(&e).as_str()), (Mode::Visual, "bar"));
+    e.mouse_up();
+    assert_eq!((e.mode, sel_text(&e).as_str()), (Mode::Visual, "bar"));
+    keys(&mut e, "<Esc>");
+    // shift+click takes the char clicked, either side of the cursor
+    e.mouse_down(1, 1, Mods::default());
+    e.mouse_up();
+    e.mouse_down(5, 1, Mods { shift: true, ..Mods::default() });
+    e.mouse_up();
+    assert_eq!((e.mode, sel_text(&e).as_str()), (Mode::Visual, "oo ba"));
+    keys(&mut e, "<Esc>");
+    e.mouse_down(5, 1, Mods::default());
+    e.mouse_up();
+    e.mouse_down(1, 1, Mods { shift: true, ..Mods::default() });
+    e.mouse_up();
+    assert_eq!(sel_text(&e), "oo ba");
+}
+
+#[test]
+fn shift_click_then_drag_keeps_the_anchor() {
+    let mut e = sub("foo b|ar\nbaz");
+    e.mouse_down(1, 1, Mods { shift: true, ..Mods::default() });
+    e.mouse_drag(2);
+    e.mouse_up();
+    assert_eq!(show_all(&e), "fo[o b]ar\nbaz");
+    e.mouse_down(9, 1, Mods { shift: true, ..Mods::default() });
+    assert_eq!(show_all(&e), "foo b[ar\nb]az");
 }
 
 #[test]

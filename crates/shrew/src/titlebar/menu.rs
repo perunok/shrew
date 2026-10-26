@@ -1,7 +1,7 @@
 //! The application menu: File, Edit, Selection, View, Go, Git, Terminal, Help, built from the named commands when it
 //! opens (a command this build lacks is left out, an empty menu too), each entry with the chord that runs it right
-//! now. Opened by the title bar's menu button, F10 or Alt+F/E/V/G/H; driven by arrows, Enter, Esc and typing the
-//! start of an entry, or by the mouse. The entries are [`MenuItem`]s drawn as a context menu's list
+//! now. Opened by the title bar's menu button, F10 or Alt+F/E/S/V/G/I/T/H (each menu's underlined letter); driven
+//! by arrows, Enter, Esc and typing the start of an entry, or by the mouse. The entries are [`MenuItem`]s drawn as a context menu's list
 //! ([`crate::context_menu`]), so every menu looks the same.
 
 use crate::context_menu::{MenuItem, Run, items_from_spec};
@@ -209,8 +209,8 @@ static MENUS: &[(&str, char, &[&str])] = &[
     ),
 ];
 
-/// Menus Alt+<letter> opens (others open with F10 and the arrows).
-pub const ALT_MNEMONICS: &[char] = &['f', 'e', 'v', 'g', 'h'];
+/// Menus Alt+<letter> opens: every menu's underlined letter (Git is Alt+I: Alt+G is Go).
+pub const ALT_MNEMONICS: &[char] = &['f', 'e', 's', 'v', 'g', 'i', 't', 'h'];
 
 #[derive(Clone, Debug)]
 pub struct Menu {

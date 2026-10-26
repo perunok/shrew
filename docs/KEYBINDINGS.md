@@ -10,7 +10,7 @@ motion, character or register name. "Ctrl" also means ⌘ Cmd on macOS. Vim keys
 
 **Order of precedence** for a key press:
 
-1. An open menu (the title bar's), then an open picker (file finder, palette, buffers, features), the Settings or
+1. An open menu (a [context menu](#context-menus) or the title bar's), then an open picker (file finder, palette, buffers, features), the Settings or
    About panel or a prompt (`:`, `/`, `?`) takes every key. Then a focused terminal or the sidebar takes the keys
    they use (see [Terminal](#terminal), [Sidebar](#sidebar)). F10 and Alt+F/E/V/G/H open the menus unless you
    mapped them or a terminal has the focus.
@@ -458,6 +458,26 @@ build does not have are left out.
 | Enter, Space | Run the entry |
 | Esc, F10, a click outside | Close |
 
+## Context menus
+
+A right click opens the menu of what is under the pointer (an empty part of the title bar, a row of the Source
+Control panel), at the pointer; near the window's edges it opens to the left or upwards. The menus look and work
+alike, and one menu is open at a time. While one is open it takes every key.
+
+| Keys / mouse | Action |
+| --- | --- |
+| Up / Down, `j` / `k` | Previous / next entry (disabled ones are skipped) |
+| Home / End | First / last entry |
+| Right, Enter | Open the highlighted submenu |
+| Left, Esc | Close the submenu |
+| a letter | The entry it is the mnemonic of (underlined) runs; otherwise the next entry starting with what you typed |
+| Enter, Space | Run the entry |
+| Esc, F10 | Close |
+| Hover | Highlight an entry, open a submenu |
+| Click an entry | Run it |
+| Press the right button, drag onto an entry, release | Run it, as with native menus |
+| Right-click the same spot again, click outside, middle click | Close (a right click elsewhere opens the menu there) |
+
 ## Ex commands
 
 Type them at the `:` prompt. Every [named command](#named-commands) also works as `:name`, for example `:palette`
@@ -668,6 +688,7 @@ command palette by its title.
 | Click on the minimap | Scroll so the line under the pointer is centred |
 | Drag on the minimap | Scroll continuously; the viewport box follows the pointer |
 | Click a link in the About panel | Open it in the browser |
+| Right-click | The [context menu](#context-menus) of what is under the pointer |
 
 ## Title bar
 

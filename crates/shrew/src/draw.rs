@@ -3,7 +3,7 @@
 //!
 //! Layers: 0 = editor (backgrounds, selections, text) and bars; 1 = cursors and the scrollbar (above text);
 //! 2 = the picker, About and Settings overlays; 3 = what opens over Settings (its lists, the pickers); 4 = the title
-//! bar's menus and the window's edge.
+//! bar's menus and the window's edge; 5 and up = the context menu and its submenus.
 
 use crate::anim::{Anim, Target};
 use crate::colors::{Colors, mix};
@@ -187,6 +187,7 @@ pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: 
         about(scene, &mut st.ed, ui, lay, &c);
     }
     crate::titlebar::draw_menus(scene, st, lay, &c);
+    crate::context_menu::draw(scene, st, lay, &c);
     animating
 }
 
@@ -1222,6 +1223,18 @@ pub(crate) fn popup(scene: &mut Scene, panel: Rect, lay: &Layout, c: &Colors) {
         );
     }
     scene.rounded_rect(panel, radius, c.popup, Some((lay.scale.round().max(1.0), c.popup_border)));
+}
+
+/// A line from `a` to `b`, `w` thick, as a row of overlapping dots (the renderer draws antialiased rounded rects,
+/// not lines). Opaque colors only.
+pub(crate) fn line(scene: &mut Scene, a: (f32, f32), b: (f32, f32), w: f32, col: Color) {
+    let len = (b.0 - a.0).hypot(b.1 - a.1);
+    let n = (len / (w * 0.3)).ceil().max(1.0) as usize;
+    for k in 0..=n {
+        let t = k as f32 / n as f32;
+        let (x, y) = (a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t);
+        scene.rounded_rect(Rect::new(x - w / 2.0, y - w / 2.0, w, w), w / 2.0, col, None);
+    }
 }
 
 // ----- about -----

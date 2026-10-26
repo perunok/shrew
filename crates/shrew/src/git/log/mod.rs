@@ -687,6 +687,15 @@ pub fn wheel(st: &mut State, x: f32, y: f32, lines: f32) -> bool {
     true
 }
 
+/// Over a log tab: the commit row under the pointer (`Some(None)` elsewhere on the tab). `None` off the tab.
+pub fn row_under(st: &State, x: f32, y: f32) -> Option<Option<usize>> {
+    let v = active(st)?;
+    if !v.hits.area.is_some_and(|a| a.contains(x, y)) {
+        return None;
+    }
+    Some(v.hits.rows.iter().find(|(r, _)| r.contains(x, y)).map(|h| h.1))
+}
+
 pub fn hover(st: &State, x: f32, y: f32) -> (bool, bool) {
     let over = active(st).is_some_and(|v| v.hits.rows.iter().chain(&v.hits.files).any(|(r, _)| r.contains(x, y)));
     (false, over)

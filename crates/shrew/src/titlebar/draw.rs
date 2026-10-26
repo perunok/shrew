@@ -2,10 +2,11 @@
 //! rects and circles rather than font glyphs, so they look the same in every font; colors are theme tokens only.
 
 use super::items::{self, Item};
-use super::menu::{Entry, MenuHits};
+use super::menu::MenuHits;
 use super::{on, own_window_buttons, project_name, shown};
 use crate::colors::{Colors, mix};
-use crate::draw::{Ui, popup, tabs_in};
+use crate::context_menu::{draw_list, list_size, row_h, scroll_top};
+use crate::draw::{Ui, line, popup, tabs_in};
 use crate::layout::Layout;
 use crate::state::State;
 use shrew_core::Editor;
@@ -47,7 +48,7 @@ pub fn draw(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, c: &Co
     };
     let placed = items::place(&st.titlebar.layout, inner, shown, width, (lay.pad / 2.0).round());
     let tb = &st.titlebar;
-    let menu_open = tb.menu.as_ref().is_some_and(|m| m.at.is_none());
+    let menu_open = tb.menu.is_some();
     for &(item, r) in &placed {
         if item == Item::Tabs {
             continue;
@@ -105,18 +106,6 @@ pub fn draw(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, c: &Co
 /// The project item's text: the project's name, `~` at home.
 fn project_label(ed: &Editor) -> String {
     project_name(ed).unwrap_or_else(|| if ed.cwd.parent().is_some() { "~".into() } else { "/".into() })
-}
-
-/// A line from `a` to `b`, `w` thick, as a row of overlapping dots (the renderer draws antialiased rounded rects,
-/// not lines). Opaque colors only.
-fn line(scene: &mut Scene, a: (f32, f32), b: (f32, f32), w: f32, col: Color) {
-    let len = (b.0 - a.0).hypot(b.1 - a.1);
-    let n = (len / (w * 0.3)).ceil().max(1.0) as usize;
-    for k in 0..=n {
-        let t = k as f32 / n as f32;
-        let (x, y) = (a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t);
-        scene.rounded_rect(Rect::new(x - w / 2.0, y - w / 2.0, w, w), w / 2.0, col, None);
-    }
 }
 
 fn ring(scene: &mut Scene, cx: f32, cy: f32, d: f32, w: f32, col: Color) {
@@ -207,69 +196,49 @@ fn icon(scene: &mut Scene, item: Item, r: Rect, lay: &Layout, ink: Color, maximi
     }
 }
 
-/// The open menu bar or right-click menu, above everything else.
+/// The open menu bar, above everything else: the list of menus under the menu button, the open one beside it.
 pub fn draw_menus(scene: &mut Scene, st: &mut State, lay: &Layout, c: &Colors) {
     let Some(m) = &mut st.titlebar.menu else { return };
     scene.layer(4);
     let (cw, pad) = (lay.cw, lay.pad);
-    let row_h = (lay.ch + 1.5 * pad).round();
-    let sep_h = (2.0 * pad + 1.0).round();
+    let row_h = row_h(lay);
     let mut hits = MenuHits::default();
     let below = st.titlebar.bar.bottom().max(lay.tabs.bottom());
     // the list of menus, under the menu button
     let mut sub_at = (m.anchor_x, below + pad);
-    if m.at.is_none() {
-        let cols = m.menus.iter().map(|x| columns(x.title)).max().unwrap_or(0) + 7;
-        let w = (cols as f32 * cw).round();
-        let h = (m.menus.len() as f32 * row_h + 2.0 * pad).round();
-        let x = m.anchor_x.clamp(0.0, (lay.width - w).max(0.0)).round();
-        let panel = Rect::new(x, (below + pad / 2.0).round(), w, h);
-        popup(scene, panel, lay, c);
-        hits.panels.push(panel);
-        for (i, menu) in m.menus.iter().enumerate() {
-            let row = Rect::new(panel.x + pad, panel.y + pad + i as f32 * row_h, panel.w - 2.0 * pad, row_h);
-            if i == m.open {
-                let bg = if m.item.is_none() { c.panel_selection } else { mix(c.panel_selection, c.popup, 0.5) };
-                scene.rounded_rect(row, (5.0 * lay.scale).round(), bg, None);
-                sub_at = (panel.right() + pad / 2.0, row.y - pad);
-            }
-            let y = lay.centered(row.y, row.h);
-            // the mnemonic letter underlined, as in a system menu bar
-            let fg = TextStyle::new(c.panel_foreground);
-            let u = menu.title.char_indices().find(|(_, ch)| ch.to_ascii_lowercase() == menu.mnemonic);
-            let spans: Vec<_> =
-                u.map(|(b, ch)| (b..b + ch.len_utf8(), fg.underline(c.panel_foreground))).into_iter().collect();
-            scene.text((row.x + cw).round(), y, menu.title, fg, &spans);
-            let chev = Rect::new(row.right() - 2.0 * cw, row.y, cw, row.h);
-            let (hx, hy) = (chev.x + cw * 0.35, (chev.y + chev.h / 2.0).round());
-            let k = 3.0 * lay.scale;
-            line(scene, (hx, hy - k), (hx + k, hy), 1.2 * lay.scale, c.panel_muted);
-            line(scene, (hx + k, hy), (hx, hy + k), 1.2 * lay.scale, c.panel_muted);
-            hits.roots.push((row, i));
+    let cols = m.menus.iter().map(|x| columns(x.title)).max().unwrap_or(0) + 7;
+    let w = (cols as f32 * cw).round();
+    let h = (m.menus.len() as f32 * row_h + 2.0 * pad).round();
+    let x = m.anchor_x.clamp(0.0, (lay.width - w).max(0.0)).round();
+    let panel = Rect::new(x, (below + pad / 2.0).round(), w, h);
+    popup(scene, panel, lay, c);
+    hits.panels.push(panel);
+    for (i, menu) in m.menus.iter().enumerate() {
+        let row = Rect::new(panel.x + pad, panel.y + pad + i as f32 * row_h, panel.w - 2.0 * pad, row_h);
+        if i == m.open {
+            let bg = if m.item.is_none() { c.panel_selection } else { mix(c.panel_selection, c.popup, 0.5) };
+            scene.rounded_rect(row, (5.0 * lay.scale).round(), bg, None);
+            sub_at = (panel.right() + pad / 2.0, row.y - pad);
         }
-    } else if let Some(at) = m.at {
-        sub_at = at;
+        let y = lay.centered(row.y, row.h);
+        // the mnemonic letter underlined, as in a system menu bar
+        let fg = TextStyle::new(c.panel_foreground);
+        let u = menu.title.char_indices().find(|(_, ch)| ch.to_ascii_lowercase() == menu.mnemonic);
+        let span = u.map(|(b, ch)| (b..b + ch.len_utf8(), fg.underline(c.panel_foreground)));
+        scene.text((row.x + cw).round(), y, menu.title, fg, span.as_slice());
+        let chev = Rect::new(row.right() - 2.0 * cw, row.y, cw, row.h);
+        let (hx, hy) = (chev.x + cw * 0.35, (chev.y + chev.h / 2.0).round());
+        let k = 3.0 * lay.scale;
+        line(scene, (hx, hy - k), (hx + k, hy), 1.2 * lay.scale, c.panel_muted);
+        line(scene, (hx + k, hy), (hx, hy + k), 1.2 * lay.scale, c.panel_muted);
+        hits.roots.push((row, i));
     }
-    // the open menu's entries
+    // the open menu's entries, drawn as a context menu's
     let entries = m.entries();
-    let label_cols =
-        entries.iter().map(|e| if let Entry::Command { label, .. } = e { columns(label) } else { 0 }).max();
-    let key_cols =
-        entries.iter().filter_map(|e| if let Entry::Command { keys, .. } = e { keys.as_deref() } else { None });
-    let key_cols = key_cols.map(columns).max().unwrap_or(0);
-    let cols = 3 + label_cols.unwrap_or(0) + if key_cols > 0 { 4 + key_cols } else { 0 } + 2;
-    let w = (cols.max(20) as f32 * cw).round();
-    let height = |e: &Entry| if *e == Entry::Separator { sep_h } else { row_h };
-    let full = entries.iter().map(height).sum::<f32>() + 2.0 * pad;
+    let (w, full) = list_size(entries, lay);
     let h = full.min((lay.height - below - pad).max(row_h + 2.0 * pad)).round();
     // taller than the window: it scrolls to keep the highlighted entry in view
-    let mut top = if full > h { m.top.min(entries.len().saturating_sub(1)) } else { 0 };
-    if let Some(i) = m.item.filter(|_| full > h) {
-        top = top.min(i);
-        while top < i && entries[top..=i].iter().map(height).sum::<f32>() + 2.0 * pad > h {
-            top += 1;
-        }
-    }
+    let top = scroll_top(entries, m.item, m.top, h, lay);
     let mut x = sub_at.0;
     if x + w > lay.width {
         // no room on the right: open to the left of the list of menus (or against the window's edge)
@@ -280,41 +249,7 @@ pub fn draw_menus(scene: &mut Scene, st: &mut State, lay: &Layout, c: &Colors) {
     let panel = Rect::new(x, y, w, h);
     popup(scene, panel, lay, c);
     hits.panels.push(panel);
-    let inner = Rect::new(panel.x, panel.y + pad, panel.w, panel.h - 2.0 * pad);
-    scene.push_clip(inner);
-    let mut ry = inner.y;
-    for (i, e) in entries.iter().enumerate().skip(top) {
-        if ry >= inner.bottom() {
-            break;
-        }
-        match e {
-            Entry::Separator => {
-                let r = Rect::new(panel.x + pad, (ry + sep_h / 2.0).floor(), panel.w - 2.0 * pad, 1.0);
-                scene.rect(r, c.panel_border);
-                ry += sep_h;
-            }
-            Entry::Command { label, keys, checked, .. } => {
-                let row = Rect::new(panel.x + pad, ry, panel.w - 2.0 * pad, row_h);
-                if m.item == Some(i) {
-                    scene.rounded_rect(row, (5.0 * lay.scale).round(), c.panel_selection, None);
-                }
-                let ty = lay.centered(row.y, row.h);
-                if *checked {
-                    let (cx, cy, k) = (row.x + 1.2 * cw, (row.y + row.h / 2.0).round(), 3.0 * lay.scale);
-                    line(scene, (cx - k, cy), (cx - k * 0.2, cy + k * 0.8), 1.4 * lay.scale, c.accent);
-                    line(scene, (cx - k * 0.2, cy + k * 0.8), (cx + k * 1.3, cy - k), 1.4 * lay.scale, c.accent);
-                }
-                scene.text((row.x + 2.5 * cw).round(), ty, label, TextStyle::new(c.panel_foreground), &[]);
-                if let Some(k) = keys {
-                    let kx = row.right() - (columns(k) as f32 + 1.0) * cw;
-                    scene.text(kx.round(), ty, k, TextStyle::new(c.panel_muted), &[]);
-                }
-                hits.items.push((row.intersect(&inner), i));
-                ry += row_h;
-            }
-        }
-    }
-    scene.pop_clip();
+    draw_list(scene, entries, m.item, panel, top, lay, c, &mut hits.items);
     m.top = top;
     m.hits = hits;
     scene.layer(0);

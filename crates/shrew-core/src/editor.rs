@@ -1727,12 +1727,14 @@ impl Editor {
         self.mouse.dragging = false;
         if self.vim() && self.mode == Mode::Insert && self.dot_recording.is_none() {
             let selected = self.buf().sel.ranges().iter().any(|r| !r.is_empty());
+            // the cursor stays on the char clicked (leaving insert mode would step it back one)
+            let clicked = (!selected).then(|| self.buf().sel.clone());
             // a click in normal mode stays in normal mode; a drag selects in visual mode
             self.set_mode(if selected { Mode::Visual } else { Mode::Normal });
-            if !selected {
+            if let Some(sel) = clicked {
                 let b = self.buf_mut();
                 let rope = &b.doc.rope;
-                b.sel = b.sel.transform(|r| Range::point(text::clamp_normal(rope, r.head)));
+                b.sel = sel.transform(|r| Range::point(text::clamp_normal(rope, r.head)));
             }
         }
     }

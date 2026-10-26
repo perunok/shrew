@@ -16,9 +16,11 @@ pub mod menu;
 mod window;
 
 pub use draw::{draw, draw_menus};
-pub use window::{WindowAction, apply, attributes, pointer_left, pointer_moved, press, release, right_press};
+pub use window::{WindowAction, apply, attributes, hit, pointer_left, pointer_moved, press, release};
 
+use crate::context_menu::ContextMenu;
 use crate::layout::Layout;
+use crate::mouse::Target;
 use crate::state::State;
 use items::{BarLayout, Item};
 use menu::{MenuState, Outcome};
@@ -33,7 +35,7 @@ const CONTEXT_MENU: &[&str] = &["customize_titlebar|Customize Title Bar…", "-"
 #[derive(Default)]
 pub struct TitleBar {
     pub layout: BarLayout,
-    /// The open menu bar or right-click menu.
+    /// The open menu bar (its right-click menu is a [`ContextMenu`], in `State::menu`).
     pub menu: Option<MenuState>,
     /// The item under the pointer, and the one being pressed (drawn highlighted).
     pub hover: Option<Item>,
@@ -155,11 +157,13 @@ pub fn open_menu(st: &mut State, mnemonic: Option<char>) {
     if let Some(i) = mnemonic.and_then(|c| m.index_of(c)) {
         m.switch_menu(i, true);
     }
+    st.menu = None;
     st.titlebar.menu = Some(m);
 }
 
-fn open_context_menu(st: &mut State, at: (f32, f32)) {
-    st.titlebar.menu = Some(MenuState::context(&st.ed, CONTEXT_MENU, at));
+/// The menu a right click on an empty part of the bar opens (none with the system title bar).
+pub fn context_menu(st: &State) -> Option<ContextMenu> {
+    on(&st.ed).then(|| ContextMenu::from_spec(&st.ed, Target::TitleBar, CONTEXT_MENU))
 }
 
 /// Runs a menu entry (or a title bar button's command), the menu closing first.
@@ -305,8 +309,9 @@ mod tests {
         keys(&mut st, ":minimize<CR>:maximize<CR>");
         assert_eq!(st.titlebar.actions, vec![WindowAction::Minimize, WindowAction::ToggleMaximize]);
         // the right-click menu's second entry switches to the system title bar
-        open_context_menu(&mut st, (10.0, 10.0));
-        keys(&mut st, "<Down><CR>");
+        let m = context_menu(&st).unwrap();
+        crate::context_menu::open(&mut st, m, (10.0, 10.0));
+        keys(&mut st, "<Down><Down><CR>");
         assert!(!on(&st.ed));
     }
 

@@ -6,6 +6,21 @@ new version when it tags a release.
 
 ## [Unreleased]
 
+### Added
+
+- Context menus: one popup for every right click (the title bar's and the Source Control panel's use it), opened at
+  the pointer and kept on screen, with submenus, disabled entries, check marks, shortcut hints, mnemonics,
+  type-ahead, j/k, and release-to-select (press the right button, drag onto an entry, release). The title bar's
+  dropdown menus draw their entries the same way.
+- `--screenshot` takes mouse tokens in `--keys` (`<click:X,Y>`, `<rclick:X,Y>`, `<drag:X1,Y1,X2,Y2>`,
+  `<wheel:X,Y,DY>`, with modifiers) and `--hover X,Y`; they go through the same code as the window's events
+  (docs/CLI.md, "Screenshots").
+
+### Fixed
+
+- Vim mode: a click put the cursor one character left of the one clicked.
+- The pointer is an arrow over the title bar's open menus, not a text cursor.
+
 ## [0.2.0] - 2026-10-15
 
 ### Added

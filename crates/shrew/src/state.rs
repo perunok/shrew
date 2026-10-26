@@ -81,6 +81,8 @@ pub struct State {
     pub mcp_host: Option<Arc<dyn shrew_mcp::Host>>,
     /// The custom title bar: its items, open menu, hover state and window actions (see `titlebar`).
     pub titlebar: crate::titlebar::TitleBar,
+    /// The open context menu (see `context_menu`); one menu is open at a time, this or the title bar's.
+    pub menu: Option<crate::context_menu::ContextMenu>,
     // ----- project navigation -----
     /// The sidebar's width in logical pixels (`[sidebar] width`, dragged with the mouse).
     pub sidebar_width: f32,
@@ -153,6 +155,7 @@ impl State {
             #[cfg(feature = "mcp")]
             mcp_host: None,
             titlebar: Default::default(),
+            menu: None,
             sidebar_width: loaded.config.sidebar_width.unwrap_or(crate::sidebar::DEFAULT_WIDTH),
             recent_file: None,
             recent_saved: 0,
@@ -220,8 +223,17 @@ impl State {
         }
     }
 
+    /// A menu is open (a context menu or the title bar's): it takes the keys and the clicks.
+    pub fn menu_open(&self) -> bool {
+        self.menu.is_some() || self.titlebar.menu.is_some()
+    }
+
     /// A key from the keyboard (or `--keys`).
     pub fn key(&mut self, k: KeyPress) {
+        // an open context menu takes every key
+        if crate::context_menu::key(self, k) {
+            return;
+        }
         let menu = self.titlebar.menu.is_some();
         // the Settings panel takes the keys, unless one of its pickers or a title bar menu is open over it
         if !menu && self.settings.is_open() && self.ed.picker.is_none() {
@@ -248,7 +260,7 @@ impl State {
 
     /// Text typed through an input method.
     pub fn text(&mut self, s: &str) {
-        if self.settings.is_open() && self.ed.picker.is_none() {
+        if self.menu_open() || (self.settings.is_open() && self.ed.picker.is_none()) {
             return s.chars().for_each(|c| self.key(KeyPress::ch(c)));
         }
         #[cfg(feature = "terminal")]

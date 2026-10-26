@@ -32,7 +32,7 @@ really ends in `:digits` (it exists as typed) is opened as it is. Short flags co
 
 The other options work as before: `--version` (`-V`), `--help` (`-h`), `--features`, `--print-config`,
 `--mcp-stdio`, `--stats` (with `-f`: frame timings on stderr), and `--screenshot OUT.png [--size WxH] [--scale F]
-[--keys KEYS] [files]` for a headless render.
+[--keys KEYS] [--hover X,Y] [files]` for a headless render (see [Screenshots](#screenshots)).
 
 ## Use shrew as $EDITOR
 
@@ -99,3 +99,39 @@ The editor answers `"ok"` as soon as the request is on its way to the UI thread 
 Files over 1 MB are read on a background thread wherever they are opened from (`srw`, `:e`, the file picker, drag
 and drop on the window); a "Loading" indicator shows meanwhile and the cursor moves to the requested line once the
 file is in. Smaller files open synchronously, so there is no flicker.
+
+## Screenshots
+
+`srw --screenshot OUT.png` renders one frame without a window and saves it, after typing `--keys`. It uses the
+built-in defaults (no config.toml, vimrc or Sublime import) so the result is the same on every machine;
+`scripts/screenshots.sh` makes the docs' pictures this way.
+
+| Option | Meaning |
+| --- | --- |
+| `--size WxH` | The image in pixels (default 1200x800) |
+| `--scale F` | The scale factor (default 1): `--size 2400x1600 --scale 2` is the 1200x800 window on a HiDPI screen |
+| `--keys KEYS` | Keys to type first, in vim notation (`"ggVj"`, `"<C-p>main"`, `":set novim<CR>"`), with mouse tokens |
+| `--hover X,Y` | Move the pointer here last, so what it hovers is highlighted in the picture |
+
+Mouse tokens go in `--keys` among the keys, in the order they happen. Coordinates are logical pixels from the
+image's top-left corner (the image's pixels divided by `--scale`). They take the same way through the editor as a
+real window's events, with a frame drawn before each so they hit what is on screen, and each one waits for what is
+still loading (a list, a diff) as a person would.
+
+| Token | Events |
+| --- | --- |
+| `<click:X,Y>`, `<dclick:X,Y>`, `<tclick:X,Y>` | A left click; a double or triple click |
+| `<rclick:X,Y>`, `<mclick:X,Y>` | A right or middle click |
+| `<move:X,Y>` | Move the pointer |
+| `<down:X,Y>`, `<up:X,Y>` | Press, release the left button (`rdown`/`rup`, `mdown`/`mup` for the others) |
+| `<drag:X1,Y1,X2,Y2>`, `<rdrag:..>` | Press the left (right) button, move in steps, release |
+| `<wheel:X,Y,DY>`, `<wheel:X,Y,DY,DX>` | Wheel notches, positive down (and right) |
+| `<C-click:X,Y>`, `<S-..>`, `<A-..>` (or `M-`), `<D-..>` | Hold Ctrl, Shift, Alt, Super for the event |
+
+Separate tokens are a second apart (two `<click>`s are two clicks, not a double click). For example, the title
+bar's menu with its second entry hovered, and a selection made with the mouse:
+
+```sh
+srw --screenshot menu.png --size 1000x400 --keys "<rclick:600,16>" --hover 640,72 README.md
+srw --screenshot drag.png --keys "<drag:60,50,300,90>" src/main.rs
+```

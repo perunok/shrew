@@ -33,6 +33,10 @@ and the prompt comes back at once.
       --size WxH        image size in pixels (default 1200x800)
       --scale F         scale factor (default 1)
       --keys KEYS       keys to type first, vim notation: \"ggVj\", \"<C-p>main\", \":set novim<CR>\"
+                        with mouse tokens in logical pixels: <click:X,Y> <dclick:..> <tclick:..> <rclick:..>
+                        <mclick:..> <move:X,Y> <down:..> <up:..> (rdown/rup, mdown/mup) <drag:X1,Y1,X2,Y2>
+                        <rdrag:..> <wheel:X,Y,DY[,DX]>; modifiers as in <C-click:X,Y> <S-click:..> <A-..>
+      --hover X,Y       move the pointer here last, so hover states show
 "
     )
 }
@@ -77,6 +81,8 @@ pub struct Cli {
     pub size: (u32, u32),
     pub scale: f32,
     pub keys: String,
+    /// `--hover X,Y`: the pointer's last position for `--screenshot` (logical pixels).
+    pub hover: Option<(f32, f32)>,
     pub stats: bool,
 }
 
@@ -93,6 +99,7 @@ impl Default for Cli {
             size: (1200, 800),
             scale: 1.0,
             keys: String::new(),
+            hover: None,
             stats: false,
         }
     }
@@ -125,6 +132,11 @@ impl Cli {
                 "--stats" => cli.stats = true,
                 "--screenshot" => cli.action = Action::Screenshot(value("--screenshot")?.into()),
                 "--keys" => cli.keys = value("--keys")?,
+                "--hover" => {
+                    let v = value("--hover")?;
+                    let p = v.split_once(',').and_then(|(x, y)| Some((x.trim().parse().ok()?, y.trim().parse().ok()?)));
+                    cli.hover = Some(p.ok_or("--hover takes X,Y, e.g. 300,12")?);
+                }
                 "--size" => {
                     let v = value("--size")?;
                     let (w, h) = v.split_once(['x', 'X']).ok_or("--size takes WxH, e.g. 1200x800")?;
@@ -264,9 +276,11 @@ mod tests {
         assert_eq!(parse("--print-config").unwrap().action, Action::PrintConfig);
         assert_eq!(parse("--mcp-stdio").unwrap().action, Action::McpStdio);
         assert!(parse("--stats").unwrap().stats);
-        let c = parse("--screenshot out.png --size 640x480 --scale 2 --keys ggVj main.rs").unwrap();
+        let c = parse("--screenshot out.png --size 640x480 --scale 2 --keys ggVj --hover 10,20.5 main.rs").unwrap();
         assert_eq!(c.action, Action::Screenshot("out.png".into()));
         assert_eq!((c.size, c.scale, c.keys.as_str()), ((640, 480), 2.0, "ggVj"));
+        assert_eq!(c.hover, Some((10.0, 20.5)));
+        assert!(parse("--hover 10").is_err());
         assert_eq!(c.files, vec![f("main.rs", None, None)]);
     }
 

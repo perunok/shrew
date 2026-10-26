@@ -161,16 +161,21 @@ impl Layout {
 /// in a fixed order so they never overlap: the title bar takes the top row, the sidebar the left edge below it, the
 /// terminal panel the bottom of the rest above the status bar, and the minimap the right of the text above it.
 pub fn compute(r: &shrew_render::Renderer, st: &crate::state::State) -> Layout {
+    compute_with(&r.metrics(), r.size(), r.scale(), st)
+}
+
+/// [`compute`] from the font metrics and window size alone (tests lay out a frame without a renderer).
+pub fn compute_with(m: &Metrics, size: (u32, u32), scale: f32, st: &crate::state::State) -> Layout {
     let ed = &st.ed;
     let lay = Layout::new(
-        &r.metrics(),
-        r.size(),
-        r.scale(),
+        m,
+        size,
+        scale,
         ed.buf().doc.rope.len_lines(),
         ed.features.on(shrew_core::Feature::LineNumbers),
         ed.buffers.len() > 1,
     );
-    let lay = crate::titlebar::layout(lay, ed).with_sidebar(crate::sidebar::width(st, r.size().0 as f32, r.scale()));
+    let lay = crate::titlebar::layout(lay, ed).with_sidebar(crate::sidebar::width(st, size.0 as f32, scale));
     // the panel spans the editor's whole width, so it goes before the minimap (which then fits the shorter text)
     #[cfg(feature = "terminal")]
     let lay = crate::terminal::carve(lay, &st.terminals);

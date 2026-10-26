@@ -545,9 +545,9 @@ pub fn right_press(st: &mut State, x: f32, y: f32) -> bool {
             Section::Merge => &["git_open_file|Open File", "-", "git_stage|Mark Resolved", "git_abort|Abort…"],
         },
     };
-    // file history acts on the active file: open the row's file first
-    let entries: Vec<&str> = entries.to_vec();
-    st.titlebar.menu = Some(crate::titlebar::menu::MenuState::context(&st.ed, &entries, (x, y)));
+    use crate::mouse::{Panel, Target};
+    let menu = crate::context_menu::ContextMenu::from_spec(&st.ed, Target::Panel(Panel::Git(Some(i))), entries);
+    crate::context_menu::open(st, menu, (x, y));
     true
 }
 

@@ -1,11 +1,12 @@
 //! The title bar's window behaviour: the window attributes, moving (drag an empty part), maximizing (double-click),
 //! resizing from the edges while undecorated, the window buttons, and switching decorations at runtime. Moving and
-//! resizing are handed to the window manager (`drag_window`, `drag_resize_window`: an xdg move/resize on Wayland,
-//! `_NET_WM_MOVERESIZE` on X11), so snapping and tiling work as with a system title bar.
+//! resizing are queued as [`WindowAction`]s and handed to the window manager by the app (`drag_window`,
+//! `drag_resize_window`: an xdg move/resize on Wayland, `_NET_WM_MOVERESIZE` on X11), so snapping and tiling work as
+//! with a system title bar.
 
 use super::items::Item;
 use super::menu::Outcome;
-use super::{TitleBar, activate, on, open_context_menu, run};
+use super::{TitleBar, activate, on, run};
 use crate::draw::Hits;
 use crate::layout::Layout;
 use crate::state::State;
@@ -16,15 +17,20 @@ use winit::window::{CursorIcon, ResizeDirection, Window, WindowAttributes};
 const BORDER: f32 = 5.0;
 const CORNER: f32 = 12.0;
 /// The pointer moves this far (logical pixels) with the button held before an empty part of the bar drags the window.
-const DRAG_SLOP: f32 = 3.0;
-const DOUBLE_CLICK: Duration = Duration::from_millis(400);
+const DRAG_SLOP: f32 = crate::mouse::DRAG_SLOP;
+const DOUBLE_CLICK: Duration = crate::mouse::DOUBLE_CLICK;
 
+/// Window work only the app can do (it owns the window).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WindowAction {
     Minimize,
     ToggleMaximize,
     /// The close button: like the system's (refused once while there are unsaved changes).
     Close,
+    /// Move the window with the pointer (a drag on an empty part of the bar), until the button is released.
+    Drag,
+    /// Resize the window from this edge or corner with the pointer.
+    Resize(ResizeDirection),
 }
 
 /// The window as it is created: undecorated with the custom title bar; on macOS decorated, with a transparent
@@ -57,6 +63,16 @@ pub fn apply(st: &mut State, w: &Window) -> bool {
             WindowAction::Minimize => w.set_minimized(true),
             WindowAction::ToggleMaximize => w.set_maximized(!w.is_maximized()),
             WindowAction::Close => close = true,
+            WindowAction::Drag => {
+                if let Err(e) = w.drag_window() {
+                    log::warn!("cannot move the window: {e}");
+                }
+            }
+            WindowAction::Resize(dir) => {
+                if let Err(e) = w.drag_resize_window(dir) {
+                    log::warn!("cannot resize the window: {e}");
+                }
+            }
         }
     }
     st.titlebar.maximized = w.is_maximized();
@@ -104,30 +120,22 @@ fn target(tb: &TitleBar, hits: &Hits, x: f32, y: f32) -> Option<Option<Item>> {
     Some(tb.placed.iter().find(|(i, r)| *i != Item::Tabs && r.contains(x, y)).map(|p| p.0))
 }
 
-/// The pointer moved: hover states, the menu, a pending window drag. Returns (redraw, a cursor icon to show).
-pub fn pointer_moved(
-    st: &mut State,
-    hits: &Hits,
-    lay: &Layout,
-    w: Option<&Window>,
-    x: f32,
-    y: f32,
-) -> (bool, Option<CursorIcon>) {
+/// The pointer moved: hover states, the menu, a pending window drag (queued as [`WindowAction::Drag`]). Returns
+/// (redraw, a cursor icon to show).
+pub fn pointer_moved(st: &mut State, hits: &Hits, lay: &Layout, x: f32, y: f32) -> (bool, Option<CursorIcon>) {
     let custom = on(&st.ed);
     let tb = &mut st.titlebar;
     if let Some((px, py)) = tb.drag_from
         && (px - x).hypot(py - y) > DRAG_SLOP * lay.scale
     {
         tb.drag_from = None;
-        if let Some(w) = w
-            && let Err(e) = w.drag_window()
-        {
-            log::warn!("cannot move the window: {e}");
-        }
+        tb.actions.push(WindowAction::Drag);
     }
     let mut redraw = false;
+    let mut over_menu = false;
     if let Some(m) = &mut tb.menu {
         redraw |= m.hover(x, y);
+        over_menu = m.hits.inside(x, y);
     }
     let hover = target(tb, hits, x, y).flatten().filter(|&i| i != Item::Tabs);
     if hover != tb.hover {
@@ -135,7 +143,7 @@ pub fn pointer_moved(
         redraw = true;
     }
     let icon = edge(tb, lay, custom, x, y).map(CursorIcon::from);
-    let icon = icon.or_else(|| tb.bar.contains(x, y).then_some(CursorIcon::Default));
+    let icon = icon.or_else(|| (over_menu || tb.bar.contains(x, y)).then_some(CursorIcon::Default));
     (redraw, icon)
 }
 
@@ -147,7 +155,7 @@ pub fn pointer_left(st: &mut State) -> bool {
 }
 
 /// A left press. True when the title bar (or its menu, or a resize border) took it; a press on a tab falls through.
-pub fn press(st: &mut State, hits: &Hits, lay: &Layout, w: Option<&Window>, x: f32, y: f32, now: Instant) -> bool {
+pub fn press(st: &mut State, hits: &Hits, lay: &Layout, x: f32, y: f32, now: Instant) -> bool {
     let custom = on(&st.ed);
     // an open menu takes the click: an entry runs, anywhere else (the menu button too) closes it, and the click
     // goes no further
@@ -159,10 +167,8 @@ pub fn press(st: &mut State, hits: &Hits, lay: &Layout, w: Option<&Window>, x: f
         }
         return true;
     }
-    if let (Some(dir), Some(w)) = (edge(&st.titlebar, lay, custom, x, y), w) {
-        if let Err(e) = w.drag_resize_window(dir) {
-            log::warn!("cannot resize the window: {e}");
-        }
+    if let Some(dir) = edge(&st.titlebar, lay, custom, x, y) {
+        st.titlebar.actions.push(WindowAction::Resize(dir));
         return true;
     }
     if !custom {
@@ -208,16 +214,12 @@ pub fn release(st: &mut State, hits: &Hits, x: f32, y: f32) -> bool {
     true
 }
 
-/// A right press on an empty part of the bar opens its menu (Customize Title Bar…, Use System Title Bar).
-pub fn right_press(st: &mut State, hits: &Hits, x: f32, y: f32) -> bool {
-    if st.titlebar.menu.take().is_some() {
-        return true;
+/// What is under a point of the bar, for the mouse: `Some(None)` is an empty part (the room the tabs leave too).
+pub fn hit(st: &State, hits: &Hits, x: f32, y: f32) -> Option<Option<Item>> {
+    if !on(&st.ed) {
+        return None;
     }
-    if !on(&st.ed) || target(&st.titlebar, hits, x, y) != Some(None) {
-        return false;
-    }
-    open_context_menu(st, (x, y));
-    true
+    target(&st.titlebar, hits, x, y)
 }
 
 #[cfg(test)]
@@ -293,20 +295,20 @@ mod tests {
         let mut st = state();
         let hits = placed(&mut st);
         let (lay, now) = (lay(), Instant::now());
-        assert!(press(&mut st, &hits, &lay, None, 780.0, 15.0, now));
+        assert!(press(&mut st, &hits, &lay, 780.0, 15.0, now));
         assert_eq!(st.titlebar.pressed, Some(Item::Close));
         // released elsewhere: nothing
         assert!(release(&mut st, &hits, 300.0, 15.0));
         assert!(st.titlebar.actions.is_empty());
-        press(&mut st, &hits, &lay, None, 780.0, 15.0, now);
+        press(&mut st, &hits, &lay, 780.0, 15.0, now);
         release(&mut st, &hits, 781.0, 16.0);
         assert_eq!(st.titlebar.actions, vec![WindowAction::Close]);
         // a press on a tab is the app's
-        assert!(!press(&mut st, &hits, &lay, None, 50.0, 15.0, now));
+        assert!(!press(&mut st, &hits, &lay, 50.0, 15.0, now));
         // the menu button opens the menu on press; a click outside closes it and goes no further
-        press(&mut st, &hits, &lay, None, 10.0, 15.0, now);
+        press(&mut st, &hits, &lay, 10.0, 15.0, now);
         assert!(st.titlebar.menu.is_some());
-        assert!(press(&mut st, &hits, &lay, None, 400.0, 300.0, now));
+        assert!(press(&mut st, &hits, &lay, 400.0, 300.0, now));
         assert!(st.titlebar.menu.is_none());
     }
 
@@ -315,29 +317,16 @@ mod tests {
         let mut st = state();
         let hits = placed(&mut st);
         let (lay, t) = (lay(), Instant::now());
-        assert!(press(&mut st, &hits, &lay, None, 300.0, 15.0, t));
+        assert!(press(&mut st, &hits, &lay, 300.0, 15.0, t));
         release(&mut st, &hits, 300.0, 15.0);
         assert!(st.titlebar.actions.is_empty());
-        press(&mut st, &hits, &lay, None, 301.0, 15.0, t + Duration::from_millis(200));
+        press(&mut st, &hits, &lay, 301.0, 15.0, t + Duration::from_millis(200));
         assert_eq!(st.titlebar.actions, vec![WindowAction::ToggleMaximize]);
         // too slow: two single clicks
         st.titlebar.actions.clear();
-        press(&mut st, &hits, &lay, None, 300.0, 15.0, t + Duration::from_secs(2));
-        press(&mut st, &hits, &lay, None, 300.0, 15.0, t + Duration::from_secs(3));
+        press(&mut st, &hits, &lay, 300.0, 15.0, t + Duration::from_secs(2));
+        press(&mut st, &hits, &lay, 300.0, 15.0, t + Duration::from_secs(3));
         assert!(st.titlebar.actions.is_empty());
-    }
-
-    #[test]
-    fn right_click_on_an_empty_part_opens_its_menu() {
-        let mut st = state();
-        let hits = placed(&mut st);
-        assert!(!right_press(&mut st, &hits, 10.0, 10.0), "not on a button");
-        assert!(!right_press(&mut st, &hits, 300.0, 300.0), "not in the editor");
-        assert!(right_press(&mut st, &hits, 300.0, 10.0));
-        let m = st.titlebar.menu.as_ref().unwrap();
-        assert_eq!(m.at, Some((300.0, 10.0)));
-        assert!(right_press(&mut st, &hits, 300.0, 10.0), "a second right click closes it");
-        assert!(st.titlebar.menu.is_none());
     }
 
     #[test]

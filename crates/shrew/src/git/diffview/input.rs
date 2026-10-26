@@ -485,6 +485,15 @@ pub fn hover(st: &State, x: f32, y: f32) -> bool {
     row_at(v, y).is_some_and(|r| matches!(v.rows.rows[r].kind, RowKind::Fold | RowKind::File))
 }
 
+/// The row of the active diff tab under the pointer, for a right click (none off its rows).
+pub fn row_under(st: &State, x: f32, y: f32) -> Option<usize> {
+    let v = st.git.diff.active(&st.ed)?;
+    if !v.hits.body.contains(x, y) {
+        return None;
+    }
+    row_at(v, y)
+}
+
 fn row_at(v: &super::DiffView, y: f32) -> Option<usize> {
     let h = v.hits.row_h.max(1.0);
     let off = ((y - v.hits.y0) / h).floor();

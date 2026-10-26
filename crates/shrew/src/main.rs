@@ -15,6 +15,8 @@
 //! - [`settings`]: the Settings panel (Ctrl+,): sections of setting rows, saved to config.toml.
 //! - [`headless`]: `--screenshot`, a frame rendered without a window.
 //! - [`titlebar`]: the custom title bar (tabs, menus, window buttons) and its window behaviour.
+//! - [`mouse`]: what the mouse does, without a window (the app and headless runs share it); [`context_menu`]: the
+//!   right-click menus every part of the UI opens.
 //! - `git`: git integration (cargo feature `git`): change markers, inline blame, the diff view, the
 //!   Source Control panel, log, blame and conflicts.
 
@@ -25,6 +27,7 @@ mod cli;
 #[cfg(feature = "clipboard")]
 mod clipboard;
 mod colors;
+mod context_menu;
 mod draw;
 #[cfg(feature = "git")]
 mod git;
@@ -34,6 +37,7 @@ mod keys;
 mod launch;
 mod layout;
 mod minimap;
+mod mouse;
 mod open;
 mod recent;
 mod remote;

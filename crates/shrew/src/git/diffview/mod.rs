@@ -20,7 +20,7 @@ mod tests;
 mod view;
 
 pub use draw::draw;
-pub use input::{drag, hover, key, press, release, wheel};
+pub use input::{drag, hover, key, press, release, row_under, wheel};
 pub use view::DiffView;
 
 use crate::state::State;

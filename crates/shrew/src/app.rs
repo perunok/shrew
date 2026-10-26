@@ -3,14 +3,18 @@
 //! Nothing runs continuously. The loop sleeps in `ControlFlow::Wait` and a frame is drawn only after input, a wake
 //! from a background thread (syntax ready, file list, fonts, update status, MCP job), or while an animation is
 //! still moving. Timers (mapping timeout, drag autoscroll, cursor blink) use `WaitUntil`.
+//!
+//! The mouse is [`crate::mouse`]'s: this file turns winit's events into its calls and does the window work it asks
+//! for (redraw, the pointer's shape, moving and resizing the window).
 
 use crate::cli::Cli;
 use crate::draw::{self, Ui};
 use crate::ipc::{self, Request};
 use crate::keys::{self, RawKey};
-use crate::layout::{Layout, Scroll};
+use crate::layout::Layout;
+use crate::mouse::{Mouse, Response, Wheel};
 use crate::state::{State, Waker};
-use shrew_core::{KeyPress, Mode, Mods, text};
+use shrew_core::{KeyPress, Mode};
 use shrew_render::{FontConfig, Rect, Renderer, Scene, Warmup};
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -25,14 +29,8 @@ use winit::keyboard::ModifiersState;
 use winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
 use winit::window::{CursorIcon, Window, WindowId};
 
-/// Clicks closer together than this (and than [`DOUBLE_CLICK_PX`]) count as double/triple clicks.
-const DOUBLE_CLICK: Duration = Duration::from_millis(400);
-const DOUBLE_CLICK_PX: f32 = 5.0;
-const AUTOSCROLL_TICK: Duration = Duration::from_millis(16);
 const BLINK_DELAY: Duration = Duration::from_millis(500);
 const BLINK_PERIOD: Duration = Duration::from_millis(530);
-/// Lines per mouse-wheel notch.
-const WHEEL_LINES: f32 = 3.0;
 
 pub enum UserEvent {
     /// Background work finished something: poll and redraw.
@@ -56,23 +54,6 @@ impl shrew_mcp::Host for AppHost {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Drag {
-    None,
-    Text,
-    Scrollbar,
-    /// The sidebar's right edge (resizing it).
-    Sidebar,
-    Minimap,
-    /// A slider in the Settings panel.
-    Settings,
-    // ----- git -----
-    /// Rows or the scrollbar of a diff tab.
-    #[cfg(feature = "git")]
-    Diff,
-    // -----
-}
-
 #[derive(Default)]
 struct Stats {
     /// (input -> frame presented, frame build, renderer CPU)
@@ -92,10 +73,7 @@ pub struct App {
     lay: Option<Layout>,
     wake_pending: Arc<AtomicBool>,
     mods: ModifiersState,
-    pointer: (f32, f32),
-    drag: Drag,
-    clicks: Option<(Instant, (f32, f32), u8)>,
-    autoscroll: Option<Instant>,
+    mouse: Mouse,
     /// When the oldest input not yet on screen arrived.
     input_at: Option<Instant>,
     last_key: Instant,
@@ -105,7 +83,6 @@ pub struct App {
     ime_allowed: bool,
     ime_rect: Option<Rect>,
     title: String,
-    icon: CursorIcon,
     first_frame: bool,
     deferred: bool,
     stats: Stats,
@@ -194,10 +171,7 @@ pub fn run(
         lay: None,
         wake_pending,
         mods: ModifiersState::empty(),
-        pointer: (0.0, 0.0),
-        drag: Drag::None,
-        clicks: None,
-        autoscroll: None,
+        mouse: Mouse::new(),
         input_at: Some(started),
         last_key: now,
         blink_epoch: now,
@@ -205,7 +179,6 @@ pub fn run(
         ime_allowed: false,
         ime_rect: None,
         title: String::new(),
-        icon: CursorIcon::Default,
         first_frame: false,
         deferred: false,
         stats: Stats::default(),
@@ -274,7 +247,7 @@ impl ApplicationHandler<UserEvent> for App {
         }
         crate::titlebar::apply(&mut self.st, &window);
         window.set_cursor(CursorIcon::Text);
-        self.icon = CursorIcon::Text;
+        self.mouse.set_icon(CursorIcon::Text);
         self.renderer = Some(r);
         self.window = Some(window);
         self.update_ime();
@@ -315,8 +288,9 @@ impl ApplicationHandler<UserEvent> for App {
             self.st.after_input();
             self.input(now);
         }
-        if self.autoscroll.is_some_and(|t| now >= t) {
-            self.autoscroll_tick(now);
+        if self.mouse.deadline().is_some_and(|t| now >= t) {
+            let r = self.mouse.tick(&mut self.st, &mut self.ui, self.lay, now);
+            self.respond(r, now);
         }
         if self.st.cursor_blink && self.ui.focused {
             self.redraw();
@@ -346,7 +320,7 @@ impl ApplicationHandler<UserEvent> for App {
         if self.st.ed.mapping_pending() {
             at(self.mapping_deadline());
         }
-        if let Some(t) = self.autoscroll {
+        if let Some(t) = self.mouse.deadline() {
             at(t);
         }
         if self.st.cursor_blink && self.ui.focused {
@@ -391,7 +365,10 @@ impl ApplicationHandler<UserEvent> for App {
                 }
                 if !f {
                     self.mods = ModifiersState::empty();
-                    self.st.titlebar.menu = None; // menus close when the window loses the focus
+                    self.mouse.mods = keys::mods_of(self.mods);
+                    // menus close when the window loses the focus
+                    self.st.titlebar.menu = None;
+                    self.st.menu = None;
                 }
                 #[cfg(feature = "terminal")]
                 self.st.terminal_window_focus(f);
@@ -401,7 +378,10 @@ impl ApplicationHandler<UserEvent> for App {
                 self.blink_epoch = Instant::now();
                 self.redraw();
             }
-            WindowEvent::ModifiersChanged(m) => self.mods = m.state(),
+            WindowEvent::ModifiersChanged(m) => {
+                self.mods = m.state();
+                self.mouse.mods = keys::mods_of(self.mods);
+            }
             WindowEvent::ThemeChanged(t) => {
                 self.st.set_os_dark(t == winit::window::Theme::Dark);
                 self.redraw();
@@ -430,17 +410,25 @@ impl ApplicationHandler<UserEvent> for App {
                 self.input(now);
             }
             WindowEvent::Ime(ime) => self.ime(ime),
-            WindowEvent::CursorMoved { position, .. } => self.pointer_moved(position.x as f32, position.y as f32),
+            WindowEvent::CursorMoved { position, .. } => {
+                let now = Instant::now();
+                let (x, y) = (position.x as f32, position.y as f32);
+                let r = self.mouse.moved(&mut self.st, &mut self.ui, self.lay, x, y, now);
+                self.respond(r, now);
+            }
             WindowEvent::CursorLeft { .. } => {
-                // both run: each clears its own hover state
-                let bar = crate::titlebar::pointer_left(&mut self.st);
-                let map = self.lay.is_some_and(|lay| crate::minimap::hover(&mut self.ui, &lay, None));
-                if bar | map {
-                    self.redraw();
-                }
+                let r = self.mouse.left(&mut self.st, &mut self.ui, self.lay);
+                self.respond(r, Instant::now());
             }
             WindowEvent::MouseInput { state, button, .. } => self.mouse_button(state, button),
-            WindowEvent::MouseWheel { delta, .. } => self.wheel(delta),
+            WindowEvent::MouseWheel { delta, .. } => {
+                let delta = match delta {
+                    MouseScrollDelta::LineDelta(x, y) => Wheel::Lines(x, y),
+                    MouseScrollDelta::PixelDelta(d) => Wheel::Pixels(d.x as f32, d.y as f32),
+                };
+                let r = self.mouse.wheel(&mut self.st, &mut self.ui, self.lay, delta);
+                self.respond(r, Instant::now());
+            }
             WindowEvent::DroppedFile(path) => {
                 if path.is_dir() {
                     self.st.open_request(Request { dir: Some(path), ..Request::default() }, None);
@@ -636,6 +624,8 @@ impl App {
         let allowed = allowed || self.st.terminals.has_focus();
         #[cfg(feature = "git")]
         let allowed = allowed || crate::git::typing(&self.st);
+        // an open menu takes the keys
+        let allowed = allowed && !self.st.menu_open();
         if allowed != self.ime_allowed
             && let Some(w) = &self.window
         {
@@ -676,472 +666,41 @@ impl App {
 
     // ----- mouse -----
 
-    fn mods(&self) -> Mods {
-        keys::mods_of(self.mods)
-    }
-
-    /// The char position under the pointer. `round`: the nearest caret position; else the char under it.
-    fn pos_at(&self, x: f32, y: f32, round: bool) -> Option<usize> {
-        let lay = self.lay.as_ref()?;
-        let scroll = self.ui.anim.scroll;
-        let b = self.st.ed.buf();
-        let rope = &b.doc.rope;
-        let last = text::last_line(rope);
-        let line = scroll.line_at(lay, y).clamp(0, last as isize) as usize;
-        let col = scroll.col_at(lay, x).max(0.0);
-        let col = if round { col.round() } else { col.floor() } as usize;
-        Some(text::pos_at_col(rope, line, col, self.st.ed.settings.tab_width.max(1)))
-    }
-
     fn mouse_button(&mut self, state: ElementState, button: MouseButton) {
-        let (x, y) = self.pointer;
-        let now = Instant::now();
-        if self.st.ed.mapping_pending() {
-            self.st.ed.flush_pending_mappings();
-        }
-        #[cfg(feature = "terminal")]
-        if self.terminal_button(state, button, x, y, now) {
-            return;
-        }
-        match (state, button) {
-            (ElementState::Pressed, MouseButton::Left) => self.left_press(x, y, now),
-            (ElementState::Pressed, MouseButton::Right) => {
-                // ----- git ----- the Source Control panel's context menu
-                #[cfg(feature = "git")]
-                if crate::git::right_press(&mut self.st, x, y) {
-                    return self.input(now);
-                }
-                if crate::titlebar::right_press(&mut self.st, &self.ui.hits, x, y) {
-                    self.input(now);
-                }
-            }
-            (ElementState::Released, MouseButton::Left) => {
-                if self.drag == Drag::Settings {
-                    self.st.settings_release();
-                }
-                if self.drag == Drag::Text {
-                    self.st.ed.mouse_up();
-                    self.st.after_input();
-                }
-                // a title bar button acts when released over it
-                crate::titlebar::release(&mut self.st, &self.ui.hits, x, y);
-                if self.drag == Drag::Sidebar {
-                    self.st.persist_sidebar_width();
-                }
-                // ----- git -----
-                #[cfg(feature = "git")]
-                if self.drag == Drag::Diff {
-                    crate::git::diffview::release(&mut self.st);
-                }
-                // -----
-                self.drag = Drag::None;
-                self.autoscroll = None;
-                self.input(now);
-            }
-            _ => {}
-        }
-    }
-
-    /// The terminal panel takes presses over it; a click elsewhere gives the editor the focus back and goes on to
-    /// it. True when the panel took the event.
-    #[cfg(feature = "terminal")]
-    fn terminal_button(&mut self, state: ElementState, button: MouseButton, x: f32, y: f32, now: Instant) -> bool {
         let button = match button {
             MouseButton::Left => shrew_core::MouseButton::Left,
             MouseButton::Middle => shrew_core::MouseButton::Middle,
             MouseButton::Right => shrew_core::MouseButton::Right,
-            _ => return false,
+            _ => return,
         };
-        let mods = self.mods();
-        if state == ElementState::Released {
-            self.st.terminal_release(button, mods);
-            return false;
-        }
-        let modal = self.st.ed.picker.is_some()
-            || self.st.ed.about.is_some()
-            || self.st.settings.is_open()
-            || self.st.titlebar.menu.is_some();
-        if modal || !self.st.terminal_press(x, y, button, mods) {
-            return false;
-        }
-        self.input(now);
-        true
+        let now = Instant::now();
+        let (x, y) = self.mouse.pointer;
+        let (st, ui) = (&mut self.st, &mut self.ui);
+        let r = match state {
+            ElementState::Pressed => self.mouse.press(st, ui, self.lay, x, y, button, now),
+            ElementState::Released => self.mouse.release(st, ui, self.lay, x, y, button),
+        };
+        self.respond(r, now);
     }
 
-    fn left_press(&mut self, x: f32, y: f32, now: Instant) {
-        let Some(lay) = self.lay else { return };
-        // the title bar, its menus and the window's resize borders come first
-        if crate::titlebar::press(&mut self.st, &self.ui.hits, &lay, self.window.as_deref(), x, y, now) {
-            return self.input(now);
-        }
-        let hits = &self.ui.hits;
-        // the About panel is modal too: a click on a link opens it, a click outside closes the panel
-        if self.st.ed.about.is_some() {
-            if let Some((_, url)) = hits.about_links.iter().find(|(r, _)| r.contains(x, y)) {
-                if let Err(e) = crate::open::url(url) {
-                    self.st.ed.error(format!("cannot open {url}: {e}"));
-                }
-            } else if !hits.about.is_some_and(|r| r.contains(x, y)) {
-                self.st.key(KeyPress::plain(shrew_core::Key::Esc));
-            }
-            return self.input(now);
-        }
-        // the picker is modal: a click picks a row or closes it
-        if self.st.ed.picker.is_some() {
-            let row = hits.picker_rows.iter().find(|(r, _)| r.contains(x, y)).map(|h| h.1);
-            let inside = hits.picker.is_some_and(|r| r.contains(x, y));
-            if let Some(row) = row {
-                if let Some(p) = &mut self.st.ed.picker {
-                    p.selected = row;
-                }
-                self.st.key(KeyPress::plain(shrew_core::Key::Enter));
-            } else if !inside {
-                self.st.key(KeyPress::plain(shrew_core::Key::Esc));
-            }
-            return self.input(now);
-        }
-        // the Settings panel is modal: a click outside closes it
-        if self.st.settings.is_open() {
-            if self.st.settings_click(x, y) {
-                self.drag = Drag::Settings;
-            }
-            self.st.after_input();
-            return self.input(now);
-        }
-        // ----- git ----- its toast, the panel and its tabs, a log tab, blame and conflict actions
-        #[cfg(feature = "git")]
-        if crate::git::press(&mut self.st, x, y) {
-            self.st.after_input();
-            return self.input(now);
-        }
-        let hits = &self.ui.hits;
-        if hits.gear.is_some_and(|r| r.contains(x, y)) {
-            self.st.ed.run(shrew_core::Command::Settings);
-            self.st.after_input();
-            return self.input(now);
-        }
-        if hits.update.is_some_and(|r| r.contains(x, y)) {
-            self.st.activate_update();
-            return self.input(now);
-        }
-        if hits.sidebar.edge.is_some_and(|r| r.contains(x, y)) {
-            self.drag = Drag::Sidebar;
-            return self.input(now);
-        }
-        if crate::sidebar::press(&mut self.st, &self.ui.hits.sidebar, x, y) {
-            return self.input(now);
-        }
-        if let Some(&(_, i)) = hits.tabs.iter().find(|(r, _)| r.contains(x, y)) {
-            self.st.ed.switch_to(i);
-            self.st.after_input();
-            return self.input(now);
-        }
-        // ----- git: a diff tab in the editor's place; the hunk peek's buttons, gutter markers, the branch in
-        // the status bar -----
-        #[cfg(feature = "git")]
-        {
-            let mods = self.mods();
-            if crate::git::diffview::press(&mut self.st, x, y, mods, now) {
-                self.drag = Drag::Diff;
-                self.st.after_input();
-                return self.input(now);
-            }
-            if crate::git::press_text(&mut self.st, &self.ui.hits.git, &lay, self.ui.anim.scroll, x, y) {
-                return self.input(now);
-            }
-        }
-        if crate::minimap::press(&mut self.st, &mut self.ui, &lay, x, y) {
-            self.drag = Drag::Minimap;
-            return self.input(now);
-        }
-        if let Some((track, total)) = self.ui.hits.scrollbar
-            && track.contains(x, y)
-        {
-            self.drag = Drag::Scrollbar;
-            self.scroll_to_pointer(track, total, y);
-            return self.input(now);
-        }
-        if !lay.text.contains(x, y) {
-            return;
-        }
-        // a click in the text leaves the command line, as in vim
-        if self.st.ed.prompt.is_some() {
-            self.st.key(KeyPress::plain(shrew_core::Key::Esc));
-        }
-        // click counting: double = word, triple = line
-        let n = match self.clicks {
-            Some((t, (px, py), n))
-                if now - t < DOUBLE_CLICK && (px - x).hypot(py - y) < DOUBLE_CLICK_PX * lay.scale =>
+    /// Does what the mouse asked: the window work it queued, a redraw, the pointer's shape.
+    fn respond(&mut self, r: Response, now: Instant) {
+        if r.input {
+            self.input(now);
+        } else {
+            if let Some(w) = &self.window
+                && !self.st.titlebar.actions.is_empty()
+                && crate::titlebar::apply(&mut self.st, w)
             {
-                (n % 3) + 1
+                self.st.close_requested();
             }
-            _ => 1,
-        };
-        self.clicks = Some((now, (x, y), n));
-        let in_gutter = x < lay.text_x();
-        let ed = &self.st.ed;
-        let caret = ed.mode == Mode::Insert || !ed.vim();
-        let (pos, n) = if in_gutter {
-            // a click on a line number selects the line
-            let line_x = lay.text_x();
-            (self.pos_at(line_x, y, true), 3)
-        } else {
-            (self.pos_at(x, y, caret), n)
-        };
-        let Some(pos) = pos else { return };
-        self.st.ed.sidebar_focus = false;
-        self.st.ed.mouse_down(pos, n, self.mods());
-        self.st.after_input();
-        self.drag = Drag::Text;
-        self.input(now);
-    }
-
-    fn pointer_moved(&mut self, x: f32, y: f32) {
-        self.pointer = (x, y);
-        let Some(lay) = self.lay else { return };
-        match self.drag {
-            Drag::Text => {
-                if let Some(pos) = self.pos_at(x, y, true) {
-                    self.st.ed.mouse_drag(pos);
-                    self.redraw();
-                }
-                // past the top or bottom edge: keep scrolling while the button is held
-                let outside = y < lay.text.y || y >= lay.text.bottom();
-                self.autoscroll = if outside { Some(self.autoscroll.unwrap_or_else(Instant::now)) } else { None };
-            }
-            Drag::Scrollbar => {
-                if let Some((track, total)) = self.ui.hits.scrollbar {
-                    self.scroll_to_pointer(track, total, y);
-                    self.redraw();
-                }
-            }
-            Drag::Sidebar => {
-                crate::sidebar::drag_to(&mut self.st, x, lay.scale);
+            if r.redraw {
                 self.redraw();
             }
-            Drag::Minimap => {
-                if crate::minimap::drag(&mut self.st, &mut self.ui, &lay, y) {
-                    self.redraw();
-                }
-            }
-            Drag::Settings => {
-                self.st.settings_drag(x);
-                self.st.after_input();
-                self.redraw();
-            }
-            // ----- git -----
-            #[cfg(feature = "git")]
-            Drag::Diff => {
-                if crate::git::diffview::drag(&mut self.st, x, y) {
-                    self.redraw();
-                }
-            }
-            // -----
-            Drag::None => {}
         }
-        let (redraw, bar_icon) =
-            crate::titlebar::pointer_moved(&mut self.st, &self.ui.hits, &lay, self.window.as_deref(), x, y);
-        let map = crate::minimap::hover(&mut self.ui, &lay, Some((x, y)));
-        #[cfg(feature = "git")]
-        let (git_redraw, on_git) = crate::git::hover(&mut self.st, x, y);
-        #[cfg(not(feature = "git"))]
-        let (git_redraw, on_git) = (false, false);
-        if redraw || map || git_redraw {
-            self.redraw();
-        }
-        let on_edge = self.st.ed.picker.is_none() && self.ui.hits.sidebar.edge.is_some_and(|r| r.contains(x, y));
-        let on_link = self.st.ed.about.is_some() && self.ui.hits.about_links.iter().any(|(r, _)| r.contains(x, y));
-        // ----- git -----
-        #[cfg(feature = "git")]
-        let (on_link, diff) = (
-            on_link || (self.st.ed.picker.is_none() && crate::git::diffview::hover(&self.st, x, y)),
-            crate::git::diffview::is_active(&self.st),
-        );
-        #[cfg(not(feature = "git"))]
-        let diff = false;
-        // -----
-        let icon = if let Some(icon) = bar_icon {
-            icon
-        } else if on_link || on_git {
-            CursorIcon::Pointer
-        } else if on_edge || self.drag == Drag::Sidebar {
-            CursorIcon::ColResize
-        } else if self.st.ed.picker.is_none()
-            && self.st.ed.about.is_none()
-            && !self.st.settings.is_open()
-            && !diff
-            && lay.text_rect().contains(x, y)
-            && !self.ui.hits.scrollbar.is_some_and(|(t, _)| t.contains(x, y))
-        {
-            CursorIcon::Text
-        } else {
-            CursorIcon::Default
-        };
-        #[cfg(feature = "terminal")]
-        let icon = match self.drag {
-            Drag::None if self.st.ed.picker.is_none() && self.st.ed.about.is_none() => {
-                let (over, redraw) = self.st.terminal_motion(x, y, self.mods());
-                if redraw {
-                    self.redraw();
-                }
-                over.unwrap_or(icon)
-            }
-            _ => icon,
-        };
-        if icon != self.icon
-            && let Some(w) = &self.window
-        {
+        if let (Some(icon), Some(w)) = (r.icon, &self.window) {
             w.set_cursor(icon);
-            self.icon = icon;
         }
-    }
-
-    fn autoscroll_tick(&mut self, now: Instant) {
-        let Some(lay) = self.lay else { return };
-        let (x, y) = self.pointer;
-        let dist = if y < lay.text.y { y - lay.text.y } else { y - lay.text.bottom() + 1.0 };
-        if self.drag != Drag::Text || dist.abs() < 0.5 {
-            self.autoscroll = None;
-            return;
-        }
-        // faster the further away the pointer is
-        let lines = (dist / lay.ch).clamp(-10.0, 10.0);
-        let lines = if lines < 0.0 { lines.floor() } else { lines.ceil() } as isize;
-        self.st.ed.scroll(lines, 0);
-        self.ui.frac = 0.0;
-        let ty = y.clamp(lay.text.y, lay.text.bottom() - 1.0);
-        let scroll = self.ui.target_scroll(&self.st.ed);
-        self.ui.anim.set_scroll(scroll);
-        if let Some(pos) = self.pos_at(x, ty, true) {
-            self.st.ed.mouse_drag(pos);
-        }
-        self.autoscroll = Some(now + AUTOSCROLL_TICK);
-        self.redraw();
-    }
-
-    fn scroll_to_pointer(&mut self, track: Rect, total: usize, y: f32) {
-        let f = ((y - track.y) / track.h.max(1.0)).clamp(0.0, 1.0);
-        // the thumb centres on the pointer
-        let rows = self.lay.map_or(0, |l| l.rows) as f32;
-        let target = (f * total as f32 - rows / 2.0).clamp(0.0, total.saturating_sub(1) as f32) as isize;
-        let top = self.st.ed.buf().view.top as isize;
-        self.st.ed.scroll(target - top, 0);
-        self.ui.frac = 0.0;
-    }
-
-    fn wheel(&mut self, delta: MouseScrollDelta) {
-        let Some(lay) = self.lay else { return };
-        if self.st.titlebar.menu.is_some() {
-            return; // nothing scrolls under an open menu
-        }
-        if let Some(p) = &mut self.st.ed.picker {
-            let dy = match delta {
-                MouseScrollDelta::LineDelta(_, y) => -y,
-                MouseScrollDelta::PixelDelta(d) => -(d.y as f32) / lay.ch,
-            };
-            if dy.abs() >= 0.5 {
-                p.move_by(dy.round() as isize);
-                self.redraw();
-            }
-            return;
-        }
-        if self.st.settings.is_open() {
-            let dy = match delta {
-                MouseScrollDelta::LineDelta(_, y) => -y * WHEEL_LINES * lay.ch,
-                MouseScrollDelta::PixelDelta(d) => -(d.y as f32),
-            };
-            self.st.settings_wheel(dy);
-            self.redraw();
-            return;
-        }
-        if let Some(top) = &mut self.st.ed.about {
-            let dy = match delta {
-                MouseScrollDelta::LineDelta(_, y) => -y * WHEEL_LINES,
-                MouseScrollDelta::PixelDelta(d) => -(d.y as f32) / lay.ch,
-            };
-            if dy.abs() >= 0.5 {
-                *top = top.saturating_add_signed(dy.round() as isize);
-                self.redraw();
-            }
-            return;
-        }
-        #[cfg(feature = "terminal")]
-        {
-            let lines = match delta {
-                MouseScrollDelta::LineDelta(_, y) => y * WHEEL_LINES,
-                MouseScrollDelta::PixelDelta(d) => d.y as f32 / lay.ch,
-            };
-            let (x, y) = self.pointer;
-            if self.st.terminal_wheel(lines, x, y, self.mods()) {
-                return self.redraw();
-            }
-        }
-        let (px, py) = self.pointer;
-        let lines = match delta {
-            MouseScrollDelta::LineDelta(_, y) => -y * WHEEL_LINES,
-            MouseScrollDelta::PixelDelta(d) => -(d.y as f32) / lay.ch,
-        };
-        #[cfg(feature = "git")]
-        if crate::git::wheel(&mut self.st, px, py, lines) {
-            self.redraw();
-            return;
-        }
-        if crate::sidebar::wheel(&mut self.st, &self.ui.hits.sidebar, px, py, lines) {
-            self.redraw();
-            return;
-        }
-        // Ctrl+wheel zooms, like Ctrl+= / Ctrl+-
-        if self.mods().ctrl {
-            let dy = match delta {
-                MouseScrollDelta::LineDelta(_, y) => y,
-                MouseScrollDelta::PixelDelta(d) => d.y as f32 / lay.ch,
-            };
-            if dy.abs() >= 0.5 {
-                let cmd = if dy > 0.0 { shrew_core::Command::FontBigger } else { shrew_core::Command::FontSmaller };
-                self.st.ed.run(cmd);
-                self.st.after_input();
-                self.redraw();
-            }
-            return;
-        }
-        // ----- git: a diff tab scrolls its rows -----
-        #[cfg(feature = "git")]
-        {
-            let cols = match delta {
-                MouseScrollDelta::LineDelta(x, _) => -x * WHEEL_LINES,
-                MouseScrollDelta::PixelDelta(d) => -(d.x as f32) / lay.cw,
-            };
-            let shift = self.mods().shift;
-            if crate::git::diffview::wheel(&mut self.st, px, py, lines, cols, shift) {
-                self.redraw();
-                return;
-            }
-        }
-        // -----
-        match delta {
-            MouseScrollDelta::LineDelta(x, y) => {
-                self.ui.frac = 0.0;
-                self.st.ed.scroll((-y * WHEEL_LINES).round() as isize, (-x * WHEEL_LINES).round() as isize);
-            }
-            MouseScrollDelta::PixelDelta(d) => {
-                // touchpads: follow the fingers pixel by pixel
-                let v = self.st.ed.buf().view;
-                let cur = v.top as f32 + if self.ui.frac_top == v.top { self.ui.frac } else { 0.0 };
-                let last = text::last_line(self.st.ed.buf().rope()) as f32;
-                let to = (cur - d.y as f32 / lay.ch).clamp(0.0, last);
-                let top = to.floor();
-                self.st.ed.scroll(top as isize - v.top as isize, 0);
-                self.ui.frac = to - top;
-                self.ui.frac_top = self.st.ed.buf().view.top;
-                let cols = (-d.x as f32 / lay.cw).round() as isize;
-                if cols != 0 {
-                    self.st.ed.scroll(0, cols);
-                }
-                let s = self.ui.target_scroll(&self.st.ed);
-                self.ui.anim.set_scroll(Scroll { top: s.top, left: self.ui.anim.scroll.left });
-            }
-        }
-        self.redraw();
     }
 }
 

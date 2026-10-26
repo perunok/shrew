@@ -360,6 +360,10 @@ fn mouse() {
     e.mouse_down(7, 1, Mods::default());
     e.mouse_up();
     assert_eq!((show(&e).as_str(), e.mode), ("foo ba|r\nbaz", Mode::Normal));
+    // on the char clicked, not the one before it
+    e.mouse_down(5, 1, Mods::default());
+    e.mouse_up();
+    assert_eq!((show(&e).as_str(), e.mode), ("foo b|ar\nbaz", Mode::Normal));
     e.mouse_down(0, 1, Mods::default());
     e.mouse_drag(3);
     e.mouse_up();

@@ -2,14 +2,19 @@
 //! automated visual tests and the README screenshots. It uses the built-in defaults (no config.toml, no vimrc or
 //! Sublime import) so the output is the same on every machine, and never writes the config.
 //!
+//! `--keys` may hold mouse tokens (`<click:X,Y>`, `<rclick:X,Y>`, `<drag:..>`, `<wheel:..>`, see
+//! [`crate::mouse::parse_input`]); they go through the same [`Mouse`] as the window's events, with a frame drawn
+//! before each so the hit rects are those on screen. `--hover X,Y` moves the pointer there last.
+//!
 //! With `--stats` it also measures frame cost: the same frame redrawn (warm caches), one line scrolled per frame,
 //! and a whole page scrolled per frame (every line shaped anew).
 
 use crate::cli::Cli;
 use crate::draw::{self, Ui};
 use crate::layout::Layout;
+use crate::mouse::{Event, Input, Kind, Mouse};
 use crate::state::State;
-use shrew_core::KeyPress;
+use shrew_core::Mods;
 use shrew_render::{Renderer, Scene};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -33,7 +38,28 @@ pub fn run(cli: &Cli, out: &std::path::Path) -> Result<(), String> {
     draw::build(&mut scene, &mut st, &mut ui, &lay, Instant::now());
     #[cfg(feature = "terminal")]
     let mut line_start = true;
-    for k in KeyPress::parse_seq(&cli.keys) {
+    let mut mouse = Mouse::new();
+    // made-up time for the mouse, so double clicks and drags do not depend on how fast frames render
+    let mut clock = Instant::now();
+    for input in crate::mouse::parse_input(&cli.keys)? {
+        let k = match input {
+            Input::Key(k) => k,
+            Input::Mouse(ev) => {
+                // a token's first event waits for what is loading (a list, a diff), as a person would
+                if ev.after >= Duration::from_secs(1) {
+                    settle(&mut st, &mut r, &mut scene, &mut ui, &layout);
+                }
+                // the frame on screen when the event comes: its hit rects
+                let lay = layout(&r, &st);
+                draw::build(&mut scene, &mut st, &mut ui, &lay, Instant::now());
+                clock += ev.after;
+                let _ = mouse.feed(&mut st, &mut ui, Some(lay), &ev, cli.scale, clock);
+                // the window would carry these out; there is none
+                st.titlebar.actions.clear();
+                font_changed(&mut st, &mut r);
+                continue;
+            }
+        };
         // a line typed into a terminal waits until the program is ready for it, as a person would
         #[cfg(feature = "terminal")]
         {
@@ -53,12 +79,15 @@ pub fn run(cli: &Cli, out: &std::path::Path) -> Result<(), String> {
             }
         }
         st.key(k);
-        if st.font_changed {
-            st.font_changed = false;
-            r.set_font(st.font.clone());
-        }
+        font_changed(&mut st, &mut r);
     }
     settle(&mut st, &mut r, &mut scene, &mut ui, &layout);
+    if let Some((x, y)) = cli.hover {
+        let lay = layout(&r, &st);
+        draw::build(&mut scene, &mut st, &mut ui, &lay, Instant::now());
+        let ev = Event { kind: Kind::Move, x, y, mods: Mods::default(), after: Duration::from_secs(1) };
+        let _ = mouse.feed(&mut st, &mut ui, Some(lay), &ev, cli.scale, clock + ev.after);
+    }
     let lay = layout(&r, &st);
     let tb = Instant::now();
     draw::build(&mut scene, &mut st, &mut ui, &lay, Instant::now());
@@ -75,6 +104,14 @@ pub fn run(cli: &Cli, out: &std::path::Path) -> Result<(), String> {
         bench(&mut st, &mut r, &mut scene, &mut ui, &lay);
     }
     Ok(())
+}
+
+/// A key or click changed the font size: the renderer takes the new font.
+fn font_changed(st: &mut State, r: &mut Renderer) {
+    if st.font_changed {
+        st.font_changed = false;
+        r.set_font(st.font.clone());
+    }
 }
 
 /// Waits (up to a few seconds) for background work that changes the picture: grammars, highlighting, file lists.
@@ -130,7 +167,7 @@ fn scroll_diff(st: &mut State, step: isize, frame: usize) -> bool {
         (1, _) => "<C-e>",
         _ => "<C-f>",
     };
-    for k in KeyPress::parse_seq(keys) {
+    for k in shrew_core::KeyPress::parse_seq(keys) {
         st.key(k);
     }
     st.poll();

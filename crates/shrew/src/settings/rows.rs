@@ -83,7 +83,10 @@ impl Section {
                 "A local MCP server lets Claude Code, Claude Desktop or Cursor read and edit your open buffers. Every \
                  edit is one undo step and nothing is saved without you."
             }
-            Section::Updates => "shrew checks GitHub Releases at most once a day; the download is verified before use.",
+            Section::Updates => {
+                "At every start and once a day while it runs, shrew asks GitHub which release is the latest. Nothing \
+                 is downloaded until you say so, and a download is checked against its published sha256."
+            }
             Section::About => "Small, quick, yours.",
         }
     }
@@ -299,7 +302,7 @@ pub fn build(st: &State) -> Vec<Row> {
     keybindings(&mut rows, st);
     import(&mut rows, st);
     ai(&mut rows);
-    updates(&mut rows);
+    updates(&mut rows, st);
     about(&mut rows);
     rows
 }
@@ -953,32 +956,40 @@ fn ai(rows: &mut Vec<Row>) {
     ));
 }
 
-fn updates(rows: &mut Vec<Row>) {
+// ----- updates (the texts and actions live in `updates`) -----
+fn updates(rows: &mut Vec<Row>, st: &State) {
     use Section::Updates as S;
-    rows.push(feature(S, Feature::UpdateCheck, "Check for updates automatically"));
-    rows.push(text(S, "Version", "", concat!("shrew ", env!("CARGO_PKG_VERSION"))));
-    if !cfg!(feature = "update") {
-        return;
-    }
-    rows.push(info(S, "Status", "", |st| {
-        #[cfg(feature = "update")]
-        if let Some(u) = &st.updater {
-            return u.status().label().unwrap_or_else(|| "not checked yet".into());
-        }
+    rows.push(feature(S, Feature::UpdateCheck, "Check for new releases automatically"));
+    #[cfg(not(feature = "update"))]
+    {
         let _ = st;
-        "not checked yet".into()
-    }));
-    rows.push(action(S, "update.check", "Check now", "Asks GitHub for the latest release.", "Check", |st| {
-        st.ed.events.push(Event::CheckUpdates)
-    }));
-    rows.push(action(
-        S,
-        "update.install",
-        "Install the update",
-        "Downloads it, checks its sha256 and replaces this binary; Enter again restarts into it.",
-        "Install",
-        |st| st.ed.events.push(Event::InstallUpdate),
-    ));
+        rows.push(text(S, "Version", "", concat!("shrew ", env!("CARGO_PKG_VERSION"))));
+        rows.push(text(S, "Updates", "", "not compiled into this build"));
+    }
+    #[cfg(feature = "update")]
+    {
+        let version = format!("shrew {}", st.updates.current());
+        rows.push(info(S, "Version", "", move |_| version.clone()));
+        rows.push(info(S, "Status", "", crate::updates::status_text));
+        rows.push(info(S, "Last checked", "", crate::updates::last_checked_text));
+        rows.push(action(
+            S,
+            "update.check",
+            "Check now",
+            "Asks GitHub for the latest release and answers here.",
+            "Check",
+            crate::updates::check_now,
+        ));
+        if let Some((label, description, button)) = crate::updates::settings_action(st) {
+            rows.push(Row::new(
+                S,
+                "update.install",
+                &label,
+                &description,
+                Kind::Action { button, run: Box::new(crate::updates::settings_run), confirm: None },
+            ));
+        }
+    }
 }
 
 /// The diff view's defaults (`[git] diff_*`).

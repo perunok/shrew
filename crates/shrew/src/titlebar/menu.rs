@@ -201,7 +201,7 @@ static MENUS: &[(&str, char, &[&str])] = &[
             "-",
             "mcp|AI Assistants (MCP)…",
             "check_updates|Check for Updates…",
-            "update|Install Update and Restart",
+            "update|Update shrew…", // ----- updates -----
             "-",
             "about|About shrew",
         ],

@@ -21,6 +21,17 @@ pub struct Release {
     pub checksum_url: String,
     /// Binary size in bytes as listed by the feed (0 when unknown).
     pub size: u64,
+    /// The release's web page (its notes and every asset), always an `https://` link.
+    pub page: String,
+}
+
+/// What a check found: the newest stable release the feed lists, and the update to it when that is newer than the
+/// running version and ships this target's binary and checksum.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Checked {
+    /// Semver of the newest stable release (`0.2.0`), whatever its assets; `None` when there is none yet.
+    pub latest: Option<String>,
+    pub update: Option<Release>,
 }
 
 /// Where releases come from and which target's assets to pick.
@@ -48,14 +59,20 @@ impl Feed {
     /// Fetches the feed and returns the release to update to, if it is newer than `current` and ships a binary and
     /// checksum for this target. A missing feed (404: no releases published yet) is `Ok(None)`, not an error.
     pub fn check(&self, current: &str) -> Result<Option<Release>> {
+        Ok(self.fetch(current)?.update)
+    }
+
+    /// Like [`Feed::check`], and also says which version is the latest, so "0.2.0 is the latest release" can be
+    /// answered when there is nothing to update to.
+    pub fn fetch(&self, current: &str) -> Result<Checked> {
         if version::parse(current).is_none() {
             return Err(Error::Feed(format!("current version {current:?} is not semver")));
         }
         let Some(json) = net::get_text(&self.url, "application/vnd.github+json", 8 << 20)? else {
             log::debug!("update: no releases at {}", self.url);
-            return Ok(None);
+            return Ok(Checked::default());
         };
-        parse_feed(&json, current, &self.target, self.url.starts_with("https://"))
+        parse_checked(&json, current, &self.target, self.url.starts_with("https://"))
     }
 }
 
@@ -63,6 +80,11 @@ impl Feed {
 /// Blocking: call it off the UI thread, or use [`crate::Updater`].
 pub fn check(current: &str) -> Result<Option<Release>> {
     Feed::from_env().check(current)
+}
+
+/// `https://github.com/<repo>/releases/tag/<tag>`.
+pub fn release_page(repo: &str, tag: &str) -> String {
+    format!("https://github.com/{repo}/releases/tag/{tag}")
 }
 
 #[derive(Deserialize)]
@@ -85,6 +107,8 @@ struct GhRelease {
     #[serde(default)]
     published_at: Option<String>,
     #[serde(default)]
+    html_url: Option<String>,
+    #[serde(default)]
     assets: Vec<GhAsset>,
 }
 
@@ -97,13 +121,26 @@ struct GhAsset {
 }
 
 /// Picks the newest stable release newer than `current` that has both assets for `target`.
-/// With `https_only`, assets served over plain http are ignored (no downgrade from an https feed).
+#[cfg(test)]
 pub(crate) fn parse_feed(json: &str, current: &str, target: &str, https_only: bool) -> Result<Option<Release>> {
+    Ok(parse_checked(json, current, target, https_only)?.update)
+}
+
+/// [`Checked`] from a feed's JSON: the newest stable version listed, and the newest stable release newer than
+/// `current` that has both assets for `target`. With `https_only`, assets served over plain http are ignored (no
+/// downgrade from an https feed).
+pub(crate) fn parse_checked(json: &str, current: &str, target: &str, https_only: bool) -> Result<Checked> {
     let releases = match serde_json::from_str(json) {
         Ok(Payload::One(release)) => vec![release],
         Ok(Payload::Many(releases)) => releases,
         Err(err) => return Err(Error::Feed(format!("unexpected release feed: {err}"))),
     };
+    let latest = releases
+        .iter()
+        .filter(|r| !r.draft && !r.prerelease)
+        .filter_map(|r| version::parse(&r.tag_name).filter(|v| v.pre.is_empty()))
+        .max_by(|a, b| a.cmp_precedence(b))
+        .map(|v| v.to_string());
     let binary = asset_name(target);
     let checksum = checksum_name(target);
     let best = releases
@@ -118,6 +155,12 @@ pub(crate) fn parse_feed(json: &str, current: &str, target: &str, https_only: bo
             }
             let (bin, sum) = (bin?, sum?);
             let version = version::parse(&r.tag_name)?;
+            // the page the feed links, else the canonical one; never anything but an https link
+            let page = r
+                .html_url
+                .clone()
+                .filter(|u| u.starts_with("https://"))
+                .unwrap_or_else(|| release_page(REPO, &r.tag_name));
             Some((
                 version.clone(),
                 Release {
@@ -127,10 +170,11 @@ pub(crate) fn parse_feed(json: &str, current: &str, target: &str, https_only: bo
                     asset_url: bin.browser_download_url.clone(),
                     checksum_url: sum.browser_download_url.clone(),
                     size: bin.size,
+                    page,
                     tag: r.tag_name,
                 },
             ))
         })
         .max_by(|a, b| a.0.cmp_precedence(&b.0));
-    Ok(best.map(|(_, release)| release))
+    Ok(Checked { latest, update: best.map(|(_, release)| release) })
 }

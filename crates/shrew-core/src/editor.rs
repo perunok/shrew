@@ -2128,6 +2128,7 @@ impl Editor {
                 self.info(d);
             }
             "update" => self.run(Command::InstallUpdate),
+            "checkupdate" | "checkupdates" => self.run(Command::CheckForUpdates),
             "version" => self.info(format!("shrew {}", env!("CARGO_PKG_VERSION"))),
             "theme" | "colorscheme" | "colo" => match arg.split_once(char::is_whitespace) {
                 Some(("import", path)) => self.events.push(Event::ThemeImport(path.trim().to_string())),

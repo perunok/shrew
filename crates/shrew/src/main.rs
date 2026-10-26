@@ -15,6 +15,9 @@
 //! - [`settings`]: the Settings panel (Ctrl+,): sections of setting rows, saved to config.toml.
 //! - [`headless`]: `--screenshot`, a frame rendered without a window.
 //! - [`titlebar`]: the custom title bar (tabs, menus, window buttons) and its window behaviour.
+//! - [`toast`]: the one toast look (git's progress and errors, the update notifications).
+//! - `updates`: in-app updates (cargo feature `update`): the schedule, the notification, the Update shrew dialog,
+//!   Settings > Updates, restarting with the session restored, `--self-update`.
 //! - `git`: git integration (cargo feature `git`): change markers, inline blame, the diff view, the
 //!   Source Control panel, log, blame and conflicts.
 
@@ -45,6 +48,10 @@ mod symbols;
 #[cfg(feature = "terminal")]
 mod terminal;
 mod titlebar;
+#[cfg(any(feature = "git", feature = "update"))]
+mod toast;
+#[cfg(feature = "update")]
+mod updates;
 
 use cli::{Action, Cli};
 
@@ -84,12 +91,21 @@ fn main() {
         }
         Action::McpStdio => Ok(()),
         Action::Screenshot(out) => headless::run(&cli, &out.clone()),
+        Action::SelfUpdate => self_update(),
         Action::Edit => launch::run(cli),
     };
     if let Err(e) = result {
         eprintln!("{name}: {e}");
         std::process::exit(1);
     }
+}
+
+/// `--self-update`: see `updates::cli`.
+fn self_update() -> Result<(), String> {
+    #[cfg(feature = "update")]
+    return updates::cli::run();
+    #[cfg(not(feature = "update"))]
+    Err("updates are not compiled into this build".into())
 }
 
 fn mcp_stdio() -> i32 {

@@ -310,6 +310,19 @@ impl Session {
         }
         short_dir(&self.cwd())
     }
+
+    // ----- updates -----
+    /// Ends the program and waits for it, on this thread: before shrew re-executes itself (restart to update),
+    /// where the background close of `drop` would never run and the PTY, which is not close-on-exec, would keep the
+    /// shell alive.
+    #[cfg(feature = "update")]
+    pub fn close_now(mut self) {
+        let _ = self.sender.send(Msg::Shutdown);
+        if let Some(t) = self.thread.take() {
+            drop(t.join());
+        }
+    }
+    // -----
 }
 
 impl Drop for Session {

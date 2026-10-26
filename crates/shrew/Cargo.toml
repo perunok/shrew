@@ -57,6 +57,10 @@ dirs = "6"
 alacritty_terminal = { version = "0.26", default-features = false, optional = true }
 regex = { workspace = true, optional = true }
 
+[dev-dependencies]
+# the update tests check downloads against published checksums (already in the tree through shrew-update)
+sha2 = "0.10"
+
 [target.'cfg(unix)'.dependencies]
 # getuid and setsid only (bindings, no C compiled)
 libc = "0.2"

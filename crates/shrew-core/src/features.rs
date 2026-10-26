@@ -81,7 +81,7 @@ pub static FEATURES: &[FeatureInfo] = &[
     f(Feature::Palette, "palette", true, "Command palette (Ctrl+Shift+P)"),
     f(Feature::Clipboard, "clipboard", true, "Share yanks and pastes with the system clipboard"),
     f(Feature::Mcp, "mcp", false, "MCP server so AI assistants can read and edit open files"),
-    f(Feature::UpdateCheck, "update_check", true, "Check GitHub for new releases at startup"),
+    f(Feature::UpdateCheck, "update_check", true, "Check GitHub for new releases at startup and once a day"),
     f(Feature::Vimrc, "vimrc", true, "Read options and mappings from ~/.vimrc or init.vim at startup (see [import])"),
     f(
         Feature::SublimeImport,

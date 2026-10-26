@@ -252,6 +252,9 @@ fn editor(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors, 
     let cur_line = text::line_of(rope, head);
     let insert_like = ed.mode == Mode::Insert || !ed.vim();
     let overlay = ed.prompt.is_some() || ed.picker.is_some() || ed.about.is_some() || st.settings.is_open();
+    // the Update shrew dialog is modal too: the text's cursor does not show through it
+    #[cfg(feature = "update")]
+    let overlay = overlay || crate::updates::modal(st);
 
     scene.push_clip(lay.text);
     // current line
@@ -400,7 +403,7 @@ fn editor(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors, 
     // cursors, above the text
     scene.layer(1);
     scene.push_clip(text_rect);
-    cursors(scene, ed, ui, lay, c, scroll, first, end, vis_a, vis_z);
+    cursors(scene, ed, ui, lay, c, scroll, first, end, vis_a, vis_z, overlay);
     if let Some(r) = ui.cursor_rect.filter(|_| !ui.preedit.is_empty()) {
         let w = columns(&ui.preedit) as f32 * lay.cw;
         scene.rect(Rect::new(r.x, r.y, w, lay.ch), c.background);
@@ -704,12 +707,15 @@ fn cursors(
     end: usize,
     vis_a: usize,
     vis_z: usize,
+    covered: bool,
 ) {
     let b = ed.buf();
     let rope = &b.doc.rope;
     let tw = ed.settings.tab_width.max(1);
     let shape = ed.cursor_shape();
-    let hollow = !ui.focused || ed.prompt.is_some() || ed.picker.is_some() || ed.about.is_some() || ed.sidebar_focus;
+    // `covered`: a modal overlay (Settings, the Update shrew dialog, ...) is over the text
+    let hollow =
+        !ui.focused || covered || ed.prompt.is_some() || ed.picker.is_some() || ed.about.is_some() || ed.sidebar_focus;
     if ui.blink_off && !hollow {
         return;
     }

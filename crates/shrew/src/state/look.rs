@@ -180,6 +180,10 @@ impl State {
         if matches!(choice, Choice::GitCommit | Choice::GitRef) {
             return self.git_choice(choice, None);
         }
+        // ----- status bar: the buffer's language (no preview) -----
+        if choice == Choice::Language {
+            return crate::language::open(self);
+        }
         // -----
         let item = |label: String, detail: String, value: &str| PickerItem {
             label,
@@ -233,6 +237,7 @@ impl State {
             Choice::GitCommit | Choice::GitRef | Choice::GitBranches | Choice::GitStashes | Choice::GitChanges => {
                 return;
             }
+            Choice::Language => return,
         };
         let selected = items.iter().position(|i| matches!(&i.data, PickerData::Value(v) if *v == current)).unwrap_or(0);
         self.ed.open_choice(choice, items, selected);
@@ -295,6 +300,7 @@ impl State {
             Choice::GitCommit | Choice::GitRef | Choice::GitBranches | Choice::GitStashes | Choice::GitChanges => {
                 Ok(())
             }
+            Choice::Language => Ok(()),
         };
         if let Err(e) = r {
             self.ed.error(e);
@@ -356,6 +362,8 @@ impl State {
             // ----- git ----- (answered by the git module; the panel's lists through their own keys)
             Choice::GitCommit | Choice::GitRef => self.git_choice(choice, Some(value)),
             Choice::GitBranches | Choice::GitStashes | Choice::GitChanges => {}
+            // ----- status bar -----
+            Choice::Language => crate::language::choose(self, value),
         }
     }
 

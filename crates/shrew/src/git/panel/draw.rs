@@ -333,6 +333,9 @@ fn panel(scene: &mut Scene, st: &mut State, body: Rect, lay: &Layout, c: &Colors
                 mix(c.panel_selection, c.panel_background, 0.5)
             };
             scene.rounded_rect(Rect::new(body.x + pad, ry, body.w - 2.0 * pad, row_h), radius, bg, None);
+        } else if hover == Some(i) {
+            let fill = crate::statusbar::hover_fill(c);
+            scene.rounded_rect(Rect::new(body.x + pad, ry, body.w - 2.0 * pad, row_h), radius, fill, None);
         }
         let ty = lay.centered(ry, row_h);
         let mut right = body.right() - 3.0 * pad;
@@ -506,7 +509,33 @@ pub fn right_press(st: &mut State, x: f32, y: f32) -> bool {
         return false;
     }
     let p = &mut st.git.panel;
-    let Some(&(_, i)) = p.hits.rows.iter().find(|(r, _)| r.contains(x, y)) else { return true };
+    use crate::mouse::{Panel, Target};
+    let Some(&(_, i)) = p.hits.rows.iter().find(|(r, _)| r.contains(x, y)) else {
+        // ----- the rest of the panel (the branch line, the commit box, below the rows): the panel's own commands
+        p.focused = true;
+        st.ed.sidebar_focus = false;
+        let spec: &[&str] = &[
+            "git_commit|Commit",
+            "git_amend|Commit (Amend)",
+            "-",
+            "git_stage_all|Stage All Changes",
+            "git_unstage_all|Unstage All Changes",
+            "-",
+            "git_pull|Pull",
+            "git_push|Push",
+            "git_fetch|Fetch",
+            "-",
+            "git_branches|Checkout Branch…",
+            "git_new_branch|Create Branch…",
+            "git_stash|Stash Changes…",
+            "-",
+            "git_log|Log",
+            "git_refresh|Refresh",
+        ];
+        let menu = crate::context_menu::ContextMenu::from_spec(&st.ed, Target::Panel(Panel::Git(None)), spec);
+        crate::context_menu::open(st, menu, (x, y));
+        return true;
+    };
     p.selected = i;
     p.focused = true;
     p.focus = Focus::List;
@@ -545,7 +574,6 @@ pub fn right_press(st: &mut State, x: f32, y: f32) -> bool {
             Section::Merge => &["git_open_file|Open File", "-", "git_stage|Mark Resolved", "git_abort|Abort…"],
         },
     };
-    use crate::mouse::{Panel, Target};
     let menu = crate::context_menu::ContextMenu::from_spec(&st.ed, Target::Panel(Panel::Git(Some(i))), entries);
     crate::context_menu::open(st, menu, (x, y));
     true

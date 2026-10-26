@@ -36,6 +36,18 @@ new version when it tags a release.
   there and copies either side. Shift+F10 (`context_menu`) opens the text's menu at the cursor.
 - The primary selection (Linux, feature `clipboard`): what you select is offered to other programs, and a middle
   click pastes theirs at the pointer, in the text and in the terminal.
+- The sidebar's right-click menu: on a row (selected first) new file and folder, rename, duplicate, move to the
+  trash, copy path / relative path / name, reveal in the file manager, open in a terminal, find in folder (find in
+  project scoped to a folder), collapse all, refresh, and on a changed file open diff, stage, unstage, discard; below
+  the rows the same for the project's root. Rows light up under the pointer, a middle click opens a file behind the
+  current tab, a click on a folder's chevron only folds it, a double click on a folder no longer closes it again.
+- The Source Control panel lights the row under the pointer, and a right click outside the rows opens the panel's
+  commands (commit, stage or unstage all, pull, push, fetch, branches, stash, log).
+- The status bar's items light up under the pointer and do something on click: the vim mode badge opens a small
+  menu (Vim Mode, Features, Settings), the position opens Go to Line, the language opens the new *Set Language…*
+  (`set_language`, `:setf {language}`: the buffer's grammar and comment tokens; *Auto Detect* goes back). A right
+  click on the bar opens a menu of the same. A buffer without a language shows *Plain Text*.
+- `collapse_sidebar` (*View: Collapse Folders in Sidebar*).
 
 ### Fixed
 

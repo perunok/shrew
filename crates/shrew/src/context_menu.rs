@@ -523,8 +523,9 @@ pub fn for_target(st: &mut State, target: Target, at: (f32, f32)) -> bool {
         // ----- tabs -----
         Target::Tab(i) => crate::tabs::menu(st, i),
         Target::TabStrip => crate::tabs::strip_menu(st),
-        // -----
-        // one arm per target with a menu, e.g. `Target::Tab(i) => crate::tabs::menu(st, i)`
+        // ----- sidebar and status bar -----
+        Target::Sidebar(row) => crate::sidebar::menu(st, row),
+        Target::StatusBar => crate::statusbar::menu(st),
         // ----- editor menus: the text, the gutter, the terminal panel, a diff tab -----
         Target::Text(pos) => crate::menus::text(st, pos),
         Target::Gutter(line) => crate::menus::gutter(st, line),

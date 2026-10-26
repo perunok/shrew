@@ -322,11 +322,16 @@ impl Mouse {
             st.activate_update();
             return Response::INPUT;
         }
+        // ----- sidebar and status bar: the mode badge, position and language; the tree's rows -----
+        if crate::statusbar::press(st, ui, x, y) {
+            return Response::INPUT;
+        }
+        let hits = &ui.hits;
         if hits.sidebar.edge.is_some_and(|r| r.contains(x, y)) {
             self.drag = Drag::Sidebar;
             return Response::INPUT;
         }
-        if crate::sidebar::press(st, &ui.hits.sidebar, x, y) {
+        if crate::sidebar::press(st, &ui.hits.sidebar, x, y, now) {
             return Response::INPUT;
         }
         // ----- tabs: switch on press, the close button, a drag to reorder, the list button -----
@@ -434,15 +439,20 @@ impl Mouse {
     }
 
     /// A middle press closes an open menu (and goes no further); else it acts on what is under the pointer: a tab
-    /// closes, the text pastes the primary selection.
+    /// closes, a sidebar file opens behind the current tab, the text pastes the primary selection.
     fn middle_press(&mut self, st: &mut State, ui: &mut Ui, lay: Option<Layout>, x: f32, y: f32) -> Response {
         if st.menu_open() {
             st.menu = None;
             st.titlebar.menu = None;
             return Response::INPUT;
         }
+        let modal = st.ed.picker.is_some() || st.ed.about.is_some() || st.settings.is_open();
         // ----- tabs -----
-        if st.ed.picker.is_none() && st.ed.about.is_none() && !st.settings.is_open() && crate::tabs::middle(st, x, y) {
+        if !modal && crate::tabs::middle(st, x, y) {
+            return Response::INPUT;
+        }
+        // ----- sidebar: a file opens in a tab behind the current one -----
+        if !modal && crate::sidebar::middle(st, &ui.hits.sidebar, x, y) {
             return Response::INPUT;
         }
         let Some(lay) = lay else { return Response::NONE };
@@ -510,6 +520,12 @@ impl Mouse {
         let (git_redraw, on_git) = crate::git::hover(st, x, y);
         #[cfg(not(feature = "git"))]
         let (git_redraw, on_git) = (false, false);
+        // ----- sidebar and status bar: the row and the item under the pointer light up -----
+        let side = crate::sidebar::hover(st, &ui.hits.sidebar, x, y);
+        let (status, on_status) = crate::statusbar::hover(st, ui, x, y);
+        let on_git = on_git || on_status;
+        redraw |= side || status;
+        // -----
         redraw |= bar || menu || map || git_redraw;
         let on_edge = st.ed.picker.is_none() && ui.hits.sidebar.edge.is_some_and(|r| r.contains(x, y));
         let on_link = st.ed.about.is_some() && ui.hits.about_links.iter().any(|(r, _)| r.contains(x, y));
@@ -559,7 +575,10 @@ impl Mouse {
         let bar = crate::titlebar::pointer_left(st);
         let map = lay.is_some_and(|lay| crate::minimap::hover(ui, &lay, None));
         let tabs = crate::tabs::left(st); // ----- tabs -----
-        Response::redraw_if(bar | map | tabs)
+        // ----- sidebar and status bar -----
+        let lit = crate::sidebar::pointer_left(st) | crate::statusbar::left(ui);
+        // -----
+        Response::redraw_if(bar | map | tabs | lit)
     }
 
     /// The drag autoscroll's timer: scrolls on while the pointer is past the text's top or bottom edge.

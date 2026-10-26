@@ -40,6 +40,8 @@ pub struct Hits {
     // ----- git -----
     #[cfg(feature = "git")]
     pub git: crate::git::Hits,
+    // ----- status bar -----
+    pub status: crate::statusbar::Hits,
 }
 
 /// UI state that lives between frames and is not the editor's.
@@ -65,6 +67,9 @@ pub struct Ui {
     line: LineBuf,
     /// The minimap's block cache, hover and drag (see [`crate::minimap`]).
     pub minimap: crate::minimap::Minimap,
+    // ----- status bar -----
+    /// The status bar item under the pointer (see [`crate::statusbar`]).
+    pub status_hover: Option<crate::statusbar::Item>,
 }
 
 impl Ui {
@@ -800,24 +805,47 @@ fn status(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors) 
     // right side first (it always shows), laid out from the right edge
     let mut right = bar.right() - lay.pad * 2.0;
     // the Settings gear (Ctrl+,) in the corner, unless the custom title bar shows its own
+    // ----- status bar: items light up under the pointer (crate::statusbar) -----
+    use crate::statusbar::{Item, hovered};
+    let hover_fill = crate::statusbar::item_fill(c);
     if ed.features.on(Feature::Settings) && !crate::titlebar::on(ed) {
         let gw = 2.0 * cw;
         right -= gw;
         let open = st.settings.is_open();
         let r = Rect::new((right - cw / 2.0).round(), bar.y + lay.pad, (gw + cw).round(), bar.h - 2.0 * lay.pad);
-        if open {
-            scene.rounded_rect(r, r.h / 2.0, c.panel_selection, None);
+        if open || hovered(ui, Item::Gear) {
+            scene.rounded_rect(r, r.h / 2.0, if open { c.panel_selection } else { hover_fill }, None);
         }
         let x = (right + (gw - columns(GEAR) as f32 * cw) / 2.0).round();
-        scene.text(x, y, GEAR, TextStyle::new(if open { c.accent } else { c.panel_muted }), &[]);
+        let ink = if open {
+            c.accent
+        } else if hovered(ui, Item::Gear) {
+            c.panel_foreground
+        } else {
+            c.panel_muted
+        };
+        scene.text(x, y, GEAR, TextStyle::new(ink), &[]);
         ui.hits.gear = Some(r);
+        ui.hits.status.set(Item::Gear, r);
         right -= 2.0 * cw;
     }
-    let mut item = |scene: &mut Scene, s: &str, col: Color| {
-        right -= columns(s) as f32 * cw;
+    let hover = ui.status_hover;
+    let hits = &mut ui.hits.status;
+    let mut item = |scene: &mut Scene, s: &str, col: Color, it: Option<Item>| {
+        let cols = columns(s);
+        right -= cols as f32 * cw;
+        if let Some(it) = it {
+            let r = crate::statusbar::item_rect(right, cols, lay);
+            if hover == Some(it) {
+                scene.rounded_rect(r, r.h / 2.0, hover_fill, None);
+            }
+            hits.set(it, r);
+        }
+        let col = if it.is_some() && hover == it { c.panel_foreground } else { col };
         scene.text(right.round(), y, s, TextStyle::new(col), &[]);
         right -= 2.0 * cw;
     };
+    // -----
     let rope = b.rope();
     let head = b.sel.primary().head.min(rope.len_chars());
     let line = text::line_of(rope, head);
@@ -827,25 +855,31 @@ fn status(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors) 
     #[cfg(feature = "git")]
     let pos = crate::git::diffview::position(st).unwrap_or(pos);
     // -----
-    item(scene, &pos, c.panel_foreground);
-    if let Some(lang) = st.language() {
-        item(scene, &lang, c.panel_muted);
-    }
+    item(scene, &pos, c.panel_foreground, Some(Item::Position));
+    // a buffer without a language says so, so there is something to click to set one
+    let lang = st.language().unwrap_or_else(|| "Plain Text".to_string());
+    item(scene, &lang, c.panel_muted, Some(Item::Language));
     let n = b.sel.len();
     let p = b.sel.primary();
     if n > 1 {
-        item(scene, &format!("{n} cursors"), c.accent_alt);
+        item(scene, &format!("{n} cursors"), c.accent_alt, None);
     } else if let Some((a, z)) = selection_span(ed.mode, rope, p.from(), p.to(), p.is_empty()) {
         let lines = text::line_of(rope, z.saturating_sub(1).max(a)) - text::line_of(rope, a) + 1;
         let s = if lines > 1 { format!("{lines} lines") } else { format!("{} selected", z - a) };
-        item(scene, &s, c.panel_muted);
+        item(scene, &s, c.panel_muted, None);
     }
     if st.mcp_running() {
-        item(scene, "◆ MCP", c.accent_alt);
+        item(scene, "◆ MCP", c.accent_alt, None);
     }
     // ----- git: the branch -----
     #[cfg(feature = "git")]
-    crate::git::status_ui::draw_status(scene, st, &mut ui.hits.git, lay, c, &mut right, y);
+    {
+        let lit = hovered(ui, Item::Branch);
+        crate::git::status_ui::draw_status(scene, st, &mut ui.hits.git, lay, c, &mut right, y, lit);
+        if let Some(r) = ui.hits.git.branch {
+            ui.hits.status.set(Item::Branch, r);
+        }
+    }
     if let Some((label, tone)) = st.update_label() {
         let w = (columns(&label) as f32 + 2.0) * cw;
         right -= w;
@@ -856,9 +890,11 @@ fn status(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors) 
             Tone::Error => (c.error, c.error_fg),
             Tone::Muted => (c.panel_selection, c.panel_foreground),
         };
+        let bg = if hovered(ui, Item::Update) { crate::statusbar::lit(bg, fg) } else { bg };
         scene.rounded_rect(pill, pill.h / 2.0, bg, None);
         scene.text((right + cw).round(), y, &label, TextStyle::new(fg).bold(), &[]);
         ui.hits.update = Some(pill);
+        ui.hits.status.set(Item::Update, pill);
         right -= 2.0 * cw;
     }
 
@@ -873,7 +909,9 @@ fn status(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors) 
         };
         let w = (columns(label) as f32 + 2.0) * cw;
         let badge = Rect::new(x.round(), bar.y + lay.pad, w.round(), bar.h - 2.0 * lay.pad);
+        let col = if hovered(ui, Item::Mode) { crate::statusbar::lit(col, ink) } else { col };
         scene.rounded_rect(badge, r, col, None);
+        ui.hits.status.set(Item::Mode, badge);
         scene.text((x + cw).round(), y, label, TextStyle::new(ink).bold(), &[]);
         x += w + cw;
     }
@@ -1115,8 +1153,21 @@ fn grep_header(scene: &mut Scene, g: &GrepState, inner: Rect, qx: f32, y: f32, l
     let row_h = (lay.ch + pad).round();
     let gy = lay.centered(y - pad, row_h);
     scene.text(qx, gy, "in", TextStyle::new(c.panel_muted), &[]);
-    let gx = qx + 3.0 * cw;
-    if g.opts.globs.is_empty() && g.field != GrepField::Globs {
+    let mut gx = qx + 3.0 * cw;
+    // ----- sidebar: Find in Folder… scopes the search to a folder, shown as a chip before the globs -----
+    if let Some(dir) = &g.scope {
+        let rel = dir.strip_prefix(&g.root).unwrap_or(dir).display().to_string();
+        let label = format!("{rel}/");
+        let w = (columns(&label) as f32 + 1.0) * cw;
+        let chip = Rect::new(gx.round(), gy, w.round(), lay.ch);
+        scene.rounded_rect(chip, (3.0 * lay.scale).round(), c.panel_selection, None);
+        scene.text((gx + cw / 2.0).round(), gy, &label, TextStyle::new(c.panel_foreground), &[]);
+        gx += w + cw;
+    }
+    // -----
+    if g.opts.globs.is_empty() && g.field != GrepField::Globs && g.scope.is_some() {
+        scene.text(gx, gy, "(Tab, Backspace: whole project)", TextStyle::new(c.panel_muted), &[]);
+    } else if g.opts.globs.is_empty() && g.field != GrepField::Globs {
         scene.text(gx, gy, "all files   (Tab: *.rs, !tests/)", TextStyle::new(c.panel_muted), &[]);
     } else {
         scene.text(gx, gy, &g.opts.globs, TextStyle::new(c.panel_foreground), &[]);

@@ -165,6 +165,11 @@ pub enum Command {
     // ----- editor menus -----
     /// The text's context menu, at the cursor (the app opens it).
     ContextMenu,
+    // ----- sidebar and status bar -----
+    /// The grammar (and comment tokens) of the active buffer, from a list (the status bar's language).
+    SetLanguage,
+    CollapseSidebar,
+    // -----
 }
 
 use Command::*;
@@ -369,6 +374,10 @@ pub static COMMANDS: &[(Command, &str, &str)] = &[
     (RevealInFileManager, "reveal_in_file_manager", "File: Reveal in File Manager"),
     // ----- editor menus -----
     (ContextMenu, "context_menu", "Edit: Show Context Menu"),
+    // ----- sidebar and status bar -----
+    (SetLanguage, "set_language", "View: Set Language…"),
+    (CollapseSidebar, "collapse_sidebar", "View: Collapse Folders in Sidebar"),
+    // -----
 ];
 
 impl Command {

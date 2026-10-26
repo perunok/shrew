@@ -31,6 +31,9 @@ pub struct Document {
     col_cache: std::cell::Cell<Option<ColCache>>,
     /// Change sets since the editor last moved its marks (`ma`, the insert start) along with the text.
     mark_log: Vec<ChangeSet>,
+    /// The language picked for it (*Set Language…*, `:setf`): a grammar name ("Rust") or a shrew language name
+    /// ("rust"). `None`: detected from the path and the first line.
+    pub language: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -64,6 +67,7 @@ impl Document {
             edits: Vec::new(),
             col_cache: std::cell::Cell::new(None),
             mark_log: Vec::new(),
+            language: None,
         }
     }
 

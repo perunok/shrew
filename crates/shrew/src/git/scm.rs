@@ -381,6 +381,9 @@ fn answer(st: &mut State, then: Then, text: String, alt: bool) {
     if matches!(then, Then::LogAuthor(_) | Then::LogPath(_)) {
         return log::filter(st, then, text);
     }
+    if let Then::OpIn(repo, op) = then {
+        return send_op(st, repo, op);
+    }
     let Some(repo) = repo_for(st, cmd) else { return };
     let op = match then {
         Then::Op(op) => op,
@@ -392,7 +395,7 @@ fn answer(st: &mut State, then: Then, text: String, alt: bool) {
             include_untracked: alt,
             ..Default::default()
         }),
-        Then::LogAuthor(_) | Then::LogPath(_) => return,
+        Then::LogAuthor(_) | Then::LogPath(_) | Then::OpIn(..) => return,
     };
     send_op(st, repo, op);
 }

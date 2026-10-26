@@ -36,7 +36,8 @@ motion, character or register name. "Ctrl" also means ⌘ Cmd on macOS. Vim keys
 **Contents:** [Global chords](#global-chords) · [Insert mode](#insert-mode) · [Normal mode](#normal-mode) ·
 [Visual mode](#visual-mode) · [Prompts](#prompts--and-) · [Pickers](#pickers) · [Sidebar](#sidebar) ·
 [Find in project](#find-in-project) · [Settings](#settings-panel) · [About panel](#about-panel) · [Menus](#menus) ·
-[Ex commands](#ex-commands) · [Named commands](#named-commands) · [Mouse](#mouse) · [Title bar](#title-bar) ·
+[Ex commands](#ex-commands) · [Named commands](#named-commands) · [Mouse](#mouse) · [Status bar](#status-bar) ·
+[Title bar](#title-bar) ·
 [Terminal](#terminal) · [Git](#git) · [Source Control](#source-control) · [Diff view](#diff-view)
 
 ## Global chords
@@ -390,8 +391,25 @@ revealed and highlighted. Nothing watches the disk: the tree is read again when 
 | Esc, Tab, Ctrl+C | Back to the text |
 | Ctrl+… | Global chords (Ctrl+P, Ctrl+Shift+F, Ctrl+B, …) work as in the text |
 
-With the mouse: a click opens a file (and goes to it) or opens / closes a folder, the wheel scrolls, and dragging the
-right edge resizes the sidebar (the width is saved as `[sidebar] width`).
+With the mouse:
+
+| Mouse | Action |
+| --- | --- |
+| Click a file | Open it and go to it (a double-click does the same, once) |
+| Click a folder | Open / close it; a double-click leaves it open. A click on its chevron (▸) only folds it, the selection stays |
+| Middle-click a file | Open it in a tab behind the current one |
+| Hover | The row under the pointer is lit |
+| Right-click a row | Select it, give the sidebar the keys and open its menu (below) |
+| Right-click below the rows | New File… / New Folder… at the root, Reveal in File Manager, Open in Terminal, Find in Project…, Collapse All, Refresh |
+| Wheel | Scroll |
+| Drag the right edge | Resize the sidebar (the width is saved as `[sidebar] width`) |
+
+A row's menu: the file's git actions when it has changes (*Open Diff*, *Stage*, *Unstage*, *Discard Changes…* after
+a `y`, or *Mark Resolved*), *New File…* (`a`) and *New Folder…* (`A`) in its folder, *Rename…* (F2), *Duplicate…*
+(asks for the name: `notes copy.md`), *Move to Trash…* / *Delete…* (Delete; asks first), *Copy Path*, *Copy Relative
+Path* and *Copy Name* (to the clipboard), *Reveal in File Manager* (selects it in Files, Dolphin, Finder, Explorer...),
+*Open in Terminal* (a terminal in its folder), *Find in Folder…* on a folder (find in project in that folder only),
+*Collapse All* (`collapse_sidebar`) and *Refresh* (F5).
 
 ## Find in project
 
@@ -405,6 +423,7 @@ matches.
 | typing | The pattern |
 | Alt+R / Alt+C / Alt+W | Regex / always case-sensitive / whole words (the chips on the right light up) |
 | Tab | Edit the file globs (`*.rs, !tests/`, `src`); Tab or Enter goes back to the pattern |
+| Backspace in empty globs | Drop the folder scope of *Find in Folder…* (the sidebar's menu): the whole project again |
 | Up / Down, Ctrl+P / Ctrl+N, PageUp / PageDown | Move through the matches (file headers are skipped) |
 | Enter | Go to the match (Ctrl+O comes back) |
 | Esc | Close |
@@ -462,8 +481,9 @@ build does not have are left out.
 
 ## Context menus
 
-A right click opens the menu of what is under the pointer (an empty part of the title bar, a row of the Source
-Control panel), at the pointer; near the window's edges it opens to the left or upwards. The menus look and work
+A right click opens the menu of what is under the pointer (an empty part of the title bar, a row or the empty part of
+the [sidebar](#sidebar), a row, a section or the rest of the [Source Control panel](#source-control), the
+[status bar](#status-bar)), at the pointer; near the window's edges it opens to the left or upwards. The menus look and work
 alike, and one menu is open at a time. While one is open it takes every key.
 
 | Keys / mouse | Action |
@@ -536,6 +556,7 @@ or `:duplicate_line`.
 | `:syntax on` / `:syntax off` / `:syntax` | Syntax highlighting on / off / toggle |
 | `:cd [dir]` / `:pwd` | Make `dir` the project and working directory / show it (for `:e`, Ctrl+P and the sidebar) |
 | `:grep {pattern}`, `:rg`, `:vimgrep` | [Find in project](#find-in-project) |
+| `:setf` / `:setf {language}`, `:setfiletype` | Set Language list / the buffer's language (`python`, `Rust`; empty: detect it) |
 | `:Ex`, `:Explore`, `:Lex`, `:NERDTree` | Focus the [sidebar](#sidebar) |
 | `:update` | Install the available update and restart |
 | `:version` | Show shrew's version |
@@ -710,6 +731,8 @@ command palette by its title.
 | `git_conflict_compare` | Git: Compare Conflict Sides | *Compare* on a conflict |
 | `git_mark_resolved` | Git: Mark Resolved (Stage File) | `+` on a conflicted file in the panel |
 | `git_abort` / `git_continue` | Git: Abort / Continue Merge or Rebase | the panel's buttons during a merge or rebase |
+| `set_language` | View: Set Language… | click the language in the status bar, `:setf` |
+| `collapse_sidebar` | View: Collapse Folders in Sidebar | *Collapse All* in the sidebar's menu |
 
 ## Mouse
 
@@ -727,6 +750,22 @@ command palette by its title.
 | Click a link in the About panel | Open it in the browser |
 | Right-click | The [context menu](#context-menus) of what is under the pointer; in the text the cursor goes there first, unless you click inside the selection |
 | Middle click | Paste the primary selection (what is selected, in shrew or any program) at the pointer, in any mode (Linux; feature `clipboard`). Selecting text, by mouse or keys, offers it to other programs the same way. On macOS and Windows a middle click in the text does nothing |
+
+The [sidebar](#sidebar), the [Source Control panel](#source-control) and the [status bar](#status-bar) have mouse
+actions of their own.
+
+## Status bar
+
+Clickable items light up under the pointer:
+
+| Mouse | Action |
+| --- | --- |
+| Click the vim mode badge | A small menu: *Vim Mode* (on / off), *Features…*, *Settings…* |
+| Click the cursor position | Go to line (`:`; type the number) |
+| Click the language | *Set Language…*: the buffer's grammar and comment tokens from a list (*Auto Detect* goes back) |
+| Click the branch | The branch picker |
+| Click the update pill / the gear | Update / Settings |
+| Right-click | *Go to Line…*, *Set Language…*, *Switch Branch…*, *Vim Mode*, *Features…*, *Settings…*, *Check for Updates* |
 
 ## Title bar
 
@@ -881,8 +920,10 @@ Then the commit message box, the Commit and Amend buttons and the subject's leng
 
 In the message box Enter starts a new line; arrows, Home / End, Ctrl+Left / Right, Ctrl+Backspace, Ctrl+U and Ctrl+V
 work as in a text field. With the mouse: click a row to open its change (double-click: the file), click a section to
-fold it, the `+` / `−` / `↺` buttons on the row under the pointer stage, unstage and discard, right-click for a menu,
-and the wheel scrolls. The status is read again when the window gets the focus back, after every git command and
+fold it, the `+` / `−` / `↺` buttons on the row under the pointer (lit) stage, unstage and discard, and the wheel
+scrolls. A right click on a file opens its menu (open, stage, unstage, discard, history), on a section header the
+section's (*Stage All*, *Unstage All*, *Discard All Changes…* and *Delete All…* after a `y`), and anywhere else in the
+panel the panel's (commit, stage or unstage everything, pull, push, fetch, branches, stash, the log, refresh). The status is read again when the window gets the focus back, after every git command and
 after you save a file of the repository.
 
 **Lists.** `git_branches` lists local branches (newest first), remote branches and tags: Enter checks one out (a remote

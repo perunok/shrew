@@ -13,6 +13,7 @@
 //!   provider behind go to symbol).
 //! - `terminal`: the built-in terminal panel (cargo feature `terminal`).
 //! - [`settings`]: the Settings panel (Ctrl+,): sections of setting rows, saved to config.toml.
+//! - [`statusbar`]: the status bar's clickable items and menus; [`language`]: *Set Language…* for a buffer.
 //! - [`headless`]: `--screenshot`, a frame rendered without a window.
 //! - [`titlebar`]: the custom title bar (tabs, menus, window buttons) and its window behaviour.
 //! - [`mouse`]: what the mouse does, without a window (the app and headless runs share it); [`context_menu`]: the
@@ -36,6 +37,7 @@ mod git;
 mod headless;
 mod ipc;
 mod keys;
+mod language;
 mod launch;
 mod layout;
 // ----- editor menus -----
@@ -49,6 +51,7 @@ mod remote;
 mod settings;
 mod sidebar;
 mod state;
+mod statusbar;
 // ----- tabs -----
 mod tabs;
 // -----

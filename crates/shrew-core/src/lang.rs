@@ -103,3 +103,22 @@ pub fn detect_shebang(first_line: &str) -> Option<&'static Lang> {
 pub fn by_name(name: &str) -> Option<&'static Lang> {
     LANGS.iter().find(|l| l.name == name)
 }
+
+/// The language of a grammar name as Sublime's grammars spell it ("Rust", "C++", "Bourne Again Shell (bash)"),
+/// or of a shrew language name; `None` for one shrew has no comment tokens for (plain text among them).
+pub fn by_grammar(name: &str) -> Option<&'static Lang> {
+    let n = name.trim().to_lowercase();
+    let alias = match n.as_str() {
+        "c++" => "cpp",
+        "c#" => "csharp",
+        "makefile" => "make",
+        "shell-unix-generic" | "shell script" | "sh" | "zsh" => "bash",
+        "objective-c" | "objective-c++" => "c",
+        "plain text" => "text",
+        "javascript (babel)" | "jsx" => "javascript",
+        "typescriptreact" => "tsx",
+        n if n.contains("(bash)") => "bash",
+        n => n,
+    };
+    by_name(alias).or_else(|| LANGS.iter().find(|l| l.extensions.contains(&alias)))
+}

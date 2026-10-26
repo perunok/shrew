@@ -52,6 +52,8 @@ pub enum GrepField {
 #[derive(Debug, Default)]
 pub struct GrepState {
     pub root: PathBuf,
+    /// Only this folder of the project (the sidebar's *Find in Folder…*); Backspace in the empty globs drops it.
+    pub scope: Option<PathBuf>,
     pub opts: GrepOptions,
     pub field: GrepField,
     pub stats: Arc<GrepStats>,
@@ -142,10 +144,12 @@ pub fn search_text(path: &Path, rel: &str, text: &str, re: &Regex, stats: &GrepS
     out
 }
 
-/// Starts a search on a background thread; results come one file at a time.
+/// Starts a search on a background thread; results come one file at a time. `scope`: only this folder of the
+/// project (paths still show relative to `root`).
 #[cfg(feature = "project")]
 pub fn spawn(
     root: &Path,
+    scope: Option<&Path>,
     re: Regex,
     globs: &str,
     stats: Arc<GrepStats>,
@@ -154,6 +158,7 @@ pub fn spawn(
 ) -> std::sync::mpsc::Receiver<Vec<PickerItem>> {
     let (tx, rx) = std::sync::mpsc::channel();
     let root = root.to_path_buf();
+    let walk = scope.map_or_else(|| root.clone(), Path::to_path_buf);
     let globs = globs.to_string();
     let threads = std::thread::available_parallelism().map_or(2, |n| n.get()).clamp(1, 8);
     // if the thread cannot start, `tx` goes with the closure and the picker just stops loading
@@ -183,7 +188,7 @@ pub fn spawn(
             sent && !cancel.load(Ordering::Acquire)
         };
         // bad globs were reported before the search started (`project::check_globs`)
-        let _ = crate::project::walk_files(&root, &globs, threads, &stop, &found);
+        let _ = crate::project::walk_files(&walk, &globs, threads, &stop, &found);
         if stats.matches.load(Ordering::Relaxed) >= MAX_MATCHES {
             stats.capped.store(true, Ordering::Relaxed);
         }
@@ -255,7 +260,7 @@ mod tests {
         let run = |pat: &str, globs: &str| {
             let stats = Arc::new(GrepStats::default());
             let re = build_regex(pat, &opts()).unwrap();
-            let rx = spawn(&d, re, globs, stats.clone(), Arc::new(AtomicBool::new(false)), None);
+            let rx = spawn(&d, None, re, globs, stats.clone(), Arc::new(AtomicBool::new(false)), None);
             let mut files: Vec<String> = rx
                 .iter()
                 .flatten()

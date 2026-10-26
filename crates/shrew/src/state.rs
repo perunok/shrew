@@ -495,7 +495,12 @@ impl State {
             // a fresh highlighter starts from the current text: edits recorded so far are not its business
             b.doc.take_edits();
             let hl = syntax.highlighter(&b.doc);
+            let picked = b.doc.language.is_some();
             self.highlighters.insert(id, hl);
+            // ----- status bar: a language picked by hand stays with the buffer -----
+            if picked {
+                crate::language::apply(self, id);
+            }
         }
         #[cfg(not(feature = "syntax"))]
         let _ = id;
@@ -532,6 +537,10 @@ impl State {
         #[cfg(feature = "syntax")]
         if let Some(n) = self.highlighters.get(&self.ed.buf().id).and_then(|h| h.syntax_name()) {
             return Some(n.to_string());
+        }
+        // ----- status bar: a language picked by hand (without highlighting) -----
+        if let Some(l) = &self.ed.buf().doc.language {
+            return Some(l.clone());
         }
         self.ed.lang().filter(|l| l.name != "text").map(|l| l.name.to_string())
     }

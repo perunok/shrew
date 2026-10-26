@@ -185,7 +185,8 @@ pub fn icon(scene: &mut Scene, x: f32, y: f32, ch: f32, scale: f32, col: Color) 
 /// Columns the icon takes (with its gap).
 pub const ICON_COLS: f32 = 2.6;
 
-/// The branch item in the status bar, laid out leftwards from `right` (which moves past it).
+/// The branch item in the status bar, laid out leftwards from `right` (which moves past it); `lit`: under the pointer.
+#[allow(clippy::too_many_arguments)]
 pub fn draw_status(
     scene: &mut Scene,
     st: &State,
@@ -194,6 +195,7 @@ pub fn draw_status(
     c: &Colors,
     right: &mut f32,
     y: f32,
+    lit: bool,
 ) {
     let Some(b) = branch(st) else { return };
     let cw = lay.cw;
@@ -208,7 +210,12 @@ pub fn draw_status(
     let x0 = *right - w;
     let bar = lay.status;
     hits.branch = Some(Rect::new((x0 - cw / 2.0).round(), bar.y, (w + cw).round(), bar.h));
-    icon(scene, x0, y, lay.ch, lay.scale, c.panel_muted);
+    // under the pointer: the status bar's hover pill (crate::statusbar)
+    if lit {
+        let pill = Rect::new((x0 - cw / 2.0).round(), bar.y + lay.pad, (w + cw).round(), bar.h - 2.0 * lay.pad);
+        scene.rounded_rect(pill, pill.h / 2.0, crate::statusbar::item_fill(c), None);
+    }
+    icon(scene, x0, y, lay.ch, lay.scale, if lit { c.panel_foreground } else { c.panel_muted });
     let mut x = x0 + ICON_COLS * cw;
     scene.text(x.round(), y, &name, TextStyle::new(c.panel_foreground), &[]);
     x += (columns(&name) + 1) as f32 * cw;
@@ -341,6 +348,12 @@ impl TreeDeco {
             (false, true) => self.prefix.clone(),
             (false, false) => format!("{}/{inner}", self.prefix),
         })
+    }
+
+    /// A file's repository path and its state (the sidebar's menu), when it has one.
+    pub fn entry(&self, path: &Path) -> Option<(String, shrew_git::StatusEntry)> {
+        let rel = self.rel(path)?;
+        self.status.get(&rel).map(|e| (rel, e.clone()))
     }
 
     /// A row's mark: its own state (a file inside an untracked or ignored folder takes the folder's), or for a

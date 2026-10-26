@@ -62,7 +62,7 @@ turned off, and "normal" means vim normal mode.
 | Ctrl+Shift+Tab, Ctrl+PageUp | Previous buffer | always |
 | Ctrl+Shift+PageUp / Ctrl+Shift+PageDown | Move the tab left / right | always |
 | Ctrl+Shift+P | Command palette | always |
-| Ctrl+Shift+U | Check for updates | always |
+| Ctrl+Shift+U | Check for updates; with an update in hand (its notification showing, a download going or done), the Update shrew dialog | always |
 | Ctrl+, | Settings panel (Cmd+, on macOS) | always |
 
 ### Editing
@@ -568,7 +568,8 @@ or `:duplicate_line`.
 | `:grep {pattern}`, `:rg`, `:vimgrep` | [Find in project](#find-in-project) |
 | `:setf` / `:setf {language}`, `:setfiletype` | Set Language list / the buffer's language (`python`, `Rust`; empty: detect it) |
 | `:Ex`, `:Explore`, `:Lex`, `:NERDTree` | Focus the [sidebar](#sidebar) |
-| `:update` | Install the available update and restart |
+| `:update` | The Update shrew dialog, downloading the new version (checking first when none is known) |
+| `:checkupdate` | Check for updates now (always answers) |
 | `:version` | Show shrew's version |
 | `:about` | The About panel: version, manifesto, license, credits |
 | `:settings [section]`, `:preferences`, `:prefs` | The Settings panel, on a section when one is named (`:settings ai`) |
@@ -669,7 +670,7 @@ command palette by its title.
 | `select_font` | Font: Select… | |
 | `toggle_ligatures` | Font: Toggle Ligatures | |
 | `check_updates` | Shrew: Check for Updates | Ctrl+Shift+U |
-| `update` | Shrew: Install Update and Restart | `:update`, the status-bar button |
+| `update` | Shrew: Update shrew… | `:update`, the status-bar button, Help > Update shrew… |
 | `config` | Shrew: Open Config File | |
 | `mcp` | Shrew: AI Assistants (MCP) Setup | |
 | `about` | About shrew | `:about` |
@@ -788,11 +789,13 @@ the pointer moves over plain text.
 | [Title bar](#title-bar) | Its buttons; the menu button opens the menus | Close an open menu | Customize Title Bar…, Use System Title Bar | Move the window; its edges resize it |
 | [Sidebar](#sidebar) | Open a file, fold a folder (the chevron only folds) | Open the file behind the current tab | The row's menu, or the root's below the rows | Its right edge resizes it |
 | [Source Control](#source-control) | Select, open a change; the buttons | | The row's, the section's or the panel's menu | |
-| [Status bar](#status-bar) | Mode menu, Go to Line, Set Language, branches, update, Settings | | Go to Line, Set Language, Switch Branch, Vim Mode… | |
+| [Status bar](#status-bar) | Mode menu, Go to Line, Set Language, branches, update, Settings | | Go to Line, Set Language, Switch Branch, Vim Mode…, Check for Updates… | |
 | [Terminal](#terminal) | Focus it; programs that read the mouse get it | Paste the primary selection | Its menu (Shift+right-click when the program reads the mouse) | Select (it becomes the primary selection) |
 | [Diff tab](#diff-view) | The row; the header's buttons | | Stage, Unstage, Revert, Open File… | Select rows |
 | Log tab | Show the commit; a file of it opens its diff | | Show Commit, Open Diff, Copy Commit ID… | |
 | Picker, Settings, About | Pick, set, follow a link; a click outside closes | | | Settings' sliders |
+| [Update shrew](../README.md#updates) dialog | Its buttons; a click outside closes it (the title bar still works) | Nothing | Nothing (no menu opens under it) | |
+| A toast (git's, the update notification) | Its buttons and ✕ | Nothing | Nothing | |
 | Any open menu | Run the entry (on release) | Close it | Close it, or reopen it there | Right press, drag onto an entry, release: run it |
 
 ## Status bar
@@ -805,8 +808,8 @@ Clickable items light up under the pointer:
 | Click the cursor position | Go to line (`:`; type the number) |
 | Click the language | *Set Language…*: the buffer's grammar and comment tokens from a list (*Auto Detect* goes back) |
 | Click the branch | The branch picker |
-| Click the update pill / the gear | Update / Settings |
-| Right-click | *Go to Line…*, *Set Language…*, *Switch Branch…*, *Vim Mode*, *Features…*, *Settings…*, *Check for Updates* |
+| Click the update pill / the gear | The Update shrew dialog / Settings |
+| Right-click | *Go to Line…*, *Set Language…*, *Switch Branch…*, *Vim Mode*, *Features…*, *Settings…*, *Check for Updates…*, and *Update shrew…* once an update is known |
 
 ## Title bar
 

@@ -116,6 +116,11 @@ pub struct Strip {
 }
 
 impl Strip {
+    /// A tab is held down (maybe being carried to another place).
+    pub fn held(&self) -> bool {
+        self.drag.is_some()
+    }
+
     /// Forgets the last frame's tabs: a frame that shows none (one buffer, no tab item in the title bar) leaves no
     /// hit rects behind.
     pub fn begin_frame(&mut self) {

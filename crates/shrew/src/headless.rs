@@ -24,6 +24,16 @@ pub fn run(cli: &Cli, out: &std::path::Path) -> Result<(), String> {
     let mut st = State::new(shrew_config::Loaded::default(), Arc::new(|| {}), true);
     st.config_path = None;
     st.open_request(crate::launch::request(cli, false)?, None);
+    // ----- updates: SHREW_UPDATE_DEMO (debug builds) shows the update UI offline -----
+    #[cfg(feature = "update")]
+    {
+        crate::updates::demo(&mut st);
+        // a restart's session, given explicitly (never the one a restart may have left in the cache)
+        if let Some(p) = &cli.restore {
+            crate::updates::restore_session(&mut st, Some(p));
+        }
+    }
+    // -----
     let (w, h) = cli.size;
     let mut r = Renderer::headless(w, h, cli.scale, st.font.clone()).map_err(|e| format!("renderer: {e}"))?;
     r.wait_for_fonts(Duration::from_secs(5));

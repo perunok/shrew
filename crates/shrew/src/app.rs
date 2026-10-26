@@ -145,6 +145,10 @@ pub fn run(
         ),
         None => st.open_request(req, None),
     }
+    // ----- updates: a restart to update reopens what was open (unsaved changes too) -----
+    #[cfg(feature = "update")]
+    crate::updates::restore_session(&mut st, cli.restore.as_deref());
+    // -----
     let ipc_guard = server.map(|s| {
         let proxy = Mutex::new(proxy.clone());
         s.serve(Arc::new(move |req, done| {
@@ -300,6 +304,11 @@ impl ApplicationHandler<UserEvent> for App {
         if crate::git::tick(&mut self.st, now) {
             self.redraw();
         }
+        // ----- updates: the startup and daily checks, a note going away -----
+        #[cfg(feature = "update")]
+        if crate::updates::tick(&mut self.st, now) {
+            self.redraw();
+        }
     }
 
     fn about_to_wait(&mut self, el: &ActiveEventLoop) {
@@ -329,6 +338,11 @@ impl ApplicationHandler<UserEvent> for App {
         // ----- git -----
         #[cfg(feature = "git")]
         if let Some(t) = crate::git::deadline(&self.st) {
+            at(t);
+        }
+        // ----- updates -----
+        #[cfg(feature = "update")]
+        if let Some(t) = crate::updates::deadline(&self.st) {
             at(t);
         }
         el.set_control_flow(match next {

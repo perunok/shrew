@@ -28,7 +28,8 @@ and the prompt comes back at once.
   --features            list features: compiled in, on or off, what they do
   --print-config        print a commented default config.toml
   --mcp-stdio           run the MCP stdio bridge for AI assistants (no window)
-  --stats               log frame timings (input→present, build, render) to stderr (with -f)
+  --self-update         update this shrew from GitHub Releases, verified (no window; restart shrew after)
+  --stats              log frame timings (input→present, build, render) to stderr (with -f)
   --screenshot OUT.png  render one frame headless and save it (no window), with:
       --size WxH        image size in pixels (default 1200x800)
       --scale F         scale factor (default 1)
@@ -56,6 +57,9 @@ pub fn program_name() -> String {
 /// The hidden flag a detached instance is started with: its request arrives on stdin, replies go to stdout.
 pub const INSTANCE_FLAG: &str = "--instance";
 
+/// The hidden flag a restart to update starts the new version with: the session file to reopen.
+pub const RESTORE_FLAG: &str = "--restore-session";
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Action {
     Edit,
@@ -65,6 +69,8 @@ pub enum Action {
     PrintConfig,
     McpStdio,
     Screenshot(PathBuf),
+    /// `--self-update`.
+    SelfUpdate,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -84,6 +90,8 @@ pub struct Cli {
     /// `--hover X,Y`: the pointer's last position for `--screenshot` (logical pixels).
     pub hover: Option<(f32, f32)>,
     pub stats: bool,
+    /// The session a restart to update left ([`RESTORE_FLAG`]).
+    pub restore: Option<PathBuf>,
 }
 
 impl Default for Cli {
@@ -101,6 +109,7 @@ impl Default for Cli {
             keys: String::new(),
             hover: None,
             stats: false,
+            restore: None,
         }
     }
 }
@@ -129,6 +138,8 @@ impl Cli {
                 "--features" => cli.action = Action::Features,
                 "--print-config" => cli.action = Action::PrintConfig,
                 "--mcp-stdio" => cli.action = Action::McpStdio,
+                "--self-update" => cli.action = Action::SelfUpdate,
+                RESTORE_FLAG => cli.restore = Some(value(RESTORE_FLAG)?.into()),
                 "--stats" => cli.stats = true,
                 "--screenshot" => cli.action = Action::Screenshot(value("--screenshot")?.into()),
                 "--keys" => cli.keys = value("--keys")?,
@@ -276,6 +287,11 @@ mod tests {
         assert_eq!(parse("--print-config").unwrap().action, Action::PrintConfig);
         assert_eq!(parse("--mcp-stdio").unwrap().action, Action::McpStdio);
         assert!(parse("--stats").unwrap().stats);
+        assert_eq!(parse("--self-update").unwrap().action, Action::SelfUpdate);
+        let c = parse("-f --restore-session /tmp/s.json").unwrap();
+        assert_eq!((c.foreground, c.restore), (true, Some(PathBuf::from("/tmp/s.json"))));
+        assert!(c.files.is_empty());
+        assert!(parse("--restore-session").is_err());
         let c = parse("--screenshot out.png --size 640x480 --scale 2 --keys ggVj --hover 10,20.5 main.rs").unwrap();
         assert_eq!(c.action, Action::Screenshot("out.png".into()));
         assert_eq!((c.size, c.scale, c.keys.as_str()), ((640, 480), 2.0, "ggVj"));

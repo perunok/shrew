@@ -10,6 +10,9 @@
 //! [`target_at`] says what is under a point ([`Target`]: the text, a tab, a sidebar row, the gutter...). A right
 //! press opens that target's context menu (see [`crate::context_menu::for_target`]); while a menu is open, the
 //! mouse goes to it first.
+//!
+//! Overlays take the pointer ([`overlay`]): over a toast, or anywhere under the title bar while the Update shrew
+//! dialog is open (it is modal), nothing below lights up, opens a menu or takes a click.
 
 use crate::draw::Ui;
 use crate::layout::{Layout, Scroll};
@@ -157,6 +160,8 @@ enum WheelWhat {
     Menu,
     Settings,
     About,
+    #[cfg_attr(not(feature = "update"), allow(dead_code))]
+    Dialog,
     Sidebar,
     #[cfg_attr(not(feature = "git"), allow(dead_code))]
     Git,
@@ -234,7 +239,12 @@ impl Mouse {
         // the terminal panel takes presses over it; a click elsewhere gives the editor the focus back and goes on
         #[cfg(feature = "terminal")]
         {
-            let modal = st.ed.picker.is_some() || st.ed.about.is_some() || st.settings.is_open() || st.menu_open();
+            let modal = st.ed.picker.is_some()
+                || st.ed.about.is_some()
+                || st.settings.is_open()
+                || st.menu_open()
+                || update_modal(st)
+                || overlay(st, ui, x, y);
             if !modal && st.terminal_press(x, y, button, self.mods) {
                 return Response::INPUT;
             }
@@ -299,6 +309,10 @@ impl Mouse {
         crate::tabs::release(st, x, y);
         // a title bar button acts when released over it
         crate::titlebar::release(st, &ui.hits, x, y);
+        // ----- updates: what it opened (Settings, About...) closes the dialog -----
+        #[cfg(feature = "update")]
+        crate::updates::yield_dialog(st);
+        // -----
         if self.drag == Drag::Sidebar {
             st.persist_sidebar_width();
         }
@@ -341,8 +355,19 @@ impl Mouse {
         }
         // the title bar, its menus and the window's resize borders come first
         if crate::titlebar::press(st, &ui.hits, &lay, x, y, now) {
+            // ----- updates: one overlay at a time: a menu of the bar closes the dialog -----
+            #[cfg(feature = "update")]
+            crate::updates::yield_dialog(st);
+            // -----
             return Response::INPUT;
         }
+        // ----- updates: the Update shrew dialog (modal: a click outside it closes it) and the notification -----
+        #[cfg(feature = "update")]
+        if crate::updates::click(st, x, y) {
+            st.after_input();
+            return Response::INPUT;
+        }
+        // -----
         let hits = &ui.hits;
         // the About panel is modal too: a click on a link opens it, a click outside closes the panel
         if st.ed.about.is_some() {
@@ -500,6 +525,11 @@ impl Mouse {
         if st.titlebar.menu.take().is_some() {
             return Response::INPUT;
         }
+        // ----- updates: nothing opens under the modal dialog (not even the title bar's menu) -----
+        if update_modal(st) {
+            return Response::NONE;
+        }
+        // -----
         if !self.open_menu(st, ui, &lay, x, y) {
             return Response::NONE;
         }
@@ -512,6 +542,9 @@ impl Mouse {
 
     /// Opens the menu of what is at (`x`, `y`). True when one opened (or the press was taken).
     fn open_menu(&mut self, st: &mut State, ui: &Ui, lay: &Layout, x: f32, y: f32) -> bool {
+        if overlay(st, ui, x, y) {
+            return false;
+        }
         // ----- git ----- the Source Control panel selects the row first
         #[cfg(feature = "git")]
         if crate::git::right_press(st, x, y) {
@@ -529,6 +562,10 @@ impl Mouse {
             st.menu = None;
             st.titlebar.menu = None;
             return Response::INPUT;
+        }
+        // under the update dialog or on a toast the middle button does nothing
+        if update_modal(st) || overlay(st, ui, x, y) {
+            return Response::NONE;
         }
         let modal = st.ed.picker.is_some() || st.ed.about.is_some() || st.settings.is_open();
         // ----- tabs -----
@@ -643,38 +680,45 @@ impl Mouse {
             // -----
             Drag::None => {}
         }
+        // over an overlay (a toast, the update dialog) nothing below lights up: the parts under it see the pointer
+        // nowhere (a drag goes on with the real one); the overlay's own buttons light up
+        let over = overlay(st, ui, x, y);
+        let (hx, hy) = if over { (f32::MIN, f32::MIN) } else { (x, y) };
+        let (toasts, on_toast) = toast_hover(st, x, y);
+        redraw |= toasts;
         // ----- tabs: hover, a dragged tab -----
-        redraw |= crate::tabs::moved(st, &lay, x, y);
+        redraw |=
+            if st.tabs.held() { crate::tabs::moved(st, &lay, x, y) } else { crate::tabs::moved(st, &lay, hx, hy) };
         let (bar, bar_icon) = crate::titlebar::pointer_moved(st, &ui.hits, &lay, x, y);
         let on_menu = st.menu.as_ref().is_some_and(|m| m.inside(x, y));
         let menu = st.menu.as_mut().is_some_and(|m| m.hover(x, y));
-        let map = crate::minimap::hover(ui, &lay, Some((x, y)));
+        let map = crate::minimap::hover(ui, &lay, Some((hx, hy)));
         #[cfg(feature = "git")]
-        let (git_redraw, on_git) = crate::git::hover(st, x, y);
+        let (git_redraw, on_git) = crate::git::hover(st, hx, hy);
         #[cfg(not(feature = "git"))]
         let (git_redraw, on_git) = (false, false);
         // ----- sidebar and status bar: the row and the item under the pointer light up -----
-        let side = crate::sidebar::hover(st, &ui.hits.sidebar, x, y);
-        let (status, on_status) = crate::statusbar::hover(st, ui, x, y);
-        let on_git = on_git || on_status;
+        let side = crate::sidebar::hover(st, &ui.hits.sidebar, hx, hy);
+        let (status, on_status) = crate::statusbar::hover(st, ui, hx, hy);
+        let on_git = on_git || on_status || on_toast;
         redraw |= side || status;
         // -----
         redraw |= bar || menu || map || git_redraw;
         // ----- jank hunt: the scrollbar lights up under the pointer; the picker row under it -----
         let hot = self.drag == Drag::Scrollbar
-            || (self.drag == Drag::None && ui.hits.scrollbar.is_some_and(|(t, _)| t.contains(x, y)));
+            || (self.drag == Drag::None && ui.hits.scrollbar.is_some_and(|(t, _)| t.contains(hx, hy)));
         redraw |= std::mem::replace(&mut ui.scrollbar_hot, hot) != hot;
         if st.ed.picker.is_some() {
             let row = ui.hits.picker_rows.iter().find(|(r, _)| r.contains(x, y)).map(|h| h.1 - ui.picker_top);
             redraw |= std::mem::replace(&mut ui.picker_hover, row) != row;
         }
         // -----
-        let on_edge = st.ed.picker.is_none() && ui.hits.sidebar.edge.is_some_and(|r| r.contains(x, y));
+        let on_edge = st.ed.picker.is_none() && ui.hits.sidebar.edge.is_some_and(|r| r.contains(hx, hy));
         let on_link = st.ed.about.is_some() && ui.hits.about_links.iter().any(|(r, _)| r.contains(x, y));
         // ----- git -----
         #[cfg(feature = "git")]
         let (on_link, diff) = (
-            on_link || (st.ed.picker.is_none() && crate::git::diffview::hover(st, x, y)),
+            on_link || (st.ed.picker.is_none() && crate::git::diffview::hover(st, hx, hy)),
             crate::git::diffview::is_active(st),
         );
         #[cfg(not(feature = "git"))]
@@ -692,6 +736,7 @@ impl Mouse {
             && st.ed.about.is_none()
             && !st.settings.is_open()
             && !diff
+            && !over
             && lay.text_rect().contains(x, y)
             && !ui.hits.scrollbar.is_some_and(|(t, _)| t.contains(x, y))
         {
@@ -707,7 +752,7 @@ impl Mouse {
         };
         #[cfg(feature = "terminal")]
         let icon = match self.drag {
-            Drag::None if st.ed.picker.is_none() && st.ed.about.is_none() && !on_menu => {
+            Drag::None if st.ed.picker.is_none() && st.ed.about.is_none() && !on_menu && !over => {
                 let (over, r) = st.terminal_motion(x, y, self.mods);
                 redraw |= r;
                 over.unwrap_or(icon)
@@ -729,7 +774,8 @@ impl Mouse {
         let row = ui.picker_hover.take().is_some();
         let hot = self.drag != Drag::Scrollbar && std::mem::take(&mut ui.scrollbar_hot);
         // -----
-        Response::redraw_if(bar | map | tabs | lit | row | hot)
+        let toasts = toast_left(st);
+        Response::redraw_if(bar | map | tabs | lit | row | hot | toasts)
     }
 
     /// The drag autoscroll's timer: scrolls on while the pointer is past the text's top or bottom edge.
@@ -801,6 +847,22 @@ impl Mouse {
         // -----
         if st.menu_open() {
             return Response::NONE; // nothing scrolls under an open menu
+        }
+        // ----- updates: the dialog scrolls its release notes, nothing under it scrolls -----
+        #[cfg(feature = "update")]
+        if crate::updates::modal(st) {
+            let lines = match delta {
+                Wheel::Lines(_, y) => -y * WHEEL_LINES,
+                Wheel::Pixels(_, y) => -y / lay.ch,
+            };
+            let rows = self.steps(WheelWhat::Dialog, lines);
+            let _ = crate::updates::wheel(st, rows as f32);
+            return Response::redraw_if(rows != 0);
+        }
+        // -----
+        // nothing scrolls under a toast
+        if overlay(st, ui, px, py) {
+            return Response::NONE;
         }
         // notches times `per_notch`, or pixels over `per_pixel`
         let dy = |per_notch: f32, per_pixel: f32| match delta {
@@ -1104,9 +1166,71 @@ fn autoscroll_speed(st: &State, lay: &Layout, x: f32, y: f32) -> (f32, f32) {
     (lines, cols)
 }
 
-/// What is under (`x`, `y`) in the last frame. Under a modal panel (picker, About, Settings): nothing.
+/// Whether the Update shrew dialog is open: it is modal, so no menu opens and nothing under it takes the mouse.
+fn update_modal(st: &State) -> bool {
+    #[cfg(feature = "update")]
+    return crate::updates::modal(st);
+    #[cfg(not(feature = "update"))]
+    {
+        let _ = st;
+        false
+    }
+}
+
+/// Whether an overlay takes the pointer at (`x`, `y`): a toast (git's, the update notification), or anywhere but the
+/// title bar while the Update shrew dialog is open (the bar's buttons and the window's edges still work).
+pub fn overlay(st: &State, ui: &Ui, x: f32, y: f32) -> bool {
+    #[cfg(feature = "update")]
+    if crate::updates::over(st, x, y) && crate::titlebar::hit(st, &ui.hits, x, y).is_none() {
+        return true;
+    }
+    #[cfg(feature = "git")]
+    if st.git.ops.hits.contains(x, y) {
+        return true;
+    }
+    let _ = (st, ui, x, y);
+    false
+}
+
+/// The pointer moved: the toasts' and the update dialog's buttons under it light up. (redraw, over a button)
+fn toast_hover(st: &mut State, x: f32, y: f32) -> (bool, bool) {
+    #[cfg(feature = "git")]
+    let git = {
+        let ops = &mut st.git.ops;
+        crate::toast::hover(&ops.hits, &mut ops.hot, x, y)
+    };
+    #[cfg(not(feature = "git"))]
+    let git = (false, false);
+    #[cfg(feature = "update")]
+    let update = crate::updates::hover(st, x, y);
+    #[cfg(not(feature = "update"))]
+    let update = (false, false);
+    let _ = (st, x, y);
+    (git.0 | update.0, git.1 | update.1)
+}
+
+/// The pointer left the window: no toast button is lit. True when one was.
+fn toast_left(st: &mut State) -> bool {
+    #[cfg(feature = "git")]
+    let git = std::mem::take(&mut st.git.ops.hot) != crate::toast::Hot::None;
+    #[cfg(not(feature = "git"))]
+    let git = false;
+    #[cfg(feature = "update")]
+    let update = crate::updates::pointer_left(st);
+    #[cfg(not(feature = "update"))]
+    let update = false;
+    let _ = st;
+    git | update
+}
+
+/// What is under (`x`, `y`) in the last frame. Under a modal panel (picker, About, Settings, the Update shrew
+/// dialog) or a toast: nothing.
 pub fn target_at(st: &State, ui: &Ui, lay: &Layout, x: f32, y: f32) -> Target {
-    if st.ed.picker.is_some() || st.ed.about.is_some() || st.settings.is_open() {
+    if st.ed.picker.is_some() || st.ed.about.is_some() || st.settings.is_open() || update_modal(st) {
+        return Target::Nothing;
+    }
+    // a toast covers what is under it
+    if overlay(st, ui, x, y) {
         return Target::Nothing;
     }
     let tab = |x: f32, y: f32| ui.hits.tabs.iter().find(|(r, _)| r.contains(x, y)).map(|h| h.1);

@@ -2,12 +2,12 @@
 //! progress line and a cancel button (or `git_cancel`, or Esc in the panel); and git's whole message when an op
 //! fails, until Esc or its close button. `git_output` opens the last op's output in a buffer.
 
-use crate::colors::{Colors, mix};
+use crate::colors::Colors;
 use crate::layout::Layout;
 use crate::state::State;
 use shrew_core::Document;
 use shrew_git::{Op, RepoState, Ticket};
-use shrew_render::{Rect, Scene, TextStyle, columns};
+use shrew_render::Scene;
 
 /// Error lines a toast shows at most (`git_output` has them all).
 const TOAST_LINES: usize = 12;
@@ -24,11 +24,8 @@ pub struct Failure {
     pub lines: Vec<String>,
 }
 
-#[derive(Default, Debug)]
-pub struct Hits {
-    pub area: Option<Rect>,
-    pub close: Option<Rect>,
-}
+/// Where the toast landed (the app's one toast, see `toast`).
+pub type Hits = crate::toast::Hits;
 
 #[derive(Default)]
 pub struct Ops {
@@ -40,6 +37,8 @@ pub struct Ops {
     /// The last fetch, pull or push summary, or the last error.
     pub last_output: String,
     pub hits: Hits,
+    /// The toast's part under the pointer (its close button lights up).
+    pub hot: crate::toast::Hot,
 }
 
 impl Ops {
@@ -197,60 +196,19 @@ pub fn draw(scene: &mut Scene, st: &mut State, lay: &Layout, c: &Colors) {
         (None, Some(f)) => (f.title.clone(), f.lines.clone(), true),
         _ => return,
     };
-    let (cw, ch, pad) = (lay.cw, lay.ch, lay.pad);
-    let longest = lines.iter().map(|l| columns(l)).chain([columns(&title) + 4]).max().unwrap_or(10);
-    let w = ((longest + 4) as f32 * cw).clamp(36.0 * cw, (lay.width * 0.5).max(36.0 * cw)).min(lay.width - 4.0 * cw);
-    // long lines wrap; past the limit `git_output` has the rest
-    let cols = ((w / cw) as usize).saturating_sub(4).max(10);
-    let mut lines: Vec<String> = lines.iter().flat_map(|l| wrap(l, cols)).collect();
-    if lines.len() > TOAST_LINES {
-        lines.truncate(TOAST_LINES - 1);
-        lines.push("… (git_output shows all of it)".into());
-    }
-    let h = (lines.len() + 1) as f32 * ch + 4.0 * pad;
-    let x = (lay.width - w - 2.0 * cw).round();
-    let y = (lay.status.y - h - 2.0 * pad).round();
-    let panel = Rect::new(x, y, w.round(), h.round());
-    scene.layer(2);
-    crate::draw::popup(scene, panel, lay, c);
-    if error {
-        let bar = (3.0 * lay.scale).round();
-        scene.rounded_rect(Rect::new(x, y, bar, panel.h), bar / 2.0, c.error, None);
-    }
-    scene.push_clip(panel);
-    let tx = x + 2.0 * cw;
-    let ty = y + 2.0 * pad;
-    let tc = if error { c.error } else { c.accent };
-    scene.text(tx, ty, &title, TextStyle::new(tc).bold(), &[]);
-    // the close (cancel) button
-    let label = if error { "✕" } else { "cancel ✕" };
-    let bw = (columns(label) + 2) as f32 * cw;
-    let close = Rect::new((panel.right() - bw - cw).round(), ty, bw.round(), ch);
-    scene.rounded_rect(close, (4.0 * lay.scale).round(), mix(c.panel_selection, c.popup, 0.6), None);
-    scene.text(close.x + cw, ty, label, TextStyle::new(c.panel_muted), &[]);
-    let fg = if error { c.panel_foreground } else { c.panel_muted };
-    for (i, l) in lines.iter().enumerate() {
-        scene.text(tx, ty + (i + 1) as f32 * ch, l, TextStyle::new(fg), &[]);
-    }
-    scene.pop_clip();
-    scene.layer(0);
-    ops.hits = Hits { area: Some(panel), close: Some(close) };
-}
-
-/// `s` cut into pieces of at most `cols` columns.
-fn wrap(s: &str, cols: usize) -> Vec<String> {
-    let mut out = vec![String::new()];
-    let mut w = 0;
-    for ch in s.chars() {
-        let cw = shrew_render::char_columns(ch);
-        if w + cw > cols {
-            out.push(String::new());
-            w = 0;
-        }
-        out.last_mut().expect("one").push(ch);
-        w += cw;
-    }
-    out
+    // the app's one toast look (see `toast`); past the limit `git_output` has the rest
+    let spec = crate::toast::Spec {
+        title: &title,
+        tint: if error { c.error } else { c.accent },
+        error,
+        lines: &lines,
+        max_lines: TOAST_LINES,
+        more: "… (git_output shows all of it)",
+        buttons: &[],
+        close: if error { "✕" } else { "cancel ✕" },
+        hot: ops.hot,
+    };
+    ops.hits = crate::toast::draw(scene, &spec, crate::toast::bottom(lay), lay, c);
 }
 
 /// A click on the toast: its button cancels the op or closes the message. True when it was on the toast.

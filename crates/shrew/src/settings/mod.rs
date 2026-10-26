@@ -266,7 +266,7 @@ impl State {
     }
 
     /// Builds the rows again (an action may have changed the lists: imports, mappings), keeping the place.
-    fn rebuild_rows(&mut self) {
+    pub(crate) fn rebuild_rows(&mut self) {
         if self.settings.panel.is_none() {
             return;
         }

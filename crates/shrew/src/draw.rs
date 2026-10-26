@@ -209,6 +209,10 @@ pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: 
     #[cfg(feature = "git")]
     crate::git::draw_overlays(scene, st, lay, &c);
     crate::settings::draw(scene, st, lay, &c);
+    // ----- updates: the notification (above git's toast) and the Update shrew dialog -----
+    #[cfg(feature = "update")]
+    crate::updates::draw(scene, st, lay, &c);
+    // -----
     if st.ed.picker.is_some() {
         picker(scene, &st.ed, ui, lay, &c);
     } else {

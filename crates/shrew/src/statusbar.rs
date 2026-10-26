@@ -150,8 +150,17 @@ pub fn menu(st: &State) -> Option<ContextMenu> {
     items.push(Action::command(ed, Command::ToggleVim).label("Vim Mode").into());
     items.push(Action::command(ed, Command::ShowFeatures).label("Features…").into());
     items.push(Action::command(ed, Command::Settings).label("Settings…").into());
+    // ----- updates: a check, and the update once one is known (or downloading, or ready to restart) -----
     #[cfg(feature = "update")]
-    items.push(Action::command(ed, Command::CheckForUpdates).into());
+    {
+        items.push(MenuItem::Separator);
+        items.push(Action::command(ed, Command::CheckForUpdates).label("Check for Updates…").into());
+        let u = &st.updates;
+        if u.available.is_some() || !matches!(u.phase(), shrew_update::Phase::Idle) {
+            items.push(Action::command(ed, Command::InstallUpdate).label("Update shrew…").into());
+        }
+    }
+    // -----
     Some(ContextMenu::new(Target::StatusBar, items))
 }
 

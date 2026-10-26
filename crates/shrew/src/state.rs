@@ -72,8 +72,11 @@ pub struct State {
     pub syntax: Option<shrew_syntax::Syntaxes>,
     #[cfg(feature = "syntax")]
     pub highlighters: std::collections::HashMap<u64, shrew_syntax::Highlighter>,
+    // ----- updates -----
+    /// The update schedule, notification, dialog and updater (see `updates`).
     #[cfg(feature = "update")]
-    pub updater: Option<shrew_update::Updater>,
+    pub updates: crate::updates::Updates,
+    // -----
     #[cfg(feature = "mcp")]
     pub mcp: Option<shrew_mcp::McpServer>,
     /// How MCP jobs reach the UI thread (set by the windowed app; none headless).
@@ -155,8 +158,9 @@ impl State {
             syntax: None,
             #[cfg(feature = "syntax")]
             highlighters: Default::default(),
+            // ----- updates -----
             #[cfg(feature = "update")]
-            updater: None,
+            updates: crate::updates::Updates::new(headless),
             #[cfg(feature = "mcp")]
             mcp: None,
             #[cfg(feature = "mcp")]
@@ -245,6 +249,12 @@ impl State {
         if crate::context_menu::key(self, k) {
             return;
         }
+        // ----- updates: the Update shrew dialog is modal; Esc also dismisses the update notification -----
+        #[cfg(feature = "update")]
+        if crate::updates::key(self, k) {
+            return self.after_input();
+        }
+        // -----
         // ----- tabs: Esc drops a dragged tab back -----
         if crate::tabs::key(self, k) {
             return;
@@ -421,7 +431,7 @@ impl State {
         match f {
             Feature::Syntax => self.set_syntax(on),
             Feature::Mcp => self.set_mcp(on),
-            Feature::UpdateCheck if on => self.auto_update_check(),
+            // (update_check: the update schedule reads the feature at every deadline)
             Feature::Sidebar if !on => self.ed.sidebar_focus = false,
             Feature::Sidebar | Feature::CompactFolders => self.ed.sync_tree(),
             #[cfg(feature = "terminal")]
@@ -566,6 +576,11 @@ impl State {
         {
             changed |= crate::git::poll(self);
         }
+        // ----- updates -----
+        #[cfg(feature = "update")]
+        {
+            changed |= crate::updates::poll(self);
+        }
         changed
     }
 
@@ -601,9 +616,9 @@ impl State {
 
     /// Work that waits until the first frame is on screen: the update check and the MCP server.
     pub fn start_deferred(&mut self) {
-        if self.ed.features.on(Feature::UpdateCheck) {
-            self.auto_update_check();
-        }
+        // ----- updates: the startup check, a few seconds from now, then the daily one -----
+        #[cfg(feature = "update")]
+        crate::updates::start(self);
         if self.ed.features.on(Feature::Mcp) {
             self.set_mcp(true);
         }
@@ -649,89 +664,35 @@ impl State {
         }
     }
 
-    // ----- updates -----
+    // ----- updates (all in `updates`) -----
 
-    #[cfg(feature = "update")]
-    fn updater(&mut self) -> &shrew_update::Updater {
-        if self.updater.is_none() {
-            shrew_update::cleanup();
-            let wake = self.wake.clone();
-            self.updater = Some(shrew_update::Updater::new(env!("CARGO_PKG_VERSION"), move || wake()));
-        }
-        self.updater.as_ref().expect("just created")
-    }
-
-    fn auto_update_check(&mut self) {
-        #[cfg(feature = "update")]
-        if !self.headless {
-            self.updater().check(false);
-        }
-    }
-
+    /// Ctrl+Shift+U, Help > Check for Updates…: the dialog when an update is in hand, else a check that answers.
     fn check_updates(&mut self) {
         #[cfg(feature = "update")]
-        {
-            self.updater().check(true);
-        }
+        crate::updates::check_command(self);
         #[cfg(not(feature = "update"))]
         self.ed.error("updates are not compiled into this build");
     }
 
+    /// `:update`, Help > Update shrew…: the Update shrew dialog, downloading.
     fn install_update(&mut self) {
         #[cfg(feature = "update")]
-        {
-            use shrew_update::Status;
-            match self.updater().status() {
-                Status::Available(_) => {
-                    self.updater().install();
-                }
-                Status::Ready(_) | Status::Failed(_) => self.activate_update(),
-                Status::Downloading(_) | Status::Checking => {}
-                Status::Idle | Status::UpToDate => {
-                    self.updater().check(true);
-                }
-            }
-        }
+        crate::updates::update_command(self);
         #[cfg(not(feature = "update"))]
         self.ed.error("updates are not compiled into this build");
     }
 
-    /// The status-bar update button was clicked.
+    /// The status-bar update button was clicked: the dialog.
     pub fn activate_update(&mut self) {
         #[cfg(feature = "update")]
-        {
-            let ready = matches!(self.updater().status(), shrew_update::Status::Ready(_));
-            if ready {
-                // restarting exec's the new binary right away: nothing unsaved may be lost
-                if let Some(b) = self.ed.buffers.iter().find(|b| b.doc.dirty) {
-                    let name = b.doc.display_name();
-                    return self.ed.error(format!("save \"{name}\" first: restarting would lose its changes"));
-                }
-                #[cfg(feature = "mcp")]
-                if let Some(s) = self.mcp.take() {
-                    s.stop();
-                }
-            }
-            self.updater().activate();
-        }
+        crate::updates::status_clicked(self);
     }
 
     /// Text and tone of the status-bar update button, if one should show.
-    #[cfg(feature = "update")]
     pub fn update_label(&self) -> Option<(String, Tone)> {
-        use shrew_update::Status;
-        let s = self.updater.as_ref()?.status();
-        let label = s.label()?;
-        Some(match s {
-            Status::Available(_) => (format!("⬆ {label}"), Tone::Accent),
-            Status::Ready(_) => (format!("⟳ {label}"), Tone::Success),
-            Status::Failed(_) => (label, Tone::Error),
-            _ => (label, Tone::Muted),
-        })
-    }
-
-    #[cfg(not(feature = "update"))]
-    pub fn update_label(&self) -> Option<(String, Tone)> {
+        #[cfg(feature = "update")]
+        return crate::updates::status_label(self);
+        #[cfg(not(feature = "update"))]
         None
     }
 

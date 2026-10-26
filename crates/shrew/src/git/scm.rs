@@ -875,9 +875,9 @@ pub fn wheel(st: &mut State, x: f32, y: f32, lines: f32) -> bool {
 pub fn hover(st: &mut State, x: f32, y: f32) -> (bool, bool) {
     let (a, pa) = panel::draw::hover(st, x, y);
     let (b, pb) = log::hover(st, x, y);
+    // (the toast's own hover is the mouse's, with the other toasts: see `mouse::Mouse::moved`)
     let pc = st.git.conflicts.hits.iter().any(|h| h.0.contains(x, y))
-        || st.git.blame_view.hits.iter().any(|h| h.0.contains(x, y))
-        || st.git.ops.hits.close.is_some_and(|r| r.contains(x, y));
+        || st.git.blame_view.hits.iter().any(|h| h.0.contains(x, y));
     (a || b, pa || pb || pc)
 }
 

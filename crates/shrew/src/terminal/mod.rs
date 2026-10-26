@@ -392,6 +392,24 @@ impl Terminals {
         }
     }
 
+    // ----- updates -----
+    /// Ends every shell and waits for them (at most `timeout`): restart to update re-executes shrew right after.
+    #[cfg(feature = "update")]
+    pub fn close_for_restart(&mut self, timeout: Duration) {
+        let sessions: Vec<Session> = self.tabs.drain(..).map(|t| t.session).collect();
+        (self.active, self.hover, self.visible, self.maximized) = (0, None, false, false);
+        self.set_focus(false);
+        let (tx, rx) = std::sync::mpsc::channel();
+        let spawned = std::thread::Builder::new().name("shrew-term-close".into()).spawn(move || {
+            sessions.into_iter().for_each(Session::close_now);
+            let _ = tx.send(());
+        });
+        if spawned.is_ok() {
+            let _ = rx.recv_timeout(timeout);
+        }
+    }
+    // -----
+
     /// The panel's height in a layout without it.
     fn panel_height(&self, lay: &Layout) -> f32 {
         if self.maximized {

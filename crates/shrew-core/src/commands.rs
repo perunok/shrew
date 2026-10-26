@@ -272,7 +272,7 @@ pub static COMMANDS: &[(Command, &str, &str)] = &[
     (SelectFont, "select_font", "Font: Select…"),
     (ToggleLigatures, "toggle_ligatures", "Font: Toggle Ligatures"),
     (CheckForUpdates, "check_updates", "Shrew: Check for Updates"),
-    (InstallUpdate, "update", "Shrew: Install Update and Restart"),
+    (InstallUpdate, "update", "Shrew: Update shrew…"),
     (OpenConfig, "config", "Shrew: Open Config File"),
     (McpSetup, "mcp", "Shrew: AI Assistants (MCP) Setup"),
     (About, "about", "About shrew"),

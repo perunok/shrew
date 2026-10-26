@@ -308,3 +308,110 @@ fn a_menu_for_a_target_with_app_actions() {
     assert!(s.st.menu.is_none());
     assert_eq!(s.st.ed.message.as_ref().map(|m| m.0.as_str()), Some("Text(2) 7"));
 }
+
+// ----- updates: the notification and the Update shrew dialog are overlays -----
+
+#[cfg(feature = "update")]
+fn note(s: &mut Sim) -> crate::toast::Hits {
+    s.st.updates.toast = Some(crate::updates::Toast::Note {
+        title: "shrew is up to date".into(),
+        body: "0.2.0 is the latest release.".into(),
+        error: false,
+        link: Some(("What's new", "https://example.com".into())),
+        retry: false,
+    });
+    s.frame();
+    s.st.updates.hits.toast.clone()
+}
+
+#[cfg(feature = "update")]
+#[test]
+fn the_update_notification_takes_the_pointer() {
+    use crate::toast::Hot;
+    let text: String = (0..60).map(|i| format!("a line of text number {i:<40}\n")).collect();
+    let mut s = Sim::with(&[&text]);
+    let hits = note(&mut s);
+    let area = hits.area.expect("drawn");
+    let lay = s.frame();
+    assert!(lay.text.contains(area.x + 4.0, area.y + 4.0), "it covers the text");
+    // over its body: an arrow, nothing under it is a target
+    let (x, y) = (area.x + 4.0, area.y + 4.0);
+    s.run(&format!("<move:{x},{y}>"));
+    assert_eq!(s.mouse.icon(), CursorIcon::Default);
+    assert_eq!(target_at(&s.st, &s.ui, &lay, x, y), Target::Nothing);
+    // a right or middle click there opens nothing and changes nothing
+    s.run(&format!("<rclick:{x},{y}><mclick:{x},{y}>"));
+    assert!(s.st.menu.is_none());
+    assert_eq!(s.st.ed.mode, Mode::Normal);
+    // its button lights up under the pointer, with a hand
+    let (bx, by) = mid(hits.buttons[0]);
+    s.run(&format!("<move:{bx},{by}>"));
+    assert_eq!((s.st.updates.hot, s.mouse.icon()), (Hot::Button(0), CursorIcon::Pointer));
+    let (cx, cy) = mid(hits.close.unwrap());
+    s.run(&format!("<move:{cx},{cy}>"));
+    assert_eq!(s.st.updates.hot, Hot::Close);
+    // off it: nothing lit, the text's I-beam
+    let (tx, ty) = s.cell(0, 2);
+    s.run(&format!("<move:{tx},{ty}>"));
+    assert_eq!((s.st.updates.hot, s.mouse.icon()), (Hot::None, CursorIcon::Text));
+    // ✕ closes it
+    s.run(&format!("<click:{cx},{cy}>"));
+    assert!(s.st.updates.toast.is_none());
+}
+
+#[cfg(feature = "update")]
+#[test]
+fn the_update_dialog_is_modal_for_the_mouse() {
+    let mut s = Sim::with(&["fn main() {}\n"]);
+    // a context menu is open: the dialog closes it (one overlay at a time)
+    let (x, y) = s.cell(0, 3);
+    s.run(&format!("<rclick:{x},{y}>"));
+    assert!(s.st.menu.is_some());
+    crate::updates::open_dialog(&mut s.st);
+    assert!(s.st.menu.is_none());
+    let lay = s.frame();
+    // under it: no target, no menu, no middle-click paste, an arrow
+    assert_eq!(target_at(&s.st, &s.ui, &lay, x, y), Target::Nothing);
+    s.run(&format!("<rclick:{x},{y}><mclick:{x},{y}>"));
+    assert!(s.st.menu.is_none());
+    assert_eq!(s.st.ed.buf().doc.rope.to_string(), "fn main() {}\n");
+    let (sx, sy) = mid(lay.status);
+    s.run(&format!("<rclick:{sx},{sy}>"));
+    assert!(s.st.menu.is_none(), "not even the status bar's menu");
+    assert!(s.st.updates.dialog.is_some(), "a right click leaves it open");
+    s.run(&format!("<move:{x},{y}>"));
+    assert_eq!(s.mouse.icon(), CursorIcon::Default, "no I-beam over the text under it");
+    // its buttons light up with a hand
+    let (r, b) = s.st.updates.hits.buttons[0];
+    let (bx, by) = mid(r);
+    s.run(&format!("<move:{bx},{by}>"));
+    assert_eq!((s.st.updates.dialog_hot, s.mouse.icon()), (Some(b), CursorIcon::Pointer));
+    // a click outside it closes it, and goes no further
+    // the title bar still works over it, and what it opens closes the dialog
+    let menu = s.st.titlebar.placed.iter().find(|p| p.0 == crate::titlebar::items::Item::Menu);
+    let (mx, my) = mid(menu.expect("the menu button").1);
+    s.run(&format!("<click:{mx},{my}>"));
+    assert!(s.st.titlebar.menu.is_some() && s.st.updates.dialog.is_none());
+    s.run("<Esc>");
+    crate::updates::open_dialog(&mut s.st);
+    s.frame();
+    let head = s.st.ed.buf().sel.primary().head;
+    let (tx, ty) = s.cell(0, 8);
+    s.run(&format!("<click:{tx},{ty}>"));
+    assert!(s.st.updates.dialog.is_none());
+    assert_eq!(s.st.ed.buf().sel.primary().head, head, "the click did not move the cursor");
+}
+
+#[cfg(feature = "update")]
+#[test]
+fn the_status_bar_menu_checks_for_updates() {
+    let mut s = Sim::with(&["text\n"]);
+    let lay = s.frame();
+    let (x, y) = (lay.status.x + 40.0, lay.status.y + lay.status.h / 2.0);
+    s.run(&format!("<rclick:{x},{y}>"));
+    let m = s.st.menu.as_ref().expect("the status bar's menu");
+    let labels: Vec<String> = m.items.iter().map(|e| e.label().to_string()).collect();
+    assert!(labels.iter().any(|l| l == "Check for Updates…"), "{labels:?}");
+    assert!(!labels.iter().any(|l| l == "Update shrew…"), "no update known: {labels:?}");
+}
+// -----

@@ -39,6 +39,7 @@ repository, `scripts/demo-repo.sh`). Regenerate them with `scripts/screenshots.s
 | ![Git gutter](docs/screenshots/git-gutter.png)<br>**Git in the gutter**: added, changed and deleted lines, the cursor line's author, file states in the sidebar | ![Git peek](docs/screenshots/git-peek.png)<br>**`ghp` peeks at a change** with the changed words marked; Stage, Revert and Diff are one key or click away |
 | ![Git diff](docs/screenshots/git-diff.png)<br>**The diff view**: side by side, aligned, with changed words and folded context; stage a change with the round button or `s` | ![Source Control](docs/screenshots/git-panel.png)<br>**Source Control** (Ctrl+Shift+G): staged, changed and untracked files, the commit box, sync |
 | ![Git log](docs/screenshots/git-log.png)<br>**The log** draws the commit graph, branch and tag labels; Enter shows a commit's files | ![Git blame](docs/screenshots/git-blame.png)<br>**Blame** as a column: who changed each run of lines, how long ago, unsaved lines marked |
+| ![Tabs](docs/screenshots/tabs.png)<br>**Tabs**: hover, ×, middle-click, drag to reorder, the wheel scrolls them; a right click on one closes others, copies its path, reveals it | ![Context menu](docs/screenshots/context-menu.png)<br>**Right-click anywhere**: the text, gutter, tabs, sidebar, status bar, terminal, diffs, the log; Shift+F10 opens it from the keys |
 
 ## Features
 
@@ -313,12 +314,24 @@ occurrence, Ctrl+Y redoes. Shift+arrows select, Ctrl+arrows move by word, Tab / 
 
 Ctrl+N adds a cursor at the next occurrence of the word, as in vim-visual-multi.
 
-**Mouse:** click to place the cursor, double-click to select a word, triple-click to select a line, and drag to
-select (a drag in vim enters visual mode). Shift+click extends the selection, Ctrl+click or Alt+click adds a cursor,
-a middle drag or Shift+Alt+drag selects a box of columns, the wheel scrolls (Shift+wheel sideways, Ctrl+wheel
-zooms), and dragging past an edge scrolls on. Click or drag the minimap to scroll, click the sidebar to open files, drag its edge or the
-terminal's top edge to resize them, and Ctrl+click a `file:line` or URL in the terminal to open it. The title bar
-moves the window (double-click maximizes), and links in the About panel open in the browser.
+### Mouse
+
+The keys come first, but everything works with the mouse too, the way VS Code and Sublime do it:
+
+- **Text:** click places the cursor, double / triple click selects a word / line (drag on to extend), Shift+click
+  extends, Ctrl+click or Alt+click adds a cursor, a middle drag or Shift+Alt+drag selects a box of columns, and a
+  drag past an edge scrolls on. In vim a drag is visual mode as it goes.
+- **Right click** opens a menu wherever it makes sense: the text (the cursor moves there first), the gutter, a tab,
+  the title bar, a sidebar row, a Source Control row, the status bar, the terminal, a diff or a log tab. Every entry
+  shows its shortcut; Shift+F10 opens the same menu from the keys.
+- **Middle click** pastes the primary selection on Linux, closes a tab, and opens a sidebar file in the background.
+- **Tabs** light up under the pointer, close with their ×, reorder by dragging, and scroll with the wheel when they
+  overflow (a list button shows them all).
+- **Scrolling:** the wheel and touchpads (Shift+wheel sideways, Ctrl+wheel zooms), the scrollbar, the minimap; a
+  menu taller than the window scrolls too. Drag the sidebar's or the terminal's edge to resize them, drag the title
+  bar to move the window.
+
+Every click, drag and menu is listed in [docs/KEYBINDINGS.md](docs/KEYBINDINGS.md#mouse).
 
 ## Configuration
 

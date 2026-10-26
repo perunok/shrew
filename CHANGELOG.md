@@ -8,10 +8,15 @@ new version when it tags a release.
 
 ### Added
 
-- Context menus: one popup for every right click (the title bar's and the Source Control panel's use it), opened at
-  the pointer and kept on screen, with submenus, disabled entries, check marks, shortcut hints, mnemonics,
-  type-ahead, j/k, and release-to-select (press the right button, drag onto an entry, release). The title bar's
-  dropdown menus draw their entries the same way.
+- The mouse everywhere, as in VS Code and Sublime: a right click opens a menu in every part of the window (the text,
+  the gutter, tabs, the title bar, the sidebar, Source Control, the status bar, the terminal, diff and log tabs), the
+  middle button pastes the primary selection, closes tabs and selects boxes of columns, and tabs hover, close,
+  reorder and scroll. docs/KEYBINDINGS.md's [Mouse](docs/KEYBINDINGS.md#mouse) section lists every click.
+- Context menus: one popup for every right click, opened at the pointer and kept on screen (it moves just enough to
+  fit when there is room neither above nor below, and scrolls with the wheel when taller than the window), with
+  submenus, disabled entries, check marks, shortcut hints, mnemonics, type-ahead, j/k, and release-to-select (press
+  the right button, drag onto an entry, release). The title bar's dropdown menus draw their entries the same way.
+  Entries come in the same order in every menu (the thing clicked, then its paths, then reveal and terminal).
 - `--screenshot` takes mouse tokens in `--keys` (`<click:X,Y>`, `<rclick:X,Y>`, `<drag:X1,Y1,X2,Y2>`,
   `<wheel:X,Y,DY>`, with modifiers) and `--hover X,Y`; they go through the same code as the window's events
   (docs/CLI.md, "Screenshots").
@@ -30,12 +35,18 @@ new version when it tags a release.
   to the click (on the char clicked in vim's normal mode) unless the click is inside the selection or on a cursor;
   then Cut / Copy / Paste (Cut Line / Copy Line with nothing selected), Select All, Select All Occurrences, Add Next
   Occurrence, Toggle Comment, Indent, Outdent, Find "word" in Project, Go to Symbol, a Git submenu (peek, stage,
-  revert the change; diff, history, blame), Copy Path, Copy Relative Path, Reveal in Sidebar, Open in Terminal. The
+  revert the change; diff, history, blame), Copy Path, Copy Relative Path, Reveal in Sidebar, Reveal in File
+  Manager, Open in Terminal (the same commands as a tab's menu). The
   gutter's acts on the line clicked; the terminal's has Copy, Paste, Select All, Clear, New / Kill Terminal and
   more (Shift+right click when the program reads the mouse); a diff tab's stages, unstages, reverts, opens the file
-  there and copies either side. Shift+F10 (`context_menu`) opens the text's menu at the cursor.
+  there and copies either side. Shift+F10 (`context_menu`) opens the text's menu at the cursor, and in the sidebar
+  the selected row's menu.
+- A log tab's right-click menu: Show Commit, Open Diff, Copy Commit ID, New Branch Here…, Search…, Filter by
+  Author…, History of a Path…, Reload (each one the tab's own key). The title bar's project name, branch and buttons
+  open the bar's menu too.
 - The primary selection (Linux, feature `clipboard`): what you select is offered to other programs, and a middle
-  click pastes theirs at the pointer, in the text and in the terminal.
+  click pastes theirs at the pointer (on release, so a middle drag still selects a box), in the text and in the
+  terminal.
 - The sidebar's right-click menu: on a row (selected first) new file and folder, rename, duplicate, move to the
   trash, copy path / relative path / name, reveal in the file manager, open in a terminal, find in folder (find in
   project scoped to a folder), collapse all, refresh, and on a changed file open diff, stage, unstage, discard; below
@@ -46,7 +57,8 @@ new version when it tags a release.
 - The status bar's items light up under the pointer and do something on click: the vim mode badge opens a small
   menu (Vim Mode, Features, Settings), the position opens Go to Line, the language opens the new *Set Language…*
   (`set_language`, `:setf {language}`: the buffer's grammar and comment tokens; *Auto Detect* goes back). A right
-  click on the bar opens a menu of the same. A buffer without a language shows *Plain Text*.
+  click on the bar opens a menu of the same. A buffer without a language shows *Plain Text* (diff and log tabs show
+  none).
 - `collapse_sidebar` (*View: Collapse Folders in Sidebar*).
 - Box (column) selection with the mouse: a middle drag or Shift+Alt+drag (vim: visual block); Shift+Alt+click
   makes the box from the cursor to the click.
@@ -57,7 +69,6 @@ new version when it tags a release.
 
 - Tabs: with many tabs the active one could be cut off (the scroll ignored the gaps between tabs), and tabs scrolled
   out of view still took clicks, even over the title bar's buttons.
-
 - Vim mode: a click put the cursor one character left of the one clicked.
 - The pointer is an arrow over the title bar's open menus, not a text cursor.
 - Vim mode: a drag showed INSERT and a bar cursor until the button was released, then gained a character; it now

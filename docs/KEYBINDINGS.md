@@ -482,10 +482,14 @@ build does not have are left out.
 
 ## Context menus
 
-A right click opens the menu of what is under the pointer (an empty part of the title bar, a row or the empty part of
-the [sidebar](#sidebar), a row, a section or the rest of the [Source Control panel](#source-control), the
-[status bar](#status-bar)), at the pointer; near the window's edges it opens to the left or upwards. The menus look and work
-alike, and one menu is open at a time. While one is open it takes every key.
+A right click opens the menu of what is under the pointer, at the pointer: the text, the gutter, a [tab](#tabs) or
+the empty part of a row of tabs, the [title bar](#title-bar), a row or the empty part of the [sidebar](#sidebar), a
+row, a section or the rest of the [Source Control panel](#source-control), the [status bar](#status-bar), the
+[terminal panel](#terminal), a [diff tab](#diff-view) and a log tab. Near the window's edges it opens to the left or
+upwards (a menu with room on neither side moves just enough to fit), and one taller than the window scrolls. The
+menus look and work alike, one menu is open at a time, and while one is open it takes every key. Entries come in the
+same order everywhere: what acts on the thing clicked first, then *Copy Path* / *Copy Relative Path*, then *Reveal in
+Sidebar* / *Reveal in File Manager* / *Open in Terminal*, then view switches.
 
 | Keys / mouse | Action |
 | --- | --- |
@@ -499,8 +503,9 @@ alike, and one menu is open at a time. While one is open it takes every key.
 | Hover | Highlight an entry, open a submenu |
 | Click an entry | Run it |
 | Press the right button, drag onto an entry, release | Run it, as with native menus |
+| Wheel | Scroll a menu taller than the window |
 | Right-click the same spot again, click outside, middle click | Close (a right click elsewhere opens the menu there) |
-| Shift+F10, palette *Edit: Show Context Menu* | The text's menu (or a diff tab's) at the cursor, its first entry highlighted |
+| Shift+F10, palette *Edit: Show Context Menu* | The text's menu (or a diff tab's) at the cursor, its first entry highlighted; in the sidebar, the selected row's menu under it |
 
 <!-- ----- editor menus ----- -->
 Every entry that is a command shows the chord that runs it; entries that cannot act there are greyed out, and parts
@@ -511,8 +516,9 @@ this build or file lacks (git, the terminal, the sidebar) are left out (the code
   Copy, Paste (with nothing selected, *Cut Line* / *Copy Line*, as Ctrl+X / Ctrl+C do), Select All, Select All
   Occurrences, Add Next Occurrence, Toggle Comment, Indent, Outdent, Find "word" in Project (the selection, or the
   word clicked), Go to Symbol…, a **Git** submenu in a repository (Peek / Stage / Revert Change, or Selected Lines;
-  Open Diff, File History, Blame Column, Inline Blame), Copy Path, Copy Relative Path, Reveal in Sidebar and Open in
-  Terminal (a new terminal in the file's folder).
+  Open Diff, File History, Blame Column, Inline Blame), Copy Path, Copy Relative Path, Reveal in Sidebar, Reveal in
+  File Manager and Open in Terminal (a new terminal in the file's folder). The file's entries are the same commands
+  as a tab's (`copy_path`, `copy_relative_path`, `reveal_in_sidebar`, `reveal_in_file_manager`).
 - **The gutter** (line numbers, change markers): the line clicked gets the cursor unless it is selected. Select
   Line, Copy Line, the line's change (Peek, Stage, Revert) in a repository, and the switches Line Numbers, Relative
   Line Numbers, Change Markers, Blame Column, Inline Blame.
@@ -522,6 +528,9 @@ this build or file lacks (git, the terminal, the sidebar) are left out (the code
 - **A diff tab:** on the row clicked (the selected rows stay selected): Stage, Unstage, Revert the change or the
   selected lines, Open File at This Line, Copy Old Text / Copy New Text, Switch to Unified / Split, Ignore White Space.
   The hints are the tab's own keys.
+- **A log tab** (`git_log`, `git_file_history`): on the commit clicked (it is selected first): Show / Hide Commit,
+  Open Diff, Copy Commit ID, New Branch Here…; then Search…, Filter by Author…, History of a Path…, Reload. Each entry
+  presses the tab's own key, which is its hint (Enter, `d`, `y`, `b`, `/`, `a`, `p`, `r`).
 <!-- ----- -->
 
 ## Ex commands
@@ -737,6 +746,13 @@ command palette by its title.
 
 ## Mouse
 
+Every part of the window works with the mouse; this is the whole list, by part. Hover lights up what a click would
+act on (tabs, sidebar and panel rows, status bar items, title bar buttons, the scrollbar, picker rows), and the
+pointer is an I-beam over text, a hand over links and the status bar's items, and an arrow elsewhere. Nothing is drawn while
+the pointer moves over plain text.
+
+**In the text**
+
 | Action | Effect |
 | --- | --- |
 | Click | Place the cursor. In vim, a click keeps normal mode and takes the char under the pointer. Below the last line: the end of the text (vim: the last line) |
@@ -747,19 +763,37 @@ command palette by its title.
 | Shift+click | Extend the selection to the click (a drag after it keeps the anchor) |
 | Ctrl+click, Alt+click | Add a cursor (or a selection, when dragging) |
 | Middle drag, Shift+Alt+drag | Select a box of columns (vim: visual block). Shift+Alt+click: the box from the cursor to the click |
-| Wheel | Scroll without moving the cursor; while selecting, the selection follows. Touchpads scroll pixel by pixel |
+| Middle click | Paste the primary selection (what is selected, in shrew or any program) at the pointer, in any mode, on release (Linux; feature `clipboard`). Selecting text, by mouse or keys, offers it to other programs the same way. Without a primary selection (and on macOS and Windows) it only places the cursor |
+| Right-click | The text's [context menu](#context-menus); the cursor goes there first, unless you click inside the selection or on a cursor |
+| Right-click the gutter | The line's menu (Select Line, Copy Line, its change, the gutter's switches) |
+
+**Scrolling**
+
+| Action | Effect |
+| --- | --- |
+| Wheel | Scroll without moving the cursor (three lines a notch); while selecting, the selection follows. Touchpads and fine wheels scroll by fractions, nothing is lost |
 | Shift+wheel | Scroll sideways (up to the end of the widest line on screen) |
 | Ctrl+wheel | Bigger / smaller font |
 | Drag the scrollbar | The thumb stays where it was grabbed; a click beside it centres it there |
 | Click on the minimap | Scroll so the line under the pointer is centred |
 | Drag on the minimap | Scroll continuously; the viewport box follows the pointer |
-| Wheel over a picker | Scroll its list (the highlighted row stays); click a row to pick it |
-| Click a link in the About panel | Open it in the browser |
-| Right-click | The [context menu](#context-menus) of what is under the pointer; in the text the cursor goes there first, unless you click inside the selection |
-| Middle click | Paste the primary selection (what is selected, in shrew or any program) at the pointer, in any mode (Linux; feature `clipboard`). Selecting text, by mouse or keys, offers it to other programs the same way. On macOS and Windows a middle click in the text does nothing |
+| Wheel over the tabs, a menu, a picker, the sidebar, a panel | Scroll that (a picker's highlighted row stays) |
 
-The [sidebar](#sidebar), the [Source Control panel](#source-control) and the [status bar](#status-bar) have mouse
-actions of their own.
+**Everywhere else**
+
+| Part | Click | Middle click | Right-click | Drag |
+| --- | --- | --- | --- | --- |
+| [Tabs](#tabs) | Switch; × closes | Close the tab | The tab's menu (Close, Close Others…) | Reorder (Esc cancels) |
+| Empty part of the tabs | Double-click: scratch buffer (title bar: maximize) | | New Scratch Buffer, Close Saved… (title bar: its menu) | Title bar: move the window |
+| [Title bar](#title-bar) | Its buttons; the menu button opens the menus | Close an open menu | Customize Title Bar…, Use System Title Bar | Move the window; its edges resize it |
+| [Sidebar](#sidebar) | Open a file, fold a folder (the chevron only folds) | Open the file behind the current tab | The row's menu, or the root's below the rows | Its right edge resizes it |
+| [Source Control](#source-control) | Select, open a change; the buttons | | The row's, the section's or the panel's menu | |
+| [Status bar](#status-bar) | Mode menu, Go to Line, Set Language, branches, update, Settings | | Go to Line, Set Language, Switch Branch, Vim Mode… | |
+| [Terminal](#terminal) | Focus it; programs that read the mouse get it | Paste the primary selection | Its menu (Shift+right-click when the program reads the mouse) | Select (it becomes the primary selection) |
+| [Diff tab](#diff-view) | The row; the header's buttons | | Stage, Unstage, Revert, Open File… | Select rows |
+| Log tab | Show the commit; a file of it opens its diff | | Show Commit, Open Diff, Copy Commit ID… | |
+| Picker, Settings, About | Pick, set, follow a link; a click outside closes | | | Settings' sliders |
+| Any open menu | Run the entry (on release) | Close it | Close it, or reopen it there | Right press, drag onto an entry, release: run it |
 
 ## Status bar
 
@@ -783,7 +817,7 @@ holds the buffer tabs. Which items it shows, and where, is set in [`[titlebar]`]
 | --- | --- |
 | Drag an empty part | Move the window (through the window manager, so snapping and tiling work) |
 | Double-click an empty part | Maximize / restore |
-| Right-click an empty part | *Customize Title Bar…*, *Use System Title Bar* |
+| Right-click an empty part, the project name, the branch or a button | *Customize Title Bar…*, *Use System Title Bar* (the window buttons open nothing) |
 | Drag a window edge or corner | Resize (5 px borders, wider at the corners; not while maximized) |
 | Click the menu button (three lines) | Open the menus; hovering a menu opens it |
 | Click, drag, middle-click, right-click a tab | See [Tabs](#tabs) |

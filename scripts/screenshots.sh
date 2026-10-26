@@ -64,6 +64,13 @@ shot $out/workspace.png ":set sidebar<CR>${term}ls crates<CR><C-w>k/fn compute<C
   crates/shrew/src/layout.rs crates/shrew/src/app.rs
 # the title bar's View menu (Alt+V) over the sidebar
 shot $out/menu.png "<C-S-e><Esc><A-v>" crates/shrew/src/layout.rs crates/shrew/src/app.rs
+# the mouse: a row of tabs that overflows (fades, the list button) with a tab's right-click menu, and the text's
+# right-click menu with its Git submenu open
+many=(crates/shrew/src/tabs.rs crates/shrew/src/mouse.rs crates/shrew/src/context_menu.rs crates/shrew/src/git/log/mod.rs
+  crates/shrew/src/git/diffview/mod.rs crates/shrew/src/draw.rs crates/shrew/src/state.rs "$core/editor.rs" README.md
+  docs/KEYBINDINGS.md CHANGELOG.md crates/shrew/src/main.rs)
+shot $out/tabs.png "<rclick:460,16>" --hover 520,62 "${many[@]}"
+shot $out/context-menu.png "/fn menu<CR>zt<rclick:130,127><move:180,477>" --hover 600,567 crates/shrew/src/tabs.rs
 # the minimap: each line in its syntax colors, the visible lines boxed, the search's matches marked
 shot $out/minimap.png ":theme tokyo-night<CR>/self.mode<CR>" "$core/editor.rs:700"
 

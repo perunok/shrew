@@ -410,6 +410,8 @@ fn control(
                 Choice::GitCommit | Choice::GitRef | Choice::GitBranches | Choice::GitStashes | Choice::GitChanges => {
                     Vec::new()
                 }
+                // ----- status bar ----- (never a setting)
+                Choice::Language => Vec::new(),
             };
             dropdown(scene, &show(st), &swatches, ctl, lay, c)
         }

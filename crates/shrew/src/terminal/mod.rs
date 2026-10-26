@@ -669,6 +669,12 @@ impl State {
 
     /// Starts a terminal: the shell, or `command` run by it, in the project folder.
     pub fn open_terminal(&mut self, command: Option<String>) {
+        let cwd = self.ed.work_dir();
+        self.open_terminal_in(command, cwd);
+    }
+
+    /// [`State::open_terminal`] in folder `cwd` (the sidebar's *Open in Terminal*).
+    pub fn open_terminal_in(&mut self, command: Option<String>, cwd: std::path::PathBuf) {
         let t = &mut self.terminals;
         let mut env = Vec::new();
         if let Some(addr) = &t.instance {
@@ -677,7 +683,7 @@ impl State {
         let spawn = Spawn {
             command: command.filter(|c| !c.trim().is_empty()),
             shell: t.cfg.shell.clone(),
-            cwd: self.ed.work_dir(),
+            cwd,
             scrollback: t.cfg.scrollback(),
             env,
         };

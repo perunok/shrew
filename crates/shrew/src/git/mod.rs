@@ -5,7 +5,8 @@
 //! - [`gutter`]: change markers (gutter, minimap, scrollbar), the hunk peek, staging, unstaging and reverting hunks
 //!   or selected lines (feature `git_gutter`).
 //! - [`blame_inline`]: who last changed the cursor line, at its end after a pause (feature `git_blame_inline`).
-//! - [`status_ui`]: the branch in the status bar and title bar, file states in the sidebar (feature `git_status`).
+//! - [`status_ui`]: the branch in the status bar and title bar, file states in the sidebar (feature `git_status`),
+//!   and with [`tree_menu`] a changed file's entries in the sidebar's right-click menu.
 //! - [`diffview`]: the diff tab (file, staged, unstaged, commit and branch diffs; split or unified).
 //! - [`scm`]: Source Control (feature `git_panel`): the [`panel`], [`pickers`] for branches, stashes and changed
 //!   files, [`ops`] with progress and cancel, the [`log`] tab with its graph, the [`blame_view`] column and
@@ -32,6 +33,7 @@ pub mod status_ui;
 #[cfg(test)]
 mod tests;
 pub mod textbox;
+pub mod tree_menu;
 
 pub use scm::*;
 

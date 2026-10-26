@@ -415,6 +415,11 @@ impl Editor {
 
     pub fn lang(&self) -> Option<&'static lang::Lang> {
         let doc = &self.buf().doc;
+        // ----- status bar: a language picked by hand comes first -----
+        if let Some(name) = &doc.language {
+            return lang::by_grammar(name);
+        }
+        // -----
         doc.path.as_deref().and_then(lang::detect).or_else(|| {
             let first = doc.rope.line(0);
             let first: std::borrow::Cow<str> = first.into();
@@ -1133,6 +1138,16 @@ impl Editor {
             | GitFetch | GitPull | GitPullRebase | GitPush | GitCancel | GitOutput | GitLog | GitLogAll
             | GitFileHistory | GitBlame | GitChangedFiles | GitConflictCompare | GitMarkResolved | GitAbort
             | GitContinue => self.git_panel(cmd),
+            // ----- sidebar and status bar -----
+            SetLanguage => {
+                self.prompt = None;
+                self.events.push(Event::OpenChoice(crate::Choice::Language));
+            }
+            CollapseSidebar => {
+                if let Some(t) = &mut self.tree {
+                    t.collapse_all();
+                }
+            } // -----
         }
     }
 
@@ -2140,6 +2155,10 @@ impl Editor {
             "accent" => self.events.push(Event::Choose(Choice::Accent, arg.to_string())),
             "font" if arg.is_empty() => self.events.push(Event::OpenChoice(Choice::Font)),
             "font" => self.events.push(Event::Choose(Choice::Font, arg.to_string())),
+            // ----- status bar: the buffer's language (vim's `:setfiletype`) -----
+            "setf" | "setfiletype" if arg.is_empty() => self.events.push(Event::OpenChoice(Choice::Language)),
+            "setf" | "setfiletype" => self.events.push(Event::Choose(Choice::Language, arg.to_string())),
+            // -----
             "grep" | "rg" | "vimgrep" | "Rg" => self.open_grep(arg),
             "Ex" | "Explore" | "Lex" | "NERDTree" => self.focus_sidebar(true),
             "term" | "terminal" => self.terminal(Command::NewTerminal, arg_opt.map(String::from)),

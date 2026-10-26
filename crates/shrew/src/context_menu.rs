@@ -520,6 +520,10 @@ pub fn open(st: &mut State, mut menu: ContextMenu, at: (f32, f32)) -> bool {
 pub fn for_target(st: &mut State, target: Target, at: (f32, f32)) -> bool {
     let menu = match target {
         Target::TitleBar => crate::titlebar::context_menu(st),
+        // ----- sidebar and status bar -----
+        Target::Sidebar(row) => crate::sidebar::menu(st, row),
+        Target::StatusBar => crate::statusbar::menu(st),
+        // -----
         // one arm per target with a menu, e.g. `Target::Tab(i) => crate::tabs::menu(st, i)`
         _ => None,
     };

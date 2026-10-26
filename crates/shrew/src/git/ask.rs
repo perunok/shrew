@@ -13,6 +13,8 @@ use shrew_render::{Rect, Scene, TextStyle, columns};
 pub enum Then {
     /// Run this op on `y`.
     Op(Op),
+    /// Run this op in this repository (its workdir) on `y`: the sidebar's menu, whose file may be in another one.
+    OpIn(std::path::PathBuf, Op),
     /// Delete this branch on `y`; `force` once git said it is not merged.
     DeleteBranch {
         name: String,

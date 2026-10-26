@@ -151,6 +151,11 @@ pub enum Command {
     GitMarkResolved,
     GitAbort,
     GitContinue,
+    // ----- sidebar and status bar -----
+    /// The grammar (and comment tokens) of the active buffer, from a list (the status bar's language).
+    SetLanguage,
+    CollapseSidebar,
+    // -----
 }
 
 use Command::*;
@@ -342,6 +347,10 @@ pub static COMMANDS: &[(Command, &str, &str)] = &[
     (GitMarkResolved, "git_mark_resolved", "Git: Mark Resolved (Stage File)"),
     (GitAbort, "git_abort", "Git: Abort Merge or Rebase"),
     (GitContinue, "git_continue", "Git: Continue Merge or Rebase"),
+    // ----- sidebar and status bar -----
+    (SetLanguage, "set_language", "View: Set Language…"),
+    (CollapseSidebar, "collapse_sidebar", "View: Collapse Folders in Sidebar"),
+    // -----
 ];
 
 impl Command {

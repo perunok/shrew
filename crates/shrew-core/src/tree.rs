@@ -1,6 +1,7 @@
 //! The sidebar's file tree: the project folder, read lazily (a folder is listed when it is first expanded), with
 //! `.gitignore`d entries marked so the sidebar can dim them, a filter (`/`), and the file operations (new file and
-//! folder, rename, move to the trash). The tree follows the active file: it expands to it and selects it.
+//! folder, rename, duplicate, move to the trash; the app's right-click menu asks for them through
+//! [`Editor::tree_ask_in`]). The tree follows the active file: it expands to it and selects it.
 //!
 //! Nothing watches the disk: folders are read again on `R`, when the window gets the focus back, and after the tree's
 //! own file operations. That costs nothing while you type.
@@ -48,6 +49,8 @@ pub enum Ask {
     NewFolder,
     Rename,
     Delete,
+    /// Copy a file or folder under a new name (the sidebar's menu).
+    Duplicate,
 }
 
 pub struct Tree {
@@ -72,6 +75,10 @@ pub struct Tree {
     pub compact: bool,
     /// For folders not listed yet: their only entry when that is a folder (one cheap `read_dir` each).
     probes: HashMap<PathBuf, Option<(String, PathBuf)>>,
+    /// The row under the mouse pointer (drawn lightly highlighted; the app keeps it current).
+    pub hover: Option<usize>,
+    /// The last click on a row, for double clicks (the app's mouse sets it).
+    pub last_click: Option<(std::time::Instant, usize)>,
 }
 
 impl Tree {
@@ -91,6 +98,8 @@ impl Tree {
             target: None,
             compact: true,
             probes: HashMap::new(),
+            hover: None,
+            last_click: None,
         };
         t.rebuild();
         t
@@ -196,6 +205,24 @@ impl Tree {
             self.expanded.remove(path);
         }
         self.rebuild();
+    }
+
+    /// Closes every folder; the selection moves to the top-level entry it was in.
+    pub fn collapse_all(&mut self) {
+        let top = self.current().and_then(|r| {
+            let rel = r.path.strip_prefix(&self.root).ok()?;
+            rel.components().next().map(|c| self.root.join(c))
+        });
+        self.expanded.clear();
+        self.rebuild();
+        // a compact row stands for its deepest folder: the top-level entry is the start of its path
+        if let Some(top) = top
+            && let Some(i) = self.rows.iter().position(|r| r.path.starts_with(&top))
+        {
+            self.selected = i;
+        }
+        self.top = 0;
+        self.follow = true;
     }
 
     /// Expands the folders down to `path` and selects it. False when it is outside the tree.
@@ -378,6 +405,7 @@ impl Ask {
             Ask::NewFile => "New file: ".into(),
             Ask::NewFolder => "New folder: ".into(),
             Ask::Rename => format!("Rename {name} to: "),
+            Ask::Duplicate => format!("Duplicate {name} as: "),
             Ask::Delete if cfg!(all(unix, not(target_os = "macos"))) => {
                 format!("Move {name} to the trash? (y/n) ")
             }
@@ -595,17 +623,24 @@ impl Editor {
         }
     }
 
-    fn tree_ask(&mut self, ask: Ask) {
+    /// Asks on the command line for what `ask` needs, for the selected row (new entries: in its folder).
+    pub fn tree_ask(&mut self, ask: Ask) {
+        self.tree_ask_in(ask, None);
+    }
+
+    /// [`Editor::tree_ask`]; a new file or folder goes into `dir` when given (the tree's empty part: the root).
+    pub fn tree_ask_in(&mut self, ask: Ask, dir: Option<PathBuf>) {
         let Some(t) = self.tree.as_mut() else { return };
         let row = t.current().cloned();
         let target = match ask {
-            Ask::NewFile | Ask::NewFolder => t.target_dir(),
-            Ask::Rename | Ask::Delete => match row {
+            Ask::NewFile | Ask::NewFolder => dir.unwrap_or_else(|| t.target_dir()),
+            Ask::Rename | Ask::Delete | Ask::Duplicate => match row {
                 Some(r) => r.path,
                 None => return,
             },
         };
         let name = target.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+        let is_dir = target.is_dir();
         let shown = match ask {
             Ask::NewFile | Ask::NewFolder => String::new(),
             _ => name.clone(),
@@ -622,13 +657,19 @@ impl Editor {
         self.open_prompt(PromptKind::Ask(ask));
         if let Some(p) = self.prompt.as_mut() {
             p.label = label;
-            if ask == Ask::Rename {
-                // the name is there to edit, the caret before its extension
-                p.cursor = match name.rfind('.') {
-                    Some(i) if i > 0 => name[..i].chars().count(),
-                    _ => name.chars().count(),
+            if matches!(ask, Ask::Rename | Ask::Duplicate) {
+                // the name is there to edit, the caret before its extension ("main copy.rs" for a duplicate)
+                let dot = name.rfind('.').filter(|&i| i > 0 && !is_dir);
+                let text = match (ask, dot) {
+                    (Ask::Duplicate, Some(i)) => format!("{} copy{}", &name[..i], &name[i..]),
+                    (Ask::Duplicate, None) => format!("{name} copy"),
+                    _ => name.clone(),
                 };
-                p.text = name;
+                p.cursor = match dot {
+                    Some(i) => text.chars().count() - name[i..].chars().count(),
+                    None => text.chars().count(),
+                };
+                p.text = text;
             }
         }
     }
@@ -680,6 +721,17 @@ impl Editor {
                     made.and_then(|_| std::fs::rename(&target, &to)).map(|_| to).map_err(|e| e.to_string())
                 }
             }
+            Ask::Duplicate => {
+                let to = crate::editor::normalize(&target.parent().unwrap_or(&target).join(text));
+                if to.exists() {
+                    Err(format!("{} already exists", to.display()))
+                } else if to.starts_with(&target) {
+                    Err("cannot copy a folder into itself".into())
+                } else {
+                    let made = to.parent().map_or(Ok(()), std::fs::create_dir_all);
+                    made.and_then(|_| copy_all(&target, &to)).map(|_| to).map_err(|e| e.to_string())
+                }
+            }
         };
         let path = match result {
             Ok(p) => p,
@@ -703,6 +755,10 @@ impl Editor {
         }
         t.rebuild();
         t.select_path(&path);
+        if ask == Ask::Duplicate {
+            let name = path.file_name().unwrap_or_default().to_string_lossy();
+            self.info(format!("copied to {name}"));
+        }
         if ask == Ask::NewFile {
             self.sidebar_focus = false;
             self.open_from_tree(&path);
@@ -711,6 +767,24 @@ impl Editor {
             }
         }
     }
+}
+
+/// Copies a file, or a folder with everything in it. A symlinked file is copied as its content; a symlinked folder
+/// inside is left out (it could loop).
+fn copy_all(from: &Path, to: &Path) -> std::io::Result<()> {
+    if !from.is_dir() {
+        return std::fs::copy(from, to).map(|_| ());
+    }
+    std::fs::create_dir(to)?;
+    for e in std::fs::read_dir(from)? {
+        let e = e?;
+        let path = e.path();
+        if e.file_type()?.is_symlink() && path.is_dir() {
+            continue;
+        }
+        copy_all(&path, &to.join(e.file_name()))?;
+    }
+    Ok(())
 }
 
 /// Moves `path` to the trash (Linux and the BSDs, the freedesktop.org way), or deletes it (elsewhere).

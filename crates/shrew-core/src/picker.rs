@@ -42,6 +42,9 @@ pub enum Choice {
     GitBranches,
     GitStashes,
     GitChanges,
+    // ----- status bar -----
+    /// The active buffer's language (grammar and comment tokens; no preview).
+    Language,
 }
 
 impl Choice {
@@ -56,6 +59,7 @@ impl Choice {
             Choice::GitBranches => "branches",
             Choice::GitStashes => "stashes",
             Choice::GitChanges => "changed files",
+            Choice::Language => "languages",
         }
     }
 

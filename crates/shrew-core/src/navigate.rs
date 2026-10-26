@@ -277,6 +277,21 @@ impl Editor {
         self.restart_grep();
     }
 
+    /// Find in project within `folder` only (the sidebar's *Find in Folder…*), with an empty pattern. A folder
+    /// outside the project, or the project itself, searches the whole project.
+    pub fn open_grep_in(&mut self, folder: &Path) {
+        self.open_grep("");
+        let Some(p) = self.picker.as_mut().filter(|p| p.kind == PickerKind::Grep) else { return };
+        p.query.clear();
+        if let Some(g) = p.grep.as_mut()
+            && folder.starts_with(&g.root)
+            && folder != g.root
+        {
+            g.scope = Some(folder.to_path_buf());
+        }
+        self.restart_grep();
+    }
+
     /// The primary selection's text, when it is on one line.
     fn selected_text(&self) -> Option<String> {
         let b = self.buf();
@@ -304,12 +319,14 @@ impl Editor {
         } else {
             #[cfg(feature = "project")]
             {
+                let walk = g.scope.as_deref().unwrap_or(&g.root);
                 let re = crate::grep::build_regex(&p.query, &g.opts)
-                    .and_then(|re| project::check_globs(&g.root, &g.opts.globs).map(|_| re));
+                    .and_then(|re| project::check_globs(walk, &g.opts.globs).map(|_| re));
                 match re {
                     Ok(re) => {
                         let rx = crate::grep::spawn(
                             &g.root,
+                            g.scope.as_deref(),
                             re,
                             &g.opts.globs,
                             g.stats.clone(),
@@ -341,6 +358,8 @@ impl Editor {
                 return true;
             }
             _ if g.field == GrepField::Globs => match k.key {
+                // the folder scope goes first, then the field
+                Key::Backspace if g.opts.globs.is_empty() && g.scope.is_some() => g.scope = None,
                 Key::Backspace if g.opts.globs.is_empty() => {
                     g.field = GrepField::Pattern;
                     return true;

@@ -42,6 +42,8 @@ const PASS: &[Command] = &[
     Command::CheckForUpdates,
     Command::CloseBuffer,
     Command::GitPanel,
+    // ----- editor menus: Shift+F10 opens the tab's menu -----
+    Command::ContextMenu,
 ];
 
 const DOUBLE_CLICK: Duration = Duration::from_millis(400);

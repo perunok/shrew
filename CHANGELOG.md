@@ -26,6 +26,16 @@ new version when it tags a release.
   Ctrl+Shift+PageUp/PageDown) and ex commands (`:tabo`, `:tabc`, `:tabn`, `:tabp`, `:tabm`).
 - Closing an unsaved buffer from a tab, Ctrl+W or the close commands asks on the command line: save, discard or
   cancel.
+- Right-click menus for the text, the gutter, the terminal panel and diff tabs. In the text the cursor first moves
+  to the click (on the char clicked in vim's normal mode) unless the click is inside the selection or on a cursor;
+  then Cut / Copy / Paste (Cut Line / Copy Line with nothing selected), Select All, Select All Occurrences, Add Next
+  Occurrence, Toggle Comment, Indent, Outdent, Find "word" in Project, Go to Symbol, a Git submenu (peek, stage,
+  revert the change; diff, history, blame), Copy Path, Copy Relative Path, Reveal in Sidebar, Open in Terminal. The
+  gutter's acts on the line clicked; the terminal's has Copy, Paste, Select All, Clear, New / Kill Terminal and
+  more (Shift+right click when the program reads the mouse); a diff tab's stages, unstages, reverts, opens the file
+  there and copies either side. Shift+F10 (`context_menu`) opens the text's menu at the cursor.
+- The primary selection (Linux, feature `clipboard`): what you select is offered to other programs, and a middle
+  click pastes theirs at the pointer, in the text and in the terminal.
 
 ### Fixed
 

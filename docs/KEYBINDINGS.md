@@ -479,6 +479,29 @@ alike, and one menu is open at a time. While one is open it takes every key.
 | Click an entry | Run it |
 | Press the right button, drag onto an entry, release | Run it, as with native menus |
 | Right-click the same spot again, click outside, middle click | Close (a right click elsewhere opens the menu there) |
+| Shift+F10, palette *Edit: Show Context Menu* | The text's menu (or a diff tab's) at the cursor, its first entry highlighted |
+
+<!-- ----- editor menus ----- -->
+Every entry that is a command shows the chord that runs it; entries that cannot act there are greyed out, and parts
+this build or file lacks (git, the terminal, the sidebar) are left out (the code is in `crates/shrew/src/menus/`).
+
+- **The text.** A right click first puts the cursor where you clicked (in vim's normal mode on the char clicked),
+  unless it lands inside a selection or on one of the cursors: those are kept for the menu to act on. Then: Cut,
+  Copy, Paste (with nothing selected, *Cut Line* / *Copy Line*, as Ctrl+X / Ctrl+C do), Select All, Select All
+  Occurrences, Add Next Occurrence, Toggle Comment, Indent, Outdent, Find "word" in Project (the selection, or the
+  word clicked), Go to Symbol…, a **Git** submenu in a repository (Peek / Stage / Revert Change, or Selected Lines;
+  Open Diff, File History, Blame Column, Inline Blame), Copy Path, Copy Relative Path, Reveal in Sidebar and Open in
+  Terminal (a new terminal in the file's folder).
+- **The gutter** (line numbers, change markers): the line clicked gets the cursor unless it is selected. Select
+  Line, Copy Line, the line's change (Peek, Stage, Revert) in a repository, and the switches Line Numbers, Relative
+  Line Numbers, Change Markers, Blame Column, Inline Blame.
+- **The terminal panel:** Copy (with a selection), Paste, Select All, Clear (the history, and Ctrl+L to the shell),
+  New Terminal, Normal Mode, Maximized, Kill Terminal, Close Panel. A right click on a tab selects it first. A program
+  that reads the mouse (vim, htop) gets the right button; Shift+right click opens the menu anyway.
+- **A diff tab:** on the row clicked (the selected rows stay selected): Stage, Unstage, Revert the change or the
+  selected lines, Open File at This Line, Copy Old Text / Copy New Text, Switch to Unified / Split, Ignore White Space.
+  The hints are the tab's own keys.
+<!-- ----- -->
 
 ## Ex commands
 
@@ -620,6 +643,7 @@ command palette by its title.
 | `mcp` | Shrew: AI Assistants (MCP) Setup | |
 | `about` | About shrew | `:about` |
 | `menu` | View: Open Menu | F10 (custom title bar) |
+| `context_menu` | Edit: Show Context Menu | Shift+F10, a right click |
 | `system_titlebar` | View: Toggle System Title Bar | `:set custom_titlebar!` |
 | `customize_titlebar` | View: Customize Title Bar… | right-click the title bar |
 | `minimize` | Window: Minimize | the title bar's button |
@@ -701,7 +725,8 @@ command palette by its title.
 | Click on the minimap | Scroll so the line under the pointer is centred |
 | Drag on the minimap | Scroll continuously; the viewport box follows the pointer |
 | Click a link in the About panel | Open it in the browser |
-| Right-click | The [context menu](#context-menus) of what is under the pointer |
+| Right-click | The [context menu](#context-menus) of what is under the pointer; in the text the cursor goes there first, unless you click inside the selection |
+| Middle click | Paste the primary selection (what is selected, in shrew or any program) at the pointer, in any mode (Linux; feature `clipboard`). Selecting text, by mouse or keys, offers it to other programs the same way. On macOS and Windows a middle click in the text does nothing |
 
 ## Title bar
 
@@ -779,7 +804,9 @@ your shell, in the project folder. While a terminal has focus **every key goes t
 | `i`, `a`, `q`, Enter | Back to the program |
 
 **Mouse:** drag to select (double-click: a word, triple-click: a line, Alt+drag: a block); the selection is copied
-when you let go (`copy_on_select`). Middle click pastes. The wheel scrolls the history, or goes to the program when
+when you let go (`copy_on_select`) and becomes the primary selection. Middle click pastes the primary selection (the
+clipboard on macOS and Windows). Right click opens the [panel's menu](#context-menus) (Shift+right click when the
+program reads the mouse). The wheel scrolls the history, or goes to the program when
 it asked for the mouse (vim, htop) or runs full-screen (less, man). Shift+drag and Shift+wheel always select and
 scroll. File paths in the output (`src/main.rs:12:5`, `  --> a.rs:3:1`, `File "x.py", line 7`) and URLs are underlined
 under the pointer; **Ctrl+click** opens a file in the editor at that line, a URL in the browser. Drag the panel's top
@@ -937,4 +964,4 @@ selections stage just those lines. With the mouse: click a row to put the cursor
 selects rows), click a fold or a file header to open it, double-click a line to open the file, click the round button
 on a change in the middle gutter to stage or unstage it, and use the header's buttons (layout, white space, context,
 stage, unstage, revert, previous / next change). The wheel scrolls (Shift+wheel sideways); the scrollbar shows every
-change and can be dragged.
+change and can be dragged. A right click opens the tab's [context menu](#context-menus).

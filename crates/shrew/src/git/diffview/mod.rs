@@ -15,12 +15,18 @@
 
 mod draw;
 mod input;
+// ----- editor menus -----
+mod menu;
+// -----
 #[cfg(test)]
 mod tests;
 mod view;
 
 pub use draw::draw;
 pub use input::{drag, hover, key, press, release, row_under, wheel};
+// ----- editor menus -----
+pub use menu::{cursor_at, cursor_menu, menu};
+// -----
 pub use view::DiffView;
 
 use crate::state::State;

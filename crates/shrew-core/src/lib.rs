@@ -3,6 +3,9 @@
 
 pub mod change;
 pub mod commands;
+// ----- editor menus -----
+mod context;
+// -----
 // ----- git: diff view -----
 pub mod diffview;
 // -----

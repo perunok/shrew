@@ -193,6 +193,9 @@ pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: 
         about(scene, &mut st.ed, ui, lay, &c);
     }
     crate::titlebar::draw_menus(scene, st, lay, &c);
+    // ----- editor menus: a menu opened by Shift+F10 goes under the cursor drawn above -----
+    crate::menus::frame(st, ui);
+    // -----
     crate::context_menu::draw(scene, st, lay, &c);
     animating
 }

@@ -16,7 +16,8 @@
 //! - [`headless`]: `--screenshot`, a frame rendered without a window.
 //! - [`titlebar`]: the custom title bar (tabs, menus, window buttons) and its window behaviour.
 //! - [`mouse`]: what the mouse does, without a window (the app and headless runs share it); [`context_menu`]: the
-//!   right-click menus every part of the UI opens.
+//!   right-click menus every part of the UI opens; [`menus`]: the menus of the text and the gutter, and the primary
+//!   selection (middle-click paste).
 //! - [`tabs`]: the buffer tabs (their layout, look, mouse handling and right-click menu).
 //! - `git`: git integration (cargo feature `git`): change markers, inline blame, the diff view, the
 //!   Source Control panel, log, blame and conflicts.
@@ -37,6 +38,9 @@ mod ipc;
 mod keys;
 mod launch;
 mod layout;
+// ----- editor menus -----
+mod menus;
+// -----
 mod minimap;
 mod mouse;
 mod open;

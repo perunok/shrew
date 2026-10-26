@@ -86,6 +86,10 @@ pub struct State {
     // ----- tabs -----
     /// The tab row: scrolling, hover, a tab being dragged, labels (see `tabs`).
     pub tabs: crate::tabs::Strip,
+    // ----- editor menus -----
+    /// The text's menus: the selection last offered as the primary selection, a menu asked for by a key.
+    pub menus: crate::menus::Menus,
+    // -----
     // ----- project navigation -----
     /// The sidebar's width in logical pixels (`[sidebar] width`, dragged with the mouse).
     pub sidebar_width: f32,
@@ -160,6 +164,9 @@ impl State {
             titlebar: Default::default(),
             menu: None,
             tabs: Default::default(),
+            // ----- editor menus -----
+            menus: Default::default(),
+            // -----
             sidebar_width: loaded.config.sidebar_width.unwrap_or(crate::sidebar::DEFAULT_WIDTH),
             recent_file: None,
             recent_saved: 0,
@@ -308,6 +315,9 @@ impl State {
         // ----- git -----
         #[cfg(feature = "git")]
         crate::git::after_input(self);
+        // ----- editor menus: what is selected becomes the primary selection (Linux) -----
+        crate::menus::primary::sync(self);
+        // -----
         self.save_recent();
         if self.close_warned && self.ed.buffers.iter().all(|b| !b.doc.dirty) {
             self.close_warned = false;
@@ -365,6 +375,8 @@ impl State {
             Event::Load(path) => self.open_at(&path, None, None),
             // ----- tabs -----
             Event::App(cmd) if crate::tabs::is_app_command(cmd) => crate::tabs::app_command(self, cmd),
+            // ----- editor menus: Shift+F10 opens the text's menu at the cursor -----
+            Event::App(shrew_core::Command::ContextMenu) => crate::menus::request(self),
             // -----
             Event::App(cmd) => crate::titlebar::app_command(self, cmd),
             #[cfg(feature = "terminal")]

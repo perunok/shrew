@@ -525,6 +525,14 @@ pub fn for_target(st: &mut State, target: Target, at: (f32, f32)) -> bool {
         Target::TabStrip => crate::tabs::strip_menu(st),
         // -----
         // one arm per target with a menu, e.g. `Target::Tab(i) => crate::tabs::menu(st, i)`
+        // ----- editor menus: the text, the gutter, the terminal panel, a diff tab -----
+        Target::Text(pos) => crate::menus::text(st, pos),
+        Target::Gutter(line) => crate::menus::gutter(st, line),
+        #[cfg(feature = "terminal")]
+        Target::Terminal => crate::terminal::menu(st),
+        #[cfg(feature = "git")]
+        Target::Diff(row) => crate::git::diffview::menu(st, row, at),
+        // -----
         _ => None,
     };
     menu.is_some_and(|m| open(st, m, at))

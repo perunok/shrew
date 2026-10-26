@@ -162,6 +162,9 @@ pub enum Command {
     CopyRelativePath,
     RevealInSidebar,
     RevealInFileManager,
+    // ----- editor menus -----
+    /// The text's context menu, at the cursor (the app opens it).
+    ContextMenu,
 }
 
 use Command::*;
@@ -364,6 +367,8 @@ pub static COMMANDS: &[(Command, &str, &str)] = &[
     (CopyRelativePath, "copy_relative_path", "File: Copy Relative Path"),
     (RevealInSidebar, "reveal_in_sidebar", "File: Reveal in Sidebar"),
     (RevealInFileManager, "reveal_in_file_manager", "File: Reveal in File Manager"),
+    // ----- editor menus -----
+    (ContextMenu, "context_menu", "Edit: Show Context Menu"),
 ];
 
 impl Command {

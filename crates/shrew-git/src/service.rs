@@ -644,6 +644,9 @@ impl Shared {
     /// The lane loop: take a job, run it, repeat; the read lane polls stamps while focused and idle.
     fn run(self: Arc<Self>, lane: usize) {
         let mut worker = Worker { shared: self.clone(), repos: HashMap::new(), config_seen: 0, bases: HashMap::new() };
+        // when the next stamp poll is due: a deadline, so wakeups (new jobs, focus changes, spurious ones) do not
+        // keep postponing it the way restarting a full-interval wait would
+        let mut next_poll: Option<Instant> = None;
         loop {
             let (job, cancel) = {
                 let l = &self.lanes[lane];
@@ -662,15 +665,22 @@ impl Shared {
                     });
                     match interval {
                         Some(d) => {
-                            let (g, timeout) = l.cv.wait_timeout(st, d).unwrap_or_else(|e| e.into_inner());
-                            st = g;
-                            if timeout.timed_out() && st.items.is_empty() && self.focused.load(Ordering::SeqCst) {
+                            let now = Instant::now();
+                            let due = *next_poll.get_or_insert(now + d);
+                            if now >= due {
+                                // idle, focused and due: look at the stamps, then schedule the next look
+                                next_poll = None;
                                 drop(st);
                                 worker.refresh(None, false);
                                 st = lock(&l.state);
+                                continue;
                             }
+                            st = l.cv.wait_timeout(st, due - now).unwrap_or_else(|e| e.into_inner()).0;
                         }
-                        None => st = l.cv.wait(st).unwrap_or_else(|e| e.into_inner()),
+                        None => {
+                            next_poll = None;
+                            st = l.cv.wait(st).unwrap_or_else(|e| e.into_inner());
+                        }
                     }
                 }
             };

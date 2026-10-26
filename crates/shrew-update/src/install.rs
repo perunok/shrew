@@ -160,7 +160,7 @@ pub fn install_to(release: &Release, target: &Path, mut progress: impl FnMut(u64
 /// and this returns [`Error::Cancelled`] with the partial file deleted. Blocking: run it on a background thread.
 pub fn download(release: &Release, dir: &Path, cancel: &AtomicBool, mut progress: impl FnMut(Step)) -> Result<Staged> {
     // Checksum first: tiny, and a release without one fails before downloading megabytes.
-    let asset = release.asset_url.rsplit('/').next().unwrap_or_default();
+    let asset = release.asset_url.rsplit(['/', '\\']).next().unwrap_or_default();
     let expected = published_sha256(release)?;
     if cancel.load(Ordering::Relaxed) {
         return Err(Error::Cancelled);
@@ -218,7 +218,7 @@ pub fn download(release: &Release, dir: &Path, cancel: &AtomicBool, mut progress
 
 /// The sha256 the release publishes for its binary (its `.sha256` file).
 pub fn published_sha256(release: &Release) -> Result<[u8; 32]> {
-    let asset = release.asset_url.rsplit('/').next().unwrap_or_default();
+    let asset = release.asset_url.rsplit(['/', '\\']).next().unwrap_or_default();
     let sums = net::get_text(&release.checksum_url, "application/octet-stream", 64 << 10)?
         .ok_or_else(|| Error::Http(format!("release {} has no checksum file", release.tag)))?;
     parse_checksum(&sums, asset)

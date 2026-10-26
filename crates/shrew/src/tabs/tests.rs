@@ -350,8 +350,9 @@ fn the_tab_menu_acts_on_the_tab_clicked() {
     // outside vim the chords are Sublime's
     s.run(":set novim<CR>");
     let m = menu(&s.st, 0).unwrap();
-    assert_eq!(hint(&m, "Close").as_deref(), Some("Ctrl+W"));
-    assert_eq!(hint(&m, "Close All").as_deref(), Some("Ctrl+K W"));
+    let label = |k: &str| crate::context_menu::chord_label(shrew_core::KeyPress::parse(k).unwrap());
+    assert_eq!(hint(&m, "Close").as_deref(), Some(label("<C-w>").as_str()));
+    assert_eq!(hint(&m, "Close All").as_deref(), Some(format!("{} W", label("<C-k>")).as_str()));
 }
 
 #[test]

@@ -214,6 +214,31 @@ fn watching_follows_focus() {
     assert_eq!(s.head.summary.as_deref(), Some("elsewhere"));
 }
 
+/// The read lane polls on a schedule: requests arriving more often than the poll interval (or any other wakeup)
+/// must not keep postponing the look at the stamps, or an outside commit would go unnoticed while shrew is busy.
+#[test]
+fn a_busy_read_lane_still_polls() {
+    let t = repo_or_skip!();
+    t.write("f.txt", "a\n");
+    t.commit_all("base");
+    let (svc, rx) = service(Some(Duration::from_millis(300)));
+    let info = discover(&svc, &rx, t.path()).unwrap();
+    svc.send(Request::Status { repo: info.workdir.clone(), options: StatusOptions::default() });
+    wait(&svc, &rx, |e| matches!(e.reply, Reply::Status(Ok(_))).then_some(()));
+    t.write("f.txt", "b\n");
+    t.git(&["commit", "-qam", "elsewhere"]);
+    // a request every 50 ms keeps waking the lane, well inside the 300 ms interval
+    let start = Instant::now();
+    let mut changed = false;
+    while !changed && start.elapsed() < Duration::from_secs(10) {
+        svc.send(Request::Refs { repo: info.workdir.clone() });
+        std::thread::sleep(Duration::from_millis(50));
+        changed = svc.poll().into_iter().any(|e| matches!(e.reply, Reply::Changed(c) if c.head));
+    }
+    let _ = &rx;
+    assert!(changed, "the commit made elsewhere was noticed while requests kept coming");
+}
+
 #[test]
 fn ops_refresh_status_and_report() {
     let t = repo_or_skip!();

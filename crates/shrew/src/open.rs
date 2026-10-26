@@ -27,7 +27,7 @@ pub fn url(url: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-// ----- sidebar: Reveal in File Manager -----
+// ----- Reveal in File Manager (the menus of the sidebar, tabs and text) -----
 
 /// Shows `path` in the desktop's file manager, selected where it can be: Finder (`open -R`), Explorer
 /// (`/select,`), or on Linux the freedesktop.org `FileManager1.ShowItems` call (Files, Dolphin, Thunar, Nemo...),

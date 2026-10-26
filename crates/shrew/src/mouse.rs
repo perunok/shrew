@@ -786,6 +786,18 @@ impl Mouse {
             let Some(m) = &mut st.titlebar.menu else { return Response::NONE };
             return Response::redraw_if(m.wheel(rows));
         }
+        // a context menu taller than the window scrolls the same way
+        if let Some(m) = &st.menu
+            && m.inside(px, py)
+        {
+            let lines = match delta {
+                Wheel::Lines(_, y) => -y * WHEEL_LINES,
+                Wheel::Pixels(_, y) => -y / crate::context_menu::row_h(&lay),
+            };
+            let rows = self.steps(WheelWhat::Menu, lines);
+            let Some(m) = &mut st.menu else { return Response::NONE };
+            return Response::redraw_if(m.wheel(px, py, rows));
+        }
         // -----
         if st.menu_open() {
             return Response::NONE; // nothing scrolls under an open menu
@@ -1099,10 +1111,13 @@ pub fn target_at(st: &State, ui: &Ui, lay: &Layout, x: f32, y: f32) -> Target {
     }
     let tab = |x: f32, y: f32| ui.hits.tabs.iter().find(|(r, _)| r.contains(x, y)).map(|h| h.1);
     if let Some(hit) = crate::titlebar::hit(st, &ui.hits, x, y) {
+        // a tab; the window's buttons (nothing); else the bar's own menu (its empty part, the project, the branch,
+        // the buttons it can be customized to show)
+        use crate::titlebar::items::Item;
         return match (hit, tab(x, y)) {
-            (None, _) => Target::TitleBar,
-            (Some(crate::titlebar::items::Item::Tabs), Some(i)) => Target::Tab(i),
-            _ => Target::Nothing,
+            (Some(Item::Tabs), Some(i)) => Target::Tab(i),
+            (Some(Item::Minimize | Item::Maximize | Item::Close), _) => Target::Nothing,
+            _ => Target::TitleBar,
         };
     }
     #[cfg(feature = "terminal")]

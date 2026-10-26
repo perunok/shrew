@@ -211,7 +211,14 @@ fn right_click_on_the_title_bar_opens_its_menu_and_closes_it() {
     // the middle button closes it too
     s.run(&format!("<rclick:{x},{y}><mclick:{cx},{cy}>"));
     assert!(s.st.menu.is_none());
-    // a click on a button of the bar opens nothing
+    // the project name has the bar's menu too
+    let project = s.st.titlebar.placed.iter().find(|p| p.0 == crate::titlebar::items::Item::Project).map(|p| mid(p.1));
+    if let Some((px, py)) = project {
+        s.run(&format!("<rclick:{px},{py}>"));
+        assert_eq!(s.st.menu.as_ref().map(|m| m.target), Some(Target::TitleBar));
+        s.run("<Esc>");
+    }
+    // a click on a window button opens nothing
     let close = s.st.titlebar.placed.iter().find(|p| p.0 == crate::titlebar::items::Item::Close).map(|p| mid(p.1));
     if let Some((bx, by)) = close {
         s.run(&format!("<rclick:{bx},{by}>"));

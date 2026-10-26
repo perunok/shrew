@@ -5,7 +5,7 @@ use super::items::{self, Item};
 use super::menu::MenuHits;
 use super::{on, own_window_buttons, project_name, shown};
 use crate::colors::{Colors, mix};
-use crate::context_menu::{draw_list, list_size, row_h, scroll_top, sep_h};
+use crate::context_menu::{draw_list, list_size, max_top, row_h, scroll_top};
 use crate::draw::{Ui, line, popup, tabs_in};
 use crate::layout::Layout;
 use crate::state::State;
@@ -239,17 +239,8 @@ pub fn draw_menus(scene: &mut Scene, st: &mut State, lay: &Layout, c: &Colors) {
     let h = full.min((lay.height - below - pad).max(row_h + 2.0 * pad)).round();
     // taller than the window: it scrolls to keep the highlighted entry in view (not after the wheel scrolled it)
     let top = scroll_top(entries, if m.wheeled { None } else { m.item }, m.top, h, lay);
-    // ----- jank hunt: how far the wheel can scroll it: the last entries just fit -----
-    let mut rest = 2.0 * pad;
-    let mut max_top = entries.len();
-    for (i, e) in entries.iter().enumerate().rev() {
-        rest += if e.is_separator() { sep_h(lay) } else { row_h };
-        if rest > h {
-            break;
-        }
-        max_top = i;
-    }
-    // -----
+    // how far the wheel can scroll it: the last entries just fit
+    let max_top = max_top(entries, h, lay);
     let mut x = sub_at.0;
     if x + w > lay.width {
         // no room on the right: open to the left of the list of menus (or against the window's edge)

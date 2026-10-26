@@ -270,8 +270,12 @@ pub struct ContextMenu {
     pub selected: Option<usize>,
     /// Each open level as drawn in the last frame.
     pub hits: Vec<Level>,
-    /// The first item shown per level, when one is taller than the window.
+    /// The first item shown per level, when one is taller than the window, and how far the wheel can take it
+    /// (the last items just fit), as drawn.
     tops: Vec<usize>,
+    max_tops: Vec<usize>,
+    /// The wheel scrolled it since the last key: the highlighted item need not stay in view.
+    wheeled: bool,
     hold: Option<Hold>,
     typed: String,
     typed_at: Option<Instant>,
@@ -288,6 +292,8 @@ impl ContextMenu {
             selected: None,
             hits: Vec::new(),
             tops: Vec::new(),
+            max_tops: Vec::new(),
+            wheeled: false,
             hold: None,
             typed: String::new(),
             typed_at: None,
@@ -351,6 +357,7 @@ impl ContextMenu {
 
     pub fn key(&mut self, k: KeyPress, now: Instant) -> Outcome {
         let m = k.mods;
+        self.wheeled = false;
         if !matches!(k.key, Key::Char(_)) || m.ctrl || m.alt {
             self.typed.clear();
         }
@@ -423,6 +430,22 @@ impl ContextMenu {
 
     pub fn inside(&self, x: f32, y: f32) -> bool {
         self.hits.iter().any(|l| l.panel.contains(x, y))
+    }
+
+    /// The first item shown at level `d` (tests).
+    #[cfg(test)]
+    pub fn top(&self, d: usize) -> usize {
+        self.tops.get(d).copied().unwrap_or(0)
+    }
+
+    /// The wheel over (`x`, `y`): the level under it scrolls by `rows` items when it is taller than the window.
+    /// True when it moved.
+    pub fn wheel(&mut self, x: f32, y: f32, rows: isize) -> bool {
+        let Some(d) = self.hits.iter().rposition(|l| l.panel.contains(x, y)) else { return false };
+        let (Some(top), Some(&max)) = (self.tops.get_mut(d), self.max_tops.get(d)) else { return false };
+        let to = top.saturating_add_signed(rows).min(max);
+        self.wheeled = true;
+        std::mem::replace(top, to) != to
     }
 
     /// The (level, item) under the pointer, the deepest level first (it is drawn on top).
@@ -533,6 +556,8 @@ pub fn for_target(st: &mut State, target: Target, at: (f32, f32)) -> bool {
         Target::Terminal => crate::terminal::menu(st),
         #[cfg(feature = "git")]
         Target::Diff(row) => crate::git::diffview::menu(st, row, at),
+        #[cfg(feature = "git")]
+        Target::Panel(crate::mouse::Panel::Log(row)) => crate::git::log::menu(st, row),
         // -----
         _ => None,
     };
@@ -595,6 +620,20 @@ pub fn list_size(items: &[MenuItem], lay: &Layout) -> (f32, f32) {
     ((cols.max(20) as f32 * lay.cw).round(), h)
 }
 
+/// The largest first item of a list in a panel `h` high: from it the last items just fit (0 when all fit).
+pub fn max_top(items: &[MenuItem], h: f32, lay: &Layout) -> usize {
+    let mut rest = 2.0 * lay.pad;
+    let mut max = items.len();
+    for (i, e) in items.iter().enumerate().rev() {
+        rest += item_h(e, lay);
+        if rest > h {
+            break;
+        }
+        max = i;
+    }
+    max.min(items.len().saturating_sub(1))
+}
+
 /// The first item to show so the highlighted one stays in view in a panel `h` high (0 when everything fits).
 pub fn scroll_top(items: &[MenuItem], highlight: Option<usize>, top: usize, h: f32, lay: &Layout) -> usize {
     let pad2 = 2.0 * lay.pad;
@@ -612,10 +651,20 @@ pub fn scroll_top(items: &[MenuItem], highlight: Option<usize>, top: usize, h: f
 }
 
 /// A `w` x `h` menu with its corner at the pointer, inside `bounds`: it opens to the left when there is no room on
-/// the right, upwards when there is none below.
+/// the right, upwards when there is none below, and when there is room on neither side it moves just far enough
+/// to fit (so a tall menu stays near the pointer instead of jumping to the window's top).
 pub fn place(at: (f32, f32), w: f32, h: f32, bounds: Rect) -> Rect {
-    let x = if at.0 + w > bounds.right() { at.0 - w } else { at.0 };
-    let y = if at.1 + h > bounds.bottom() { at.1 - h } else { at.1 };
+    let side = |p: f32, len: f32, lo: f32, hi: f32| {
+        if p + len <= hi {
+            p
+        } else if p - len >= lo {
+            p - len
+        } else {
+            hi - len
+        }
+    };
+    let x = side(at.0, w, bounds.x, bounds.right());
+    let y = side(at.1, h, bounds.y, bounds.bottom());
     fit(x, y, w, h, bounds)
 }
 
@@ -639,6 +688,7 @@ pub fn draw(scene: &mut Scene, st: &mut State, lay: &Layout, c: &Colors) {
     let mut hits = std::mem::take(&mut m.hits);
     hits.resize_with(levels, Level::default);
     m.tops.resize(levels, 0);
+    m.max_tops.resize(levels, 0);
     let margin = (lay.pad / 2.0).round();
     let bounds = Rect::new(margin, margin, (lay.width - 2.0 * margin).max(1.0), (lay.height - 2.0 * margin).max(1.0));
     let min_h = row_h(lay) + 2.0 * lay.pad;
@@ -652,8 +702,11 @@ pub fn draw(scene: &mut Scene, st: &mut State, lay: &Layout, c: &Colors) {
             Some((p, row)) => place_sub(p, row, w, h, bounds, lay.pad),
         };
         let hl = m.highlighted(d);
-        let top = scroll_top(items, hl, m.tops[d], h, lay);
+        // taller than the window: the highlighted item stays in view (not after the wheel scrolled it)
+        let max = max_top(items, h, lay);
+        let top = scroll_top(items, if m.wheeled { None } else { hl }, m.tops[d], h, lay).min(max);
         m.tops[d] = top;
+        m.max_tops[d] = max;
         scene.layer(LAYER + d);
         popup(scene, panel, lay, c);
         lvl.panel = panel;

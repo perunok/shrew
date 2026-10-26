@@ -465,3 +465,27 @@ fn a_middle_drag_or_shift_alt_selects_a_box_of_columns() {
     s.run(&format!("<mclick:{},{y}>", x - 4.0));
     assert_eq!(s.st.ed.buf().rope().line(1).to_string(), "aXYb\n");
 }
+
+// ----- merged with the menus: what the jank hunt found in the other areas -----
+
+#[test]
+fn the_wheel_scrolls_a_context_menu_taller_than_the_window() {
+    let mut s = Sim::with(&["one two three\n"]);
+    s.size = (900, 220);
+    s.run("<rclick:300,60>");
+    let m = s.st.menu.as_ref().expect("the text's menu");
+    let panel = m.hits[0].panel;
+    assert!(panel.h <= 220.0, "it fits in the window");
+    let (x, y) = (panel.x + 20.0, panel.y + panel.h / 2.0);
+    s.run(&format!("<move:{x},{y}><wheel:{x},{y},2>"));
+    let m = s.st.menu.as_ref().unwrap();
+    assert!(m.top(0) > 0, "it scrolled, and the hovered item did not pull it back");
+    s.run(&format!("<wheel:{x},{y},50>"));
+    let m = s.st.menu.as_ref().unwrap();
+    let last = m.hits[0].rows.last().unwrap().1;
+    assert_eq!(last, m.items.len() - 1, "down to the last item, no further");
+    s.run(&format!("<wheel:{x},{y},-50>"));
+    assert_eq!(s.st.menu.as_ref().unwrap().top(0), 0);
+    // the text under it did not scroll
+    assert_eq!(s.st.ed.buf().view.top, 0);
+}

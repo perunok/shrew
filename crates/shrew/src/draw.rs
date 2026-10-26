@@ -889,9 +889,15 @@ fn status(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors) 
     let pos = crate::git::diffview::position(st).unwrap_or(pos);
     // -----
     item(scene, &pos, c.panel_foreground, Some(Item::Position));
-    // a buffer without a language says so, so there is something to click to set one
-    let lang = st.language().unwrap_or_else(|| "Plain Text".to_string());
-    item(scene, &lang, c.panel_muted, Some(Item::Language));
+    // a buffer without a language says so, so there is something to click to set one (a diff or log tab has none)
+    #[cfg(feature = "git")]
+    let view = crate::git::diffview::is_active(st) || crate::git::log::showing(st);
+    #[cfg(not(feature = "git"))]
+    let view = false;
+    if !view {
+        let lang = st.language().unwrap_or_else(|| "Plain Text".to_string());
+        item(scene, &lang, c.panel_muted, Some(Item::Language));
+    }
     let n = b.sel.len();
     let p = b.sel.primary();
     if n > 1 {

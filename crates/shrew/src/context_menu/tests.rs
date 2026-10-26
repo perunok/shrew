@@ -157,6 +157,8 @@ fn placement_keeps_the_menu_on_screen() {
     assert_eq!(place((100.0, 550.0), 200.0, 150.0, b).y, 400.0, "no room below: opens upwards");
     let r = place((790.0, 590.0), 200.0, 150.0, b);
     assert_eq!((r.x, r.y), (590.0, 440.0), "the corner: both");
+    let r = place((100.0, 300.0), 200.0, 400.0, b);
+    assert_eq!(r.y, 200.0, "room on neither side: moved up just enough, near the pointer");
     let r = place((50.0, 100.0), 200.0, 900.0, b);
     assert_eq!((r.y, r.h), (0.0, 600.0), "taller than the window: all of it, scrolling");
     let r = place((10.0, 10.0), 900.0, 100.0, b);

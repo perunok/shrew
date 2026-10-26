@@ -7,6 +7,7 @@
 
 pub mod draw;
 pub mod graph;
+mod menu;
 #[cfg(test)]
 mod tests;
 
@@ -21,6 +22,8 @@ use shrew_git::{CommitDetails, CommitInfo, HistoryPage, LogPage, LogQuery, Oid, 
 use shrew_render::Rect;
 use std::path::PathBuf;
 use std::sync::Arc;
+
+pub use menu::menu;
 
 /// Commits per request.
 pub const PAGE: usize = 300;

@@ -278,3 +278,25 @@ fn find_in_folder_searches_only_that_folder() {
     assert_eq!(g.scope, None, "Backspace in the empty globs: the whole project again");
     done(&d);
 }
+
+// ----- merge: the keyboard opener -----
+
+#[test]
+fn shift_f10_in_the_sidebar_opens_the_selected_rows_menu_under_it() {
+    let (mut s, d) = Sim::project("shiftf10", &["a.rs", "b.rs"], "a.rs");
+    let (x, y) = s.row("b.rs");
+    s.run(&format!("<click:{x},{y}>"));
+    s.st.ed.sidebar_focus = true;
+    s.run("<S-F10>");
+    assert_eq!(
+        s.st.menu.as_ref().map(|m| m.target),
+        Some(Target::Sidebar(Some(s.st.ed.tree.as_ref().unwrap().selected)))
+    );
+    let m = s.st.menu.as_ref().unwrap();
+    assert!(m.selected.is_some(), "the first entry is highlighted for the keys");
+    assert!(m.at.1 > y, "under the row");
+    assert!(s.st.ed.sidebar_focus, "the sidebar keeps the keys");
+    s.run("<Esc>");
+    assert!(s.st.menu.is_none());
+    let _ = std::fs::remove_dir_all(d);
+}

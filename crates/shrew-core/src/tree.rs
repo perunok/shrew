@@ -534,6 +534,10 @@ impl Editor {
             return;
         }
         let page = t.page.max(2) as isize;
+        // Shift+F10: the selected row's context menu (the app opens it), the sidebar keeping the keys
+        if k.key == Key::F(10) && m.shift && !m.ctrl && !m.alt {
+            return self.events.push(crate::Event::App(crate::Command::ContextMenu));
+        }
         if m.ctrl || m.alt || m.logo {
             match k.key {
                 Key::Char('d') if m.ctrl && !m.shift => t.move_by(page / 2),

@@ -142,6 +142,8 @@ impl Strip {
                 .all(|(l, b)| l.id == b.id && l.path == b.doc.path && l.title == b.doc.title);
         if !same {
             self.labels = labels(buffers);
+            // the hovered index may now be another tab (a close or move by key): wait for the pointer to move
+            self.hover = None;
         }
     }
 }
@@ -685,6 +687,7 @@ pub fn menu(st: &State, i: usize) -> Option<ContextMenu> {
         MenuItem::Separator,
         on(Command::CopyPath, |st, _, id| tab(st, Command::CopyPath, id)).enabled(file).into(),
         on(Command::CopyRelativePath, |st, _, id| tab(st, Command::CopyRelativePath, id)).enabled(file).into(),
+        MenuItem::Separator,
     ];
     if ed.features.available(Feature::Sidebar) {
         items
@@ -743,36 +746,10 @@ pub fn app_command(st: &mut State, cmd: Command) {
 fn reveal_tab(st: &mut State, id: u64) {
     let Some(i) = st.ed.buffer_index(id) else { return };
     let Some(path) = st.ed.file_of(i) else { return };
-    match reveal_in_file_manager(&path) {
+    match crate::open::reveal(&path) {
         Ok(()) => st.ed.info(format!("showing {}", path.display())),
-        Err(e) => st.ed.error(format!("cannot open the file manager: {e}")),
+        Err(e) => st.ed.error(format!("cannot show {}: {e}", path.display())),
     }
-}
-
-/// Opens the folder holding `path` in the file manager (`xdg-open` on the folder; `open -R` and `explorer
-/// /select,` select the file itself), detached.
-pub fn reveal_in_file_manager(path: &Path) -> std::io::Result<()> {
-    use std::process::{Command, Stdio};
-    let dir = if path.is_dir() { path } else { path.parent().unwrap_or(path) };
-    let mut cmd = if cfg!(target_os = "macos") {
-        let mut c = Command::new("open");
-        c.arg("-R").arg(path);
-        c
-    } else if cfg!(windows) {
-        let mut c = Command::new("explorer");
-        let mut arg = std::ffi::OsString::from("/select,");
-        arg.push(path.as_os_str());
-        c.arg(arg);
-        c
-    } else {
-        let mut c = Command::new("xdg-open");
-        c.arg(dir);
-        c
-    };
-    let mut child = cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn()?;
-    // reap it without blocking the UI
-    std::thread::spawn(move || child.wait());
-    Ok(())
 }
 
 /// A new terminal in the folder of buffer `id`'s file.

@@ -29,8 +29,9 @@ pub struct Menus {
     /// A menu opened by Shift+F10 goes under the cursor drawn in the next frame (the cursor may have moved since
     /// the last one).
     pub(crate) at_cursor: bool,
-    /// Where the last frame drew the text's cursor.
+    /// Where the last frame drew the text's cursor, and the sidebar's selected row.
     cursor: Option<shrew_render::Rect>,
+    tree_row: Option<shrew_render::Rect>,
 }
 
 // ----- the text -----
@@ -46,10 +47,19 @@ pub fn text(st: &mut State, pos: usize) -> Option<ContextMenu> {
     Some(text_menu(st, Target::Text(pos)))
 }
 
-/// Shift+F10 (`context_menu`): the text's menu (a diff tab's on one) at the cursor, its first entry highlighted.
-/// It opens at once, so the keys typed next go to it; the next frame puts it under the cursor as drawn then.
+/// Shift+F10 (`context_menu`): the text's menu (a diff tab's on one) at the cursor, its first entry highlighted;
+/// with the sidebar focused, the selected row's menu under it. It opens at once, so the keys typed next go to it;
+/// the next frame puts it under the cursor as drawn then.
 pub fn request(st: &mut State) {
     if st.menu_open() || st.ed.picker.is_some() || st.ed.about.is_some() || st.settings.is_open() {
+        return;
+    }
+    if st.ed.sidebar_focus {
+        let row = st.ed.tree.as_ref().map(|t| t.selected);
+        let at = st.menus.tree_row.map_or((0.0, 0.0), |r| (r.x + r.h, r.bottom()));
+        if let Some(m) = crate::sidebar::menu(st, row) {
+            open(st, m.select_first(), at);
+        }
         return;
     }
     #[cfg(feature = "git")]
@@ -69,6 +79,8 @@ pub fn request(st: &mut State) {
 /// [`request`] under it.
 pub fn frame(st: &mut State, ui: &Ui) {
     st.menus.cursor = ui.cursor_rect;
+    let selected = st.ed.tree.as_ref().map(|t| t.selected);
+    st.menus.tree_row = selected.and_then(|i| ui.hits.sidebar.rows.iter().find(|r| r.1 == i)).map(|r| r.0);
     if !std::mem::take(&mut st.menus.at_cursor) {
         return;
     }
@@ -155,14 +167,17 @@ fn text_menu(st: &State, target: Target) -> ContextMenu {
         items.push(MenuItem::Separator);
         items.push(git);
     }
+    // the file's entries, in the same order (and with the same commands) as a tab's menu
     let path = ed.buf().doc.path.is_some();
     items.push(MenuItem::Separator);
-    items.push(Action::app("Copy Path", copy_path).enabled(path).mnemonic('h').into());
-    items.push(Action::app("Copy Relative Path", copy_relative_path).enabled(path).mnemonic('r').into());
+    items.push(cmd(Command::CopyPath).enabled(path).mnemonic('h').into());
+    items.push(cmd(Command::CopyRelativePath).enabled(path).mnemonic('r').into());
+    items.push(MenuItem::Separator);
     if ed.features.available(Feature::Sidebar) {
         let root = path && ed.project_root().is_some();
-        items.push(Action::app("Reveal in Sidebar", reveal_in_sidebar).enabled(root).mnemonic('v').into());
+        items.push(cmd(Command::RevealInSidebar).enabled(root).mnemonic('v').into());
     }
+    items.push(cmd(Command::RevealInFileManager).enabled(path).mnemonic('l').into());
     #[cfg(feature = "terminal")]
     if ed.features.available(Feature::Terminal) {
         items
@@ -205,30 +220,6 @@ fn clip(s: &str, n: usize) -> String {
 fn find_in_project(st: &mut State, _: &Target, _: usize) {
     let w = word_or_selection(&st.ed).unwrap_or_default();
     st.ed.open_grep(&w);
-}
-
-fn copy_path(st: &mut State, _: &Target, _: usize) {
-    let Some(p) = st.ed.buf().doc.path.clone() else { return };
-    copy_text(st, p.display().to_string(), "the path");
-}
-
-fn copy_relative_path(st: &mut State, _: &Target, _: usize) {
-    let Some(p) = st.ed.buf().doc.path.clone() else { return };
-    let base = st.ed.project_root().unwrap_or_else(|| st.ed.cwd.clone());
-    copy_text(st, shrew_core::editor::relative(&p, &base), "the relative path");
-}
-
-fn copy_text(st: &mut State, text: String, what: &str) {
-    st.ed.info(format!("copied {what}: {text}"));
-    st.ed.clipboard.set(text);
-}
-
-fn reveal_in_sidebar(st: &mut State, _: &Target, _: usize) {
-    let Some(p) = st.ed.buf().doc.path.clone() else { return };
-    st.ed.focus_sidebar(true);
-    if let Some(t) = &mut st.ed.tree {
-        t.reveal(&p);
-    }
 }
 
 /// A new terminal in the file's folder (the project's for a scratch buffer).

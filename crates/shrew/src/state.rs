@@ -83,6 +83,9 @@ pub struct State {
     pub titlebar: crate::titlebar::TitleBar,
     /// The open context menu (see `context_menu`); one menu is open at a time, this or the title bar's.
     pub menu: Option<crate::context_menu::ContextMenu>,
+    // ----- tabs -----
+    /// The tab row: scrolling, hover, a tab being dragged, labels (see `tabs`).
+    pub tabs: crate::tabs::Strip,
     // ----- project navigation -----
     /// The sidebar's width in logical pixels (`[sidebar] width`, dragged with the mouse).
     pub sidebar_width: f32,
@@ -156,6 +159,7 @@ impl State {
             mcp_host: None,
             titlebar: Default::default(),
             menu: None,
+            tabs: Default::default(),
             sidebar_width: loaded.config.sidebar_width.unwrap_or(crate::sidebar::DEFAULT_WIDTH),
             recent_file: None,
             recent_saved: 0,
@@ -232,6 +236,10 @@ impl State {
     pub fn key(&mut self, k: KeyPress) {
         // an open context menu takes every key
         if crate::context_menu::key(self, k) {
+            return;
+        }
+        // ----- tabs: Esc drops a dragged tab back -----
+        if crate::tabs::key(self, k) {
             return;
         }
         let menu = self.titlebar.menu.is_some();
@@ -355,6 +363,9 @@ impl State {
             }
             Event::BufferOpened(id) => self.buffer_opened(id),
             Event::Load(path) => self.open_at(&path, None, None),
+            // ----- tabs -----
+            Event::App(cmd) if crate::tabs::is_app_command(cmd) => crate::tabs::app_command(self, cmd),
+            // -----
             Event::App(cmd) => crate::titlebar::app_command(self, cmd),
             #[cfg(feature = "terminal")]
             Event::Terminal(cmd, line) => self.terminal_command(cmd, line),

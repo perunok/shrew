@@ -195,7 +195,7 @@ impl Mouse {
         match button {
             MouseButton::Left => self.left_press(st, ui, lay, x, y, now),
             MouseButton::Right => self.right_press(st, ui, lay, x, y),
-            MouseButton::Middle => self.middle_press(st),
+            MouseButton::Middle => self.middle_press(st, x, y),
         }
     }
 
@@ -232,6 +232,8 @@ impl Mouse {
             st.ed.mouse_up();
             st.after_input();
         }
+        // ----- tabs: a close button, a dropped tab -----
+        crate::tabs::release(st, x, y);
         // a title bar button acts when released over it
         crate::titlebar::release(st, &ui.hits, x, y);
         if self.drag == Drag::Sidebar {
@@ -326,9 +328,8 @@ impl Mouse {
         if crate::sidebar::press(st, &ui.hits.sidebar, x, y) {
             return Response::INPUT;
         }
-        if let Some(&(_, i)) = ui.hits.tabs.iter().find(|(r, _)| r.contains(x, y)) {
-            st.ed.switch_to(i);
-            st.after_input();
+        // ----- tabs: switch on press, the close button, a drag to reorder, the list button -----
+        if crate::tabs::press(st, &lay, x, y, now) {
             return Response::INPUT;
         }
         // ----- git: a diff tab in the editor's place; the hunk peek's buttons, gutter markers, the branch in
@@ -431,11 +432,15 @@ impl Mouse {
         crate::context_menu::for_target(st, target, (x, y))
     }
 
-    /// A middle press closes an open menu (and goes no further).
-    fn middle_press(&mut self, st: &mut State) -> Response {
+    /// A middle press closes an open menu (and goes no further); on a tab it closes the tab.
+    fn middle_press(&mut self, st: &mut State, x: f32, y: f32) -> Response {
         if st.menu_open() {
             st.menu = None;
             st.titlebar.menu = None;
+            return Response::INPUT;
+        }
+        // ----- tabs -----
+        if st.ed.picker.is_none() && st.ed.about.is_none() && !st.settings.is_open() && crate::tabs::middle(st, x, y) {
             return Response::INPUT;
         }
         Response::NONE
@@ -487,6 +492,8 @@ impl Mouse {
             // -----
             Drag::None => {}
         }
+        // ----- tabs: hover, a dragged tab -----
+        redraw |= crate::tabs::moved(st, &lay, x, y);
         let (bar, bar_icon) = crate::titlebar::pointer_moved(st, &ui.hits, &lay, x, y);
         let on_menu = st.menu.as_ref().is_some_and(|m| m.inside(x, y));
         let menu = st.menu.as_mut().is_some_and(|m| m.hover(x, y));
@@ -543,7 +550,8 @@ impl Mouse {
         // both run: each clears its own hover state
         let bar = crate::titlebar::pointer_left(st);
         let map = lay.is_some_and(|lay| crate::minimap::hover(ui, &lay, None));
-        Response::redraw_if(bar | map)
+        let tabs = crate::tabs::left(st); // ----- tabs -----
+        Response::redraw_if(bar | map | tabs)
     }
 
     /// The drag autoscroll's timer: scrolls on while the pointer is past the text's top or bottom edge.
@@ -606,6 +614,10 @@ impl Mouse {
             return Response::NONE;
         }
         let (px, py) = self.pointer;
+        // ----- tabs: the wheel over the tabs scrolls them sideways -----
+        if crate::tabs::wheel(st, px, py, crate::tabs::wheel_px(delta, &lay)) {
+            return Response::REDRAW;
+        }
         #[cfg(feature = "terminal")]
         if st.terminal_wheel(-dy(WHEEL_LINES, lay.ch), px, py, self.mods) {
             return Response::REDRAW;

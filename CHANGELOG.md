@@ -15,8 +15,22 @@ new version when it tags a release.
 - `--screenshot` takes mouse tokens in `--keys` (`<click:X,Y>`, `<rclick:X,Y>`, `<drag:X1,Y1,X2,Y2>`,
   `<wheel:X,Y,DY>`, with modifiers) and `--hover X,Y`; they go through the same code as the window's events
   (docs/CLI.md, "Screenshots").
+- Tabs: hover highlight, a close button on the active and hovered tab (an unsaved tab's dot turns into it), middle
+  click closes, drag a tab to reorder it (Esc cancels), the wheel scrolls an overflowing row smoothly, which fades at
+  its clipped edges and gets a tab list button; files of the same name show the parent path that tells them apart
+  (`mod.rs · git/log`); long names end in `…`. Double-clicking an empty tab row opens a scratch buffer.
+- A tab's right-click menu: Close, Close Others, Close to the Right, Close Saved, Close All, Copy Path, Copy
+  Relative Path, Reveal in Sidebar, Reveal in File Manager, Open in Terminal, Reopen Closed. The same as commands
+  (`close_others`, `close_right`, `close_saved`, `close_all`, `copy_path`, `copy_relative_path`,
+  `reveal_in_sidebar`, `reveal_in_file_manager`, `move_tab_left`, `move_tab_right`), chords (Ctrl+K W, Ctrl+K U,
+  Ctrl+Shift+PageUp/PageDown) and ex commands (`:tabo`, `:tabc`, `:tabn`, `:tabp`, `:tabm`).
+- Closing an unsaved buffer from a tab, Ctrl+W or the close commands asks on the command line: save, discard or
+  cancel.
 
 ### Fixed
+
+- Tabs: with many tabs the active one could be cut off (the scroll ignored the gaps between tabs), and tabs scrolled
+  out of view still took clicks, even over the title bar's buttons.
 
 - Vim mode: a click put the cursor one character left of the one clicked.
 - The pointer is an arrow over the title bar's open menus, not a text cursor.

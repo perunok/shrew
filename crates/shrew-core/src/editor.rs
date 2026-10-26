@@ -98,6 +98,9 @@ pub enum PromptKind {
     },
     /// A question from the sidebar (new file name, rename, delete).
     Ask(crate::tree::Ask),
+    // ----- tabs -----
+    /// Closing a buffer with unsaved changes: save, discard or cancel (one key; see `tabs`).
+    CloseUnsaved,
 }
 
 pub struct Prompt {
@@ -244,6 +247,9 @@ pub struct Editor {
     // ----- git: gutter -----
     /// Each buffer's git change hunks (by buffer id), set by the app's git integration (see `git_hunks`).
     pub git_hunks: HashMap<u64, Vec<crate::git_hunks::Hunk>>,
+    // ----- tabs -----
+    /// Buffers (ids) still to close, the first one asked about (see `tabs`).
+    pub(crate) closing: Vec<u64>,
 }
 
 impl Default for Editor {
@@ -304,6 +310,7 @@ impl Editor {
             grep_last: Default::default(),
             root_cache: Default::default(),
             git_hunks: HashMap::new(),
+            closing: Vec::new(),
         };
         e.add_buffer(Document::default());
         e
@@ -793,6 +800,9 @@ impl Editor {
             }
             Key::Enter if m.ctrl => return Some(if m.shift { InsertLineAbove } else { InsertLineBelow }),
             Key::Tab if m.ctrl => return Some(if m.shift { PrevBuffer } else { NextBuffer }),
+            // ----- tabs: Ctrl+Shift+PageUp / PageDown move the tab -----
+            Key::PageDown if m.ctrl && m.shift => return Some(MoveTabRight),
+            Key::PageUp if m.ctrl && m.shift => return Some(MoveTabLeft),
             Key::PageDown if m.ctrl => return Some(NextBuffer),
             Key::PageUp if m.ctrl => return Some(PrevBuffer),
             // back / forward along the jump list, as in browsers
@@ -893,6 +903,8 @@ impl Editor {
             (Key::Tab, m(true, false, true)),
             (Key::PageDown, m(true, false, false)),
             (Key::PageUp, m(true, false, false)),
+            (Key::PageDown, m(true, false, true)),
+            (Key::PageUp, m(true, false, true)),
             (Key::Left, m(false, true, false)),
             (Key::Right, m(false, true, false)),
             (Key::Char('p'), m(true, true, false)),
@@ -935,7 +947,8 @@ impl Editor {
                 self.active = self.add_buffer(Document::default());
                 self.set_mode(if self.vim() { Mode::Normal } else { Mode::Insert });
             }
-            CloseBuffer => self.close_buffer(false),
+            // unsaved changes ask (save, discard, cancel); `:bd` keeps vim's refusal
+            CloseBuffer => self.close_buffers(vec![self.buf().id]),
             NextBuffer => self.switch_to((self.active + 1) % self.buffers.len()),
             PrevBuffer => self.switch_to((self.active + self.buffers.len() - 1) % self.buffers.len()),
             Reload => match self.buf_mut().reload() {
@@ -1133,6 +1146,10 @@ impl Editor {
             | GitFetch | GitPull | GitPullRebase | GitPush | GitCancel | GitOutput | GitLog | GitLogAll
             | GitFileHistory | GitBlame | GitChangedFiles | GitConflictCompare | GitMarkResolved | GitAbort
             | GitContinue => self.git_panel(cmd),
+            // ----- tabs -----
+            CloseOthers | CloseRight | CloseSaved | CloseAll | MoveTabLeft | MoveTabRight | CopyPath
+            | CopyRelativePath | RevealInSidebar => self.tab_command(cmd, self.buf().id),
+            RevealInFileManager => self.events.push(Event::App(cmd)),
         }
     }
 
@@ -1526,6 +1543,16 @@ impl Editor {
         }
         self.pending.clear();
         let Key::Char(c) = k.key else { return false };
+        // ----- tabs: Ctrl+K W (or Ctrl+K Ctrl+W) closes all, Ctrl+K U the saved ones, as in VS Code -----
+        let close = match c {
+            'w' => Some(Command::CloseAll),
+            'u' if !k.mods.ctrl => Some(Command::CloseSaved),
+            _ => None,
+        };
+        if let Some(cmd) = close {
+            self.run(cmd);
+            return true;
+        }
         if !k.mods.ctrl {
             return false;
         }
@@ -1853,6 +1880,10 @@ impl Editor {
 
     fn prompt_key_inner(&mut self, k: KeyPress) {
         let Some(p) = self.prompt.as_mut() else { return };
+        // ----- tabs: so does closing an unsaved buffer -----
+        if p.kind == PromptKind::CloseUnsaved {
+            return self.unsaved_answer(k);
+        }
         // the sidebar's delete question takes one key
         if p.kind == PromptKind::Ask(crate::tree::Ask::Delete) {
             self.prompt = None;
@@ -1902,6 +1933,8 @@ impl Editor {
                         }
                     }
                     PromptKind::Ask(ask) => self.tree_answer(ask, &p.text),
+                    // (answered by its first key, above)
+                    PromptKind::CloseUnsaved => {}
                     PromptKind::Search { forward } => {
                         if p.op.is_none() {
                             self.push_jump();
@@ -2102,6 +2135,12 @@ impl Editor {
             "bp" | "bprev" | "bprevious" => self.run(Command::PrevBuffer),
             "bd" | "bdelete" => self.close_buffer(false),
             "bd!" => self.close_buffer(true),
+            // ----- tabs: vim's tab commands act on the buffer tabs -----
+            "tabo" | "tabonly" => self.run(Command::CloseOthers),
+            "tabc" | "tabclose" => self.run(Command::CloseBuffer),
+            "tabn" | "tabnext" => self.run(Command::NextBuffer),
+            "tabp" | "tabprevious" | "tabN" | "tabNext" => self.run(Command::PrevBuffer),
+            "tabm" | "tabmove" => self.tab_move_ex(arg),
             "b" | "buffer" => {
                 if let Ok(n) = arg.parse::<usize>() {
                     self.switch_to(n.saturating_sub(1));

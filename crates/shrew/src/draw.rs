@@ -34,6 +34,9 @@ pub struct Hits {
     /// The scrollbar track and the line count it maps to.
     pub scrollbar: Option<(Rect, usize)>,
     pub sidebar: crate::sidebar::Hits,
+    // ----- tabs -----
+    /// The tab list button, shown when the tabs overflow.
+    pub tab_list: Option<Rect>,
     // ----- git -----
     #[cfg(feature = "git")]
     pub git: crate::git::Hits,
@@ -130,9 +133,12 @@ pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: 
     #[cfg(feature = "git")]
     crate::git::begin_frame(st);
 
+    // ----- tabs: drawn in the title bar or their own row (or nowhere); the strip eases to where it was scrolled -----
+    st.tabs.begin_frame();
     if !crate::titlebar::draw(scene, st, ui, lay, &c) {
         tabs(scene, st, ui, lay, &c);
     }
+    animating |= st.tabs.animating;
     crate::sidebar::draw(scene, st, &mut ui.hits.sidebar, lay, &c);
     // with a terminal focused the editor draws as unfocused (hollow cursor, inactive selection)
     #[cfg(feature = "terminal")]
@@ -770,49 +776,13 @@ fn welcome(scene: &mut Scene, ed: &Editor, lay: &Layout, c: &Colors) {
 
 // ----- bars -----
 
-fn tabs(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors) {
+fn tabs(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, c: &Colors) {
     tabs_in(scene, st, ui, lay, c, lay.tabs);
 }
 
-/// The buffer tabs in `area` (their own row, or the middle of the custom title bar).
-pub(crate) fn tabs_in(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors, area: Rect) {
-    if area.h <= 0.0 || area.w <= 0.0 {
-        return;
-    }
-    let ed = &st.ed;
-    scene.rect(area, c.panel_background);
-    scene.push_clip(area);
-    let r = (6.0 * lay.scale).round();
-    let mut x = area.x + lay.pad;
-    // keep the active tab in view
-    let widths: Vec<f32> = ed
-        .buffers
-        .iter()
-        .map(|b| (columns(&b.doc.display_name()) as f32 + 4.0 + if b.doc.dirty { 2.0 } else { 0.0 }) * lay.cw)
-        .collect();
-    let before: f32 = widths[..ed.active].iter().sum();
-    let shift = (before + widths[ed.active] + 2.0 * lay.pad - area.w).max(0.0);
-    x -= shift;
-    let ty = lay.centered(area.y + lay.pad / 2.0, area.h);
-    for (i, b) in ed.buffers.iter().enumerate() {
-        let w = widths[i];
-        let tab = Rect::new(x.round(), area.y + lay.pad, w.round(), area.h - lay.pad);
-        let active = i == ed.active;
-        if active {
-            // rounded on top only: the bottom corners hang below the clip
-            scene.rounded_rect(Rect::new(tab.x, tab.y, tab.w, tab.h + r), r, c.background, None);
-        }
-        let name = b.doc.display_name();
-        let fg = if active { c.panel_foreground } else { c.panel_muted };
-        let tx = tab.x + 2.0 * lay.cw;
-        scene.text(tx.round(), ty, &name, TextStyle::new(fg), &[]);
-        if b.doc.dirty {
-            scene.text((tx + (columns(&name) + 1) as f32 * lay.cw).round(), ty, "●", TextStyle::new(c.accent), &[]);
-        }
-        ui.hits.tabs.push((tab, i));
-        x += w + lay.pad / 2.0;
-    }
-    scene.pop_clip();
+/// The buffer tabs in `area` (their own row, or the middle of the custom title bar): see [`crate::tabs`].
+pub(crate) fn tabs_in(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, c: &Colors, area: Rect) {
+    crate::tabs::draw(scene, st, ui, lay, c, area);
 }
 
 fn status(scene: &mut Scene, st: &State, ui: &mut Ui, lay: &Layout, c: &Colors) {
@@ -980,6 +950,7 @@ fn prompt(scene: &mut Scene, p: &Prompt, x: f32, y: f32, lay: &Layout, c: &Color
         PromptKind::Search { forward: true } => "/",
         PromptKind::Search { forward: false } => "?",
         PromptKind::Ask(_) => "?",
+        PromptKind::CloseUnsaved => "?",
     };
     scene.text(x, y, prefix, TextStyle::new(c.accent).bold(), &[]);
     let tx = x + columns(prefix) as f32 * lay.cw;

@@ -151,6 +151,17 @@ pub enum Command {
     GitMarkResolved,
     GitAbort,
     GitContinue,
+    // ----- tabs (see `tabs`) -----
+    CloseOthers,
+    CloseRight,
+    CloseSaved,
+    CloseAll,
+    MoveTabLeft,
+    MoveTabRight,
+    CopyPath,
+    CopyRelativePath,
+    RevealInSidebar,
+    RevealInFileManager,
 }
 
 use Command::*;
@@ -342,6 +353,17 @@ pub static COMMANDS: &[(Command, &str, &str)] = &[
     (GitMarkResolved, "git_mark_resolved", "Git: Mark Resolved (Stage File)"),
     (GitAbort, "git_abort", "Git: Abort Merge or Rebase"),
     (GitContinue, "git_continue", "Git: Continue Merge or Rebase"),
+    // ----- tabs -----
+    (CloseOthers, "close_others", "Tabs: Close Others"),
+    (CloseRight, "close_right", "Tabs: Close to the Right"),
+    (CloseSaved, "close_saved", "Tabs: Close Saved"),
+    (CloseAll, "close_all", "Tabs: Close All"),
+    (MoveTabLeft, "move_tab_left", "Tabs: Move Left"),
+    (MoveTabRight, "move_tab_right", "Tabs: Move Right"),
+    (CopyPath, "copy_path", "File: Copy Path"),
+    (CopyRelativePath, "copy_relative_path", "File: Copy Relative Path"),
+    (RevealInSidebar, "reveal_in_sidebar", "File: Reveal in Sidebar"),
+    (RevealInFileManager, "reveal_in_file_manager", "File: Reveal in File Manager"),
 ];
 
 impl Command {

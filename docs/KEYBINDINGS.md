@@ -54,10 +54,12 @@ turned off, and "normal" means vim normal mode.
 | Ctrl+P | Go to file: fuzzy finder, respects `.gitignore` | always |
 | Ctrl+O | Go to file | insert |
 | Ctrl+N | New scratch buffer | insert |
-| Ctrl+W | Close buffer | vim off (in vim insert mode it deletes the word before the cursor) |
+| Ctrl+W | Close buffer (an unsaved one asks: save, discard or cancel) | vim off (in vim insert mode it deletes the word before the cursor) |
+| Ctrl+K W, Ctrl+K Ctrl+W / Ctrl+K U | Close all buffers / the saved ones (unsaved ones ask, one at a time) | vim off |
 | Ctrl+Shift+B | Switch buffer (picker) | always |
 | Ctrl+Tab, Ctrl+PageDown | Next buffer | always |
 | Ctrl+Shift+Tab, Ctrl+PageUp | Previous buffer | always |
+| Ctrl+Shift+PageUp / Ctrl+Shift+PageDown | Move the tab left / right | always |
 | Ctrl+Shift+P | Command palette | always |
 | Ctrl+Shift+U | Check for updates | always |
 | Ctrl+, | Settings panel (Cmd+, on macOS) | always |
@@ -500,6 +502,9 @@ or `:duplicate_line`.
 | `:b {n}`, `:b {name}`, `:buffer` | Go to buffer number `n`, or the first whose name contains `name`. With no match, open the buffer list |
 | `:ls`, `:buffers` | Buffer list |
 | `:bd`, `:bdelete` / `:bd!` | Close the buffer / close it and drop its changes |
+| `:tabc`, `:tabclose` / `:tabo`, `:tabonly` | Close the buffer (an unsaved one asks) / close all the others |
+| `:tabn`, `:tabnext` / `:tabp`, `:tabprevious`, `:tabN` | Next / previous buffer tab |
+| `:tabm N`, `:tabmove` / `:tabm +N`, `:tabm -N` | Move the tab to position N (0 is first; no N: last) / N places right or left |
 | `:s/pat/rep/[g]` | Substitute on the cursor lines (or the visual selection). `\1` and `&` work in `rep`, as do `\n` and `\t` |
 | `:%s/pat/rep/[g]` | Substitute in every line. An empty `pat` reuses the last search |
 | `:noh`, `:nohlsearch` | Hide search highlights until the next search |
@@ -550,7 +555,15 @@ command palette by its title.
 | `quit` | Quit | Ctrl+Q |
 | `force_quit` | Quit Without Saving | `ZQ`, `:q!` |
 | `new` | File: New Scratch Buffer | Ctrl+N (insert) |
-| `close` | File: Close Buffer | Ctrl+W (vim off) |
+| `close` | File: Close Buffer | Ctrl+W (vim off), `:tabc` |
+| `close_others` | Tabs: Close Others | `:tabo` |
+| `close_right` | Tabs: Close to the Right | |
+| `close_saved` | Tabs: Close Saved | Ctrl+K U (vim off) |
+| `close_all` | Tabs: Close All | Ctrl+K W (vim off) |
+| `move_tab_left` / `move_tab_right` | Tabs: Move Left / Move Right | Ctrl+Shift+PageUp / Ctrl+Shift+PageDown |
+| `copy_path` / `copy_relative_path` | File: Copy Path / Copy Relative Path (to the project) | |
+| `reveal_in_sidebar` | File: Reveal in Sidebar | |
+| `reveal_in_file_manager` | File: Reveal in File Manager | |
 | `next_buffer` | Buffer: Next | Ctrl+Tab |
 | `prev_buffer` | Buffer: Previous | Ctrl+Shift+Tab |
 | `reload` | File: Reload From Disk | `:e` |
@@ -702,8 +715,32 @@ holds the buffer tabs. Which items it shows, and where, is set in [`[titlebar]`]
 | Right-click an empty part | *Customize Title Bar…*, *Use System Title Bar* |
 | Drag a window edge or corner | Resize (5 px borders, wider at the corners; not while maximized) |
 | Click the menu button (three lines) | Open the menus; hovering a menu opens it |
-| Click a tab | Switch to that buffer |
+| Click, drag, middle-click, right-click a tab | See [Tabs](#tabs) |
 | Minimize, maximize/restore, close | The window buttons; close asks once when there are unsaved changes |
+
+## Tabs
+
+One tab per buffer, in the custom title bar or (with the system title bar) a row of their own once a second buffer
+is open. A tab is 5 to 28 columns of name wide (a longer name ends in `…`); two files of the same name show the
+shortest parent path that tells them apart, dimmed (`mod.rs · git/log`). The active tab has the editor's
+background and an accent line on top. When the tabs do not fit, the row scrolls, fades at the clipped edge and
+shows a tab list button; the active tab is scrolled into view whenever it changes. The code is in
+`crates/shrew/src/tabs.rs` (drawing, mouse, menu) and `crates/shrew-core/src/tabs.rs` (closing, moving).
+
+| Action | Effect |
+| --- | --- |
+| Press on a tab | Switch to that buffer |
+| Drag a tab left or right | Reorder it (a line shows where it goes; Esc puts it back) |
+| Middle-click a tab, click its × | Close it. The active and the hovered tab show the ×; an unsaved tab shows a dot, which turns into the × under the pointer |
+| Wheel over the tabs (either direction) | Scroll them sideways |
+| Click the tab list button (the chevron at the right, when they overflow) | The buffer list (Ctrl+Shift+B) |
+| Double-click the empty part of a row of tabs | New scratch buffer (in the custom title bar: maximize / restore, and dragging it moves the window) |
+| Right-click a tab | *Close*, *Close Others*, *Close to the Right*, *Close Saved*, *Close All*, *Copy Path*, *Copy Relative Path*, *Reveal in Sidebar*, *Reveal in File Manager*, *Open in Terminal* (feature `terminal`), *Reopen Closed*; they act on the tab clicked |
+| Right-click the empty part of a row of tabs | *New Scratch Buffer*, *Close Saved*, *Close All*, *Reopen Closed* |
+
+Closing a buffer with unsaved changes (the ×, Ctrl+W, *Close All*...) asks on the command line: `s` (or `y`) saves
+it and closes it, `d` (or `n`) closes it without saving, `c`, `q` or Esc cancels and keeps it, and every buffer after
+it. A scratch buffer cannot be saved from there (`:w {file}` first). `:bd` and `:q` keep vim's refusal instead.
 
 ## Terminal
 

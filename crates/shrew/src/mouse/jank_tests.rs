@@ -358,6 +358,28 @@ fn the_wheel_while_selecting_extends_the_selection_and_the_pointer_stays_a_text_
 }
 
 #[test]
+fn moving_over_the_text_draws_nothing_and_hovers_draw_once() {
+    let text = lines(200);
+    let mut s = Sim::with(&[&text]);
+    let moved = |s: &mut Sim, x: f32, y: f32| {
+        let lay = s.frame();
+        s.mouse.moved(&mut s.st, &mut s.ui, Some(lay), x, y, s.now)
+    };
+    let (x, y) = s.cell(3, 3);
+    let _ = moved(&mut s, x, y);
+    for i in 0..20 {
+        let r = moved(&mut s, x + i as f32 * 7.0, y + i as f32 * 5.0);
+        assert!(!r.redraw && !r.input, "a move over the text redrew ({i})");
+    }
+    assert_eq!(s.mouse.icon(), CursorIcon::Text);
+    // onto the scrollbar: one redraw (it lights up), then none while it stays there
+    let (track, _) = s.ui.hits.scrollbar.unwrap();
+    assert!(moved(&mut s, track.x + 2.0, track.y + 50.0).redraw);
+    assert!(!moved(&mut s, track.x + 2.0, track.y + 60.0).redraw);
+    assert!(moved(&mut s, x, y).redraw, "and one when it leaves");
+}
+
+#[test]
 fn a_shrinking_window_keeps_the_cursor_in_sight() {
     let text = lines(200);
     let mut s = Sim::with(&[&text]);

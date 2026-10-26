@@ -550,14 +550,18 @@ impl Mouse {
     }
 
     /// A text drag goes on to (`x`, `y`), held inside the text (the autoscroll takes it further).
-    fn drag_text(&mut self, st: &mut State, ui: &Ui, lay: &Layout, x: f32, y: f32) {
+    /// True when the selection changed (a move within one char draws nothing).
+    fn drag_text(&mut self, st: &mut State, ui: &Ui, lay: &Layout, x: f32, y: f32) -> bool {
         let tx = x.clamp(lay.text_x(), text_right(lay) - 1.0);
         let ty = y.clamp(lay.text.y, text_bottom(lay) - 1.0);
+        let seen = |st: &State| (st.ed.mode, st.ed.buf().sel.len(), st.ed.buf().sel.primary());
+        let before = seen(st);
         if let Some(corner) = self.boxed {
             st.ed.mouse_box(corner, cell_at(st, ui, lay, tx, ty, self.round));
         } else if let Some(pos) = pos_at(st, ui, lay, tx, ty, self.round) {
             st.ed.mouse_drag(pos);
         }
+        seen(st) != before
     }
 
     // ----- motion -----
@@ -577,8 +581,7 @@ impl Mouse {
         match self.drag {
             Drag::Text => {
                 // past an edge the selection stops at it (the autoscroll takes it further)
-                self.drag_text(st, ui, &lay, x, y);
-                redraw = true;
+                redraw |= self.drag_text(st, ui, &lay, x, y);
                 // past an edge of the text: keep scrolling while the button is held
                 if autoscroll_speed(st, &lay, x, y) != (0.0, 0.0) {
                     self.autoscroll.get_or_insert(now);
@@ -717,7 +720,7 @@ impl Mouse {
         let scroll = ui.target_scroll(&st.ed);
         ui.anim.set_scroll(scroll);
         // the selection follows to the text's edge
-        self.drag_text(st, ui, &lay, x, y);
+        let _ = self.drag_text(st, ui, &lay, x, y);
         Response::REDRAW
     }
 
@@ -853,7 +856,7 @@ impl Mouse {
             // selecting while the wheel scrolls: the selection follows the text under the still pointer (the view
             // goes there at once, so what is drawn is what is selected)
             ui.anim.set_scroll(ui.target_scroll(&st.ed));
-            self.drag_text(st, ui, &lay, px, py);
+            let _ = self.drag_text(st, ui, &lay, px, py);
         } else if let Wheel::Pixels(..) = delta {
             let s = ui.target_scroll(&st.ed);
             ui.anim.set_scroll(Scroll { top: s.top, left: ui.anim.scroll.left });

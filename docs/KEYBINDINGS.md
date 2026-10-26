@@ -457,6 +457,7 @@ build does not have are left out.
 | typing | The next entry starting with what you typed; on the list of menus, a menu's letter opens it |
 | Enter, Space | Run the entry |
 | Esc, F10, a click outside | Close |
+| Wheel | Scroll a menu taller than the window |
 
 ## Context menus
 

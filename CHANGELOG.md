@@ -42,6 +42,11 @@ new version when it tags a release.
   away after long jumps.
 - Alt+S, Alt+I and Alt+T did not open Selection, Git and Terminal although their letters are underlined.
 - Find in project: the "(Tab: *.rs, !tests/)" hint ran into the Alt+R/C/W hints.
+- A menu of the menu bar taller than the window could not be scrolled with the wheel (only keys reached its last
+  entries).
+- A click on a short line while the view was scrolled right left the cursor out of sight; the view now scrolls
+  sideways to it.
+- A smaller window (or the terminal panel opening) left the cursor below the last row.
 
 ## [0.2.0] - 2026-10-15
 

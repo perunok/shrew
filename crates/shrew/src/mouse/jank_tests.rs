@@ -358,6 +358,28 @@ fn the_wheel_while_selecting_extends_the_selection_and_the_pointer_stays_a_text_
 }
 
 #[test]
+fn a_shrinking_window_keeps_the_cursor_in_sight() {
+    let text = lines(200);
+    let mut s = Sim::with(&[&text]);
+    let lay = s.frame();
+    // the cursor on the bottom row
+    s.run(&format!("{}G", lay.rows - 5));
+    assert_eq!(s.top(), 0);
+    s.size = (1000, 300);
+    let small = s.frame();
+    let b = s.st.ed.buf();
+    let line = b.cursor_line();
+    assert!((b.view.top..b.view.top + small.rows).contains(&line), "line {line} out of sight");
+    // scrolled away on purpose: a resize leaves the view alone
+    s.size = (1000, 600);
+    s.run("<wheel:300,100,20>");
+    let top = s.top();
+    s.size = (1000, 300);
+    s.frame();
+    assert_eq!(s.top(), top);
+}
+
+#[test]
 fn the_wheel_scrolls_a_menu_taller_than_the_window() {
     let mut s = Sim::with(&["text\n"]);
     s.size = (900, 300);

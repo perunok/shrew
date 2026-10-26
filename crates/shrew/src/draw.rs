@@ -101,6 +101,15 @@ struct LineBuf {
 pub fn build(scene: &mut Scene, st: &mut State, ui: &mut Ui, lay: &Layout, now: Instant) -> bool {
     let c = st.colors;
     for b in &mut st.ed.buffers {
+        // ----- jank hunt: a shorter text area (a smaller window, the terminal opening) keeps the cursor in sight
+        // when it was -----
+        if lay.rows < b.view.rows {
+            let line = b.cursor_line();
+            if (b.view.top + lay.rows..b.view.top + b.view.rows).contains(&line) {
+                b.view.top = line + 1 - lay.rows;
+            }
+        }
+        // -----
         b.view.rows = lay.rows;
         b.view.cols = lay.cols;
     }

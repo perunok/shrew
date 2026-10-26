@@ -332,7 +332,9 @@ fn the_tab_menu_acts_on_the_tab_clicked() {
         Some(MenuItem::Action(a)) => a.hint.clone(),
         _ => None,
     };
-    assert_eq!(hint(m, "Reopen Closed").as_deref(), Some("Ctrl+Shift+T"));
+    // the platform's modifier names (Cmd on macOS)
+    let reopen = crate::context_menu::chord_label(shrew_core::KeyPress::parse("<C-S-t>").unwrap());
+    assert_eq!(hint(m, "Reopen Closed").as_deref(), Some(reopen.as_str()));
     // a scratch tab has no path to copy
     assert!(m.items.iter().any(|e| e.label() == "Copy Path" && !e.enabled()));
     // Close to the Right of b

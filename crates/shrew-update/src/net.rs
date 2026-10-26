@@ -23,6 +23,11 @@ pub(crate) struct Body {
 /// GETs `url`. `Ok(None)` means 404 (a repo with no releases yet, a missing asset).
 pub(crate) fn get(url: &str, accept: &str, timeout: Option<Duration>) -> Result<Option<Body>> {
     if let Some(path) = url.strip_prefix("file://") {
+        // `file:///C:/feed.json` (the standard form) names `C:/feed.json` on Windows
+        let path = match path.as_bytes() {
+            [b'/', d, b':', ..] if d.is_ascii_alphabetic() => &path[1..],
+            _ => path,
+        };
         return match File::open(path) {
             Ok(file) => Ok(Some(Body { len: file.metadata().ok().map(|m| m.len()), reader: Box::new(file) })),
             Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),

@@ -205,7 +205,9 @@ fn entries_show_their_shortcuts_and_grey_out_when_they_cannot_act() {
         Some(MenuItem::Action(a)) => a.hint.clone(),
         _ => None,
     };
-    assert_eq!(hint("Select All Occurrences").as_deref(), Some("Alt+F3"));
+    // the platform's modifier names (Option on macOS)
+    let alt_f3 = crate::context_menu::chord_label(shrew_core::KeyPress::parse("<A-F3>").unwrap());
+    assert_eq!(hint("Select All Occurrences").as_deref(), Some(alt_f3.as_str()));
     // vim's normal mode: Ctrl+C is not Copy there, so the vim keys that do the same
     assert_eq!((hint("Copy Line").as_deref(), hint("Paste").as_deref()), (Some("yy"), Some("P")));
     assert_eq!(hint("Toggle Comment").as_deref(), Some(if cfg!(target_os = "macos") { "Cmd+/" } else { "Ctrl+/" }));

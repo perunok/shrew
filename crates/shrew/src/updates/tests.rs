@@ -58,19 +58,21 @@ fn file_feed(dir: &Path, version: &str, binary: &[u8]) -> String {
     let hex: String = Sha256::digest(binary).iter().map(|b| format!("{b:02x}")).collect();
     let sum = dir.join(shrew_update::checksum_name(t));
     std::fs::write(&sum, format!("{hex}  {}\n", shrew_update::asset_name(t))).unwrap();
-    let json = format!(
-        r#"{{"tag_name":"v{version}","body":"Notes for {version}","draft":false,"prerelease":false,
-        "html_url":"https://github.com/perunok/shrew/releases/tag/v{version}","published_at":"2026-10-26T12:00:00Z",
-        "assets":[{{"name":"{}","browser_download_url":"file://{}","size":{}}},
-                  {{"name":"{}","browser_download_url":"file://{}","size":90}}]}}"#,
-        shrew_update::asset_name(t),
-        bin.display(),
-        binary.len(),
-        shrew_update::checksum_name(t),
-        sum.display(),
-    );
+    // serde_json escapes Windows paths' backslashes, which a format!-built string would not
+    let json = serde_json::json!({
+        "tag_name": format!("v{version}"),
+        "body": format!("Notes for {version}"),
+        "draft": false,
+        "prerelease": false,
+        "html_url": format!("https://github.com/perunok/shrew/releases/tag/v{version}"),
+        "published_at": "2026-10-26T12:00:00Z",
+        "assets": [
+            {"name": shrew_update::asset_name(t), "browser_download_url": format!("file://{}", bin.display()), "size": binary.len()},
+            {"name": shrew_update::checksum_name(t), "browser_download_url": format!("file://{}", sum.display()), "size": 90},
+        ],
+    });
     let feed = dir.join("latest.json");
-    std::fs::write(&feed, json).unwrap();
+    std::fs::write(&feed, json.to_string()).unwrap();
     format!("file://{}", feed.display())
 }
 

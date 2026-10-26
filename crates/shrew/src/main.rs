@@ -17,6 +17,7 @@
 //! - [`titlebar`]: the custom title bar (tabs, menus, window buttons) and its window behaviour.
 //! - [`mouse`]: what the mouse does, without a window (the app and headless runs share it); [`context_menu`]: the
 //!   right-click menus every part of the UI opens.
+//! - [`tabs`]: the buffer tabs (their layout, look, mouse handling and right-click menu).
 //! - `git`: git integration (cargo feature `git`): change markers, inline blame, the diff view, the
 //!   Source Control panel, log, blame and conflicts.
 
@@ -44,6 +45,9 @@ mod remote;
 mod settings;
 mod sidebar;
 mod state;
+// ----- tabs -----
+mod tabs;
+// -----
 #[cfg(feature = "syntax")]
 mod symbols;
 #[cfg(feature = "terminal")]

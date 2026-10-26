@@ -24,6 +24,9 @@ pub mod project;
 pub mod scm;
 pub mod search;
 pub mod selection;
+// ----- tabs -----
+pub mod tabs;
+// -----
 pub mod text;
 pub mod tree;
 mod vim;

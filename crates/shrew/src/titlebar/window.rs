@@ -114,7 +114,8 @@ fn target(tb: &TitleBar, hits: &Hits, x: f32, y: f32) -> Option<Option<Item>> {
     if !tb.bar.contains(x, y) {
         return None;
     }
-    if hits.tabs.iter().any(|(r, _)| r.contains(x, y)) {
+    // only the tabs themselves and their list button: the room they leave is empty bar
+    if hits.tabs.iter().any(|(r, _)| r.contains(x, y)) || hits.tab_list.is_some_and(|r| r.contains(x, y)) {
         return Some(Some(Item::Tabs));
     }
     Some(tb.placed.iter().find(|(i, r)| *i != Item::Tabs && r.contains(x, y)).map(|p| p.0))

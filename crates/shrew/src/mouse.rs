@@ -31,7 +31,8 @@ pub const WHEEL_LINES: f32 = 3.0;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(not(all(feature = "terminal", feature = "git")), allow(dead_code))]
 pub enum Target {
-    /// The text, at this char position (the caret position nearest the pointer).
+    /// The text, at this char position (as a left click puts it: the caret position nearest the pointer, or in
+    /// vim's normal and visual modes the char under it).
     Text(usize),
     /// The gutter (line numbers, change markers) beside this line (0-based).
     Gutter(usize),
@@ -195,7 +196,7 @@ impl Mouse {
         match button {
             MouseButton::Left => self.left_press(st, ui, lay, x, y, now),
             MouseButton::Right => self.right_press(st, ui, lay, x, y),
-            MouseButton::Middle => self.middle_press(st),
+            MouseButton::Middle => self.middle_press(st, ui, lay, x, y),
         }
     }
 
@@ -431,13 +432,19 @@ impl Mouse {
         crate::context_menu::for_target(st, target, (x, y))
     }
 
-    /// A middle press closes an open menu (and goes no further).
-    fn middle_press(&mut self, st: &mut State) -> Response {
+    /// A middle press closes an open menu (and goes no further); else it acts on what is under the pointer.
+    fn middle_press(&mut self, st: &mut State, ui: &mut Ui, lay: Option<Layout>, x: f32, y: f32) -> Response {
         if st.menu_open() {
             st.menu = None;
             st.titlebar.menu = None;
             return Response::INPUT;
         }
+        let Some(lay) = lay else { return Response::NONE };
+        // ----- editor menus: in the text it pastes the primary selection at the pointer -----
+        if crate::menus::middle_press(st, ui, &lay, x, y) {
+            return Response::INPUT;
+        }
+        // -----
         Response::NONE
     }
 
@@ -770,7 +777,9 @@ pub fn target_at(st: &State, ui: &Ui, lay: &Layout, x: f32, y: f32) -> Target {
             let last = text::last_line(st.ed.buf().rope());
             return Target::Gutter(ui.anim.scroll.line_at(lay, y).clamp(0, last as isize) as usize);
         }
-        return pos_at(st, ui, lay, x, y, true).map_or(Target::Nothing, Target::Text);
+        // as a left click: the nearest caret position, the char under the pointer for vim's block cursor
+        let caret = st.ed.mode == Mode::Insert || !st.ed.vim();
+        return pos_at(st, ui, lay, x, y, caret).map_or(Target::Nothing, Target::Text);
     }
     if lay.status.contains(x, y) {
         return Target::StatusBar;

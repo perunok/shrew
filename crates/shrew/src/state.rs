@@ -83,6 +83,10 @@ pub struct State {
     pub titlebar: crate::titlebar::TitleBar,
     /// The open context menu (see `context_menu`); one menu is open at a time, this or the title bar's.
     pub menu: Option<crate::context_menu::ContextMenu>,
+    // ----- editor menus -----
+    /// The text's menus: the selection last offered as the primary selection, a menu asked for by a key.
+    pub menus: crate::menus::Menus,
+    // -----
     // ----- project navigation -----
     /// The sidebar's width in logical pixels (`[sidebar] width`, dragged with the mouse).
     pub sidebar_width: f32,
@@ -156,6 +160,9 @@ impl State {
             mcp_host: None,
             titlebar: Default::default(),
             menu: None,
+            // ----- editor menus -----
+            menus: Default::default(),
+            // -----
             sidebar_width: loaded.config.sidebar_width.unwrap_or(crate::sidebar::DEFAULT_WIDTH),
             recent_file: None,
             recent_saved: 0,
@@ -300,6 +307,9 @@ impl State {
         // ----- git -----
         #[cfg(feature = "git")]
         crate::git::after_input(self);
+        // ----- editor menus: what is selected becomes the primary selection (Linux) -----
+        crate::menus::primary::sync(self);
+        // -----
         self.save_recent();
         if self.close_warned && self.ed.buffers.iter().all(|b| !b.doc.dirty) {
             self.close_warned = false;
@@ -355,6 +365,9 @@ impl State {
             }
             Event::BufferOpened(id) => self.buffer_opened(id),
             Event::Load(path) => self.open_at(&path, None, None),
+            // ----- editor menus: Shift+F10 opens the text's menu at the cursor -----
+            Event::App(shrew_core::Command::ContextMenu) => crate::menus::request(self),
+            // -----
             Event::App(cmd) => crate::titlebar::app_command(self, cmd),
             #[cfg(feature = "terminal")]
             Event::Terminal(cmd, line) => self.terminal_command(cmd, line),

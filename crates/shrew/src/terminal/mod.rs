@@ -15,11 +15,17 @@
 //! prefixes Ctrl+\ (Ctrl+\ Ctrl+N: normal mode) and, with vim keys on, Ctrl+W (Ctrl+W k: back to the editor).
 
 mod input;
+// ----- editor menus -----
+mod menu;
+// -----
 mod normal;
 pub mod paths;
 mod session;
 mod view;
 
+// ----- editor menus -----
+pub use menu::menu;
+// -----
 pub use view::draw;
 
 use crate::layout::Layout;
@@ -669,6 +675,12 @@ impl State {
 
     /// Starts a terminal: the shell, or `command` run by it, in the project folder.
     pub fn open_terminal(&mut self, command: Option<String>) {
+        let cwd = self.ed.work_dir();
+        self.open_terminal_at(command, cwd);
+    }
+
+    /// [`State::open_terminal`] in folder `cwd`.
+    pub fn open_terminal_at(&mut self, command: Option<String>, cwd: PathBuf) {
         let t = &mut self.terminals;
         let mut env = Vec::new();
         if let Some(addr) = &t.instance {
@@ -677,7 +689,7 @@ impl State {
         let spawn = Spawn {
             command: command.filter(|c| !c.trim().is_empty()),
             shell: t.cfg.shell.clone(),
-            cwd: self.ed.work_dir(),
+            cwd,
             scrollback: t.cfg.scrollback(),
             env,
         };
@@ -789,6 +801,13 @@ impl State {
         if self.ed.prompt.is_some() {
             self.ed.handle_key(KeyPress::plain(Key::Esc));
         }
+        // ----- editor menus: a right click opens the panel's menu, unless the program reads the mouse (Shift
+        // opens the menu anyway, as in other terminals) -----
+        if button == MouseButton::Right && self.terminals.right_press(&g, x, y, mods) {
+            self.ed.sidebar_focus = false;
+            return false;
+        }
+        // -----
         let t = &mut self.terminals;
         let press = t.press(&g, x, y, button, mods);
         if t.has_focus() {
@@ -801,7 +820,9 @@ impl State {
                 self.after_input();
             }
             Press::Open(link) => self.open_link(link),
-            Press::Paste => self.terminal_act(Act::Paste),
+            // ----- editor menus: the middle button pastes the primary selection -----
+            Press::Paste => self.terminal_paste_primary(),
+            // -----
         }
         true
     }
@@ -854,6 +875,13 @@ impl State {
                 let copy = t.cfg.copy_on_select();
                 if let Some(tab) = t.tab() {
                     let text = tab.session.term.lock().selection_to_string().filter(|s| !s.is_empty());
+                    // ----- editor menus: a selection is the primary selection -----
+                    if let Some(text) = &text
+                        && self.ed.features.on(shrew_core::Feature::Clipboard)
+                    {
+                        self.ed.clipboard.set_primary(text.clone());
+                    }
+                    // -----
                     if let Some(text) = text.filter(|_| copy) {
                         self.ed.clipboard.set(text);
                     }

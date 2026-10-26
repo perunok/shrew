@@ -274,3 +274,43 @@ fn outside_a_repository_it_says_so() {
     }
     std::fs::remove_dir_all(&dir).ok();
 }
+
+// ----- editor menus -----
+
+#[test]
+fn the_context_menu_stages_and_copies_the_change_clicked() {
+    use crate::context_menu::{MenuItem, Run};
+    let Some(r) = Repo::new("menu") else { return };
+    let path = r.write("m.txt", &lines(30));
+    r.commit("one");
+    std::fs::write(&path, lines(30).replace("line 3\n", "three\n").replace("line 25\n", "twenty-five\n")).unwrap();
+    let mut st = state();
+    st.open_diff(DiffSpec::file(&path, Rev::Index, Rev::Worktree));
+    settle(&mut st);
+    let row = view(&st).rows.starts[0] as usize;
+    let m = super::menu(&mut st, Some(row), (f32::MAX, 0.0)).expect("a menu");
+    assert_eq!(view(&st).cursor, row, "the row clicked is the cursor");
+    let entry = |label: &str| match m.items.iter().find(|e| e.label() == label) {
+        Some(MenuItem::Action(a)) => a.clone(),
+        _ => panic!("no {label}"),
+    };
+    assert!(entry("Stage Change").enabled && entry("Revert Change").enabled);
+    assert!(!entry("Unstage Change").enabled, "an unstaged diff");
+    assert_eq!(entry("Stage Change").hint.as_deref(), Some("s"));
+    let run = |st: &mut State, label: &str| {
+        let Run::App(f, arg) = entry(label).run else { panic!("{label}: an app action") };
+        f(st, &m.target, arg);
+    };
+    run(&mut st, "Copy New Text");
+    assert_eq!(st.ed.clipboard.get().as_deref(), Some("three\n"));
+    run(&mut st, "Copy Old Text");
+    assert_eq!(st.ed.clipboard.get().as_deref(), Some("line 3\n"));
+    run(&mut st, "Stage Change");
+    settle(&mut st);
+    let staged = r.git(&["diff", "--cached"]);
+    assert!(staged.contains("+three") && !staged.contains("twenty-five"), "{staged}");
+    // off the rows: still the layout entries
+    let m = super::menu(&mut st, None, (0.0, 0.0)).unwrap();
+    assert!(m.items.iter().any(|e| e.label() == "Switch to Unified"));
+}
+// -----

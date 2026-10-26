@@ -51,10 +51,20 @@ pub enum CursorShape {
 pub trait Clipboard: Send {
     fn get(&mut self) -> Option<String>;
     fn set(&mut self, text: String);
+    // ----- editor menus: the primary selection -----
+    /// The primary selection (X11 and Wayland: what is selected, pasted by a middle click). `None` where the system
+    /// has none (macOS, Windows) or it is empty.
+    fn get_primary(&mut self) -> Option<String> {
+        None
+    }
+    /// Offers `text` as the primary selection; nothing happens where there is none.
+    fn set_primary(&mut self, _text: String) {}
+    // -----
 }
 
+/// The clipboard (and primary selection) inside shrew only.
 #[derive(Default)]
-struct MemoryClipboard(Option<String>);
+struct MemoryClipboard(Option<String>, Option<String>);
 
 impl Clipboard for MemoryClipboard {
     fn get(&mut self) -> Option<String> {
@@ -62,6 +72,12 @@ impl Clipboard for MemoryClipboard {
     }
     fn set(&mut self, text: String) {
         self.0 = Some(text);
+    }
+    fn get_primary(&mut self) -> Option<String> {
+        self.1.clone()
+    }
+    fn set_primary(&mut self, text: String) {
+        self.1 = Some(text);
     }
 }
 
@@ -798,6 +814,9 @@ impl Editor {
             // back / forward along the jump list, as in browsers
             Key::Left if m.alt && !m.ctrl && !m.shift => return Some(JumpBack),
             Key::Right if m.alt && !m.ctrl && !m.shift => return Some(JumpForward),
+            // ----- editor menus -----
+            Key::F(10) if m.shift && !m.ctrl && !m.alt => return Some(ContextMenu),
+            // -----
             _ => return None,
         };
         // Sublime's Alt+- / Alt+Shift+-
@@ -896,6 +915,8 @@ impl Editor {
             (Key::Left, m(false, true, false)),
             (Key::Right, m(false, true, false)),
             (Key::Char('p'), m(true, true, false)),
+            // ----- editor menus -----
+            (Key::F(10), m(false, false, true)),
         ] {
             keys.push(KeyPress::new(key, mods));
         }
@@ -1133,6 +1154,8 @@ impl Editor {
             | GitFetch | GitPull | GitPullRebase | GitPush | GitCancel | GitOutput | GitLog | GitLogAll
             | GitFileHistory | GitBlame | GitChangedFiles | GitConflictCompare | GitMarkResolved | GitAbort
             | GitContinue => self.git_panel(cmd),
+            // ----- editor menus -----
+            ContextMenu => self.events.push(Event::App(cmd)),
         }
     }
 

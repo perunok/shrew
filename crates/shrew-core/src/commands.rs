@@ -151,6 +151,9 @@ pub enum Command {
     GitMarkResolved,
     GitAbort,
     GitContinue,
+    // ----- editor menus -----
+    /// The text's context menu, at the cursor (the app opens it).
+    ContextMenu,
 }
 
 use Command::*;
@@ -342,6 +345,8 @@ pub static COMMANDS: &[(Command, &str, &str)] = &[
     (GitMarkResolved, "git_mark_resolved", "Git: Mark Resolved (Stage File)"),
     (GitAbort, "git_abort", "Git: Abort Merge or Rebase"),
     (GitContinue, "git_continue", "Git: Continue Merge or Rebase"),
+    // ----- editor menus -----
+    (ContextMenu, "context_menu", "Edit: Show Context Menu"),
 ];
 
 impl Command {

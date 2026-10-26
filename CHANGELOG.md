@@ -15,6 +15,16 @@ new version when it tags a release.
 - `--screenshot` takes mouse tokens in `--keys` (`<click:X,Y>`, `<rclick:X,Y>`, `<drag:X1,Y1,X2,Y2>`,
   `<wheel:X,Y,DY>`, with modifiers) and `--hover X,Y`; they go through the same code as the window's events
   (docs/CLI.md, "Screenshots").
+- Right-click menus for the text, the gutter, the terminal panel and diff tabs. In the text the cursor first moves
+  to the click (on the char clicked in vim's normal mode) unless the click is inside the selection or on a cursor;
+  then Cut / Copy / Paste (Cut Line / Copy Line with nothing selected), Select All, Select All Occurrences, Add Next
+  Occurrence, Toggle Comment, Indent, Outdent, Find "word" in Project, Go to Symbol, a Git submenu (peek, stage,
+  revert the change; diff, history, blame), Copy Path, Copy Relative Path, Reveal in Sidebar, Open in Terminal. The
+  gutter's acts on the line clicked; the terminal's has Copy, Paste, Select All, Clear, New / Kill Terminal and
+  more (Shift+right click when the program reads the mouse); a diff tab's stages, unstages, reverts, opens the file
+  there and copies either side. Shift+F10 (`context_menu`) opens the text's menu at the cursor.
+- The primary selection (Linux, feature `clipboard`): what you select is offered to other programs, and a middle
+  click pastes theirs at the pointer, in the text and in the terminal.
 
 ### Fixed
 
